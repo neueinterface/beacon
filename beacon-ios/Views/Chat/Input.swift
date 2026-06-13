@@ -20,7 +20,7 @@ struct Input: View {
 	var body: some View {
 		HStack(alignment: .bottom, spacing: 8) {
 			TextField(placeholder, text: $text, axis: .vertical)
-				.lineLimit(1 ... 6)
+				.lineLimit(1 ... 4)
 				.textInputAutocapitalization(.sentences)
 				.autocorrectionDisabled(false)
 				.padding(.vertical, 4)
@@ -29,7 +29,9 @@ struct Input: View {
 				let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
 				guard !trimmed.isEmpty else { return }
 				onSend(trimmed)
-				text = ""
+				withAnimation(.easeInOut(duration: 0.18)) {
+					text = ""
+				}
 			} label: {
 				Image(systemName: "arrow.up")
 					.font(.system(size: 16, weight: .bold))
@@ -41,9 +43,10 @@ struct Input: View {
 			.disabled(!hasTypedText)
 			.opacity(hasTypedText ? 1 : 0.9)
 		}
-		.padding(.horizontal, 12)
+		.padding(.horizontal, 14)
 		.padding(.vertical, 12)
 		.background(Color(UIColor.systemGray6), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+		.animation(.easeInOut(duration: 0.18), value: text)
 	}
 }
 
@@ -60,4 +63,3 @@ private struct InputPreviewContainer: View {
 			.background(Color.white)
 	}
 }
-
