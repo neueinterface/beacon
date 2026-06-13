@@ -8,8 +8,16 @@
 import SwiftUI
 
 struct ContentView: View {
+	@AppStorage("hasCompletedWelcome") private var hasCompletedWelcome = false
+
     var body: some View {
-        ChatView()
+		if hasCompletedWelcome {
+			ChatView()
+		} else {
+			WelcomeView(onGetStarted: {
+				hasCompletedWelcome = true
+			})
+		}
     }
 }
 
