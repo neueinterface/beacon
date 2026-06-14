@@ -61,8 +61,8 @@ final class BeaconModelRuntime: ObservableObject {
 
 			session = ChatSession(
 				container,
-				instructions: "You are Beacon, a concise, helpful local assistant. Keep responses clear and practical.",
-				generateParameters: GenerateParameters(maxTokens: 512, temperature: 0.6)
+				instructions: BeaconSystemPrompt.instructions,
+				generateParameters: GenerateParameters(maxTokens: 256, temperature: 0.5)
 			)
 			loadedModelID = model.id
 			progress = 1
