@@ -12,6 +12,7 @@ struct BeaconButton: View {
 		case primary
 		case secondary
 		case subtle
+		case destructive
 	}
 
 	enum Size {
@@ -205,6 +206,8 @@ struct BeaconButton: View {
 			Color(uiColor: .systemBackground)
 		case .secondary, .subtle:
 			.primary
+		case .destructive:
+			.white
 		}
 	}
 
@@ -216,6 +219,8 @@ struct BeaconButton: View {
 			Color(uiColor: .secondarySystemBackground)
 		case .subtle:
 			.clear
+		case .destructive:
+			.red
 		}
 	}
 }

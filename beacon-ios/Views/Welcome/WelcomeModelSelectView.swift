@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 struct WelcomeModelSelectView: View {
 	let models: [BeaconModel]
@@ -39,6 +40,10 @@ struct WelcomeModelSelectView: View {
 			.padding(.bottom, 60)
 		}
 		.background(Color(uiColor: .systemBackground))
+		.opacity(hasAppeared ? 1 : 0)
+		.blur(radius: hasAppeared ? 0 : 18)
+		.scaleEffect(hasAppeared ? 1 : 0.94)
+		.animation(.spring(response: 0.54, dampingFraction: 0.86, blendDuration: 0.1), value: hasAppeared)
 		.onAppear {
 			hasAppeared = true
 		}
@@ -82,6 +87,7 @@ private struct WelcomeModelSelectRow: View {
 			}
 
 			BeaconButton("Download", variant: .secondary, trailingAssetIcon: "download.icon", isLoading: isDownloading) {
+				UIImpactFeedbackGenerator(style: .medium).impactOccurred()
 				isDownloading = true
 				onDownload()
 			}
