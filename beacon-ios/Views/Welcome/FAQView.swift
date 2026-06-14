@@ -43,18 +43,18 @@ struct FAQView: View {
 			.padding(.top, 40)
 			.padding(.bottom, 60)
 		}
-		.background(.white)
+		.background(Color(uiColor: .systemBackground))
 	}
 
 	private var header: some View {
 		VStack(alignment: .leading, spacing: 10) {
 				Text("FAQ")
 					.font(.system(size: 32, weight: .medium))
-					.foregroundStyle(.black)
+					.foregroundStyle(.primary)
 
 			Text("A few simple answers before you start chatting locally.")
 				.font(.system(size: 16, weight: .regular))
-				.foregroundStyle(.gray)
+				.foregroundStyle(.secondary)
 				.lineSpacing(3)
 		}
 	}
@@ -87,11 +87,11 @@ private struct FAQRow: View {
 		VStack(alignment: .leading, spacing: 10) {
 			Text(item.question)
 				.font(.system(size: 16, weight: .medium))
-				.foregroundStyle(.black)
+				.foregroundStyle(.primary)
 
 			Text(item.answer)
 				.font(.system(size: 16, weight: .regular))
-				.foregroundStyle(.gray)
+				.foregroundStyle(.secondary)
 				.lineSpacing(4)
 		}
 		.frame(maxWidth: .infinity, alignment: .leading)
