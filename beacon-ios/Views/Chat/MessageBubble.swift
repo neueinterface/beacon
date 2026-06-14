@@ -1,5 +1,6 @@
 import SwiftUI
 import MarkdownView
+import UIKit
 
 struct MessageBubble: View {
 	let text: String
@@ -12,10 +13,18 @@ struct MessageBubble: View {
 			} else {
 				Spacer(minLength: 56)
 				userBubble
-            }
-        }
-        .frame(maxWidth: .infinity)
-    }
+			}
+		}
+		.frame(maxWidth: .infinity)
+		.contentShape(Rectangle())
+		.contextMenu {
+			Button {
+				UIPasteboard.general.string = text
+			} label: {
+				Label("Copy", systemImage: "doc.on.doc")
+			}
+		}
+	}
 
 	private var assistantText: some View {
 		MarkdownView(text)

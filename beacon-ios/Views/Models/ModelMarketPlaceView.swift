@@ -200,15 +200,9 @@ private struct ModelMarketPlaceRow: View {
 	var body: some View {
 		VStack(alignment: .leading, spacing: 16) {
 			VStack(alignment: .leading, spacing: 12) {
-				HStack(alignment: .firstTextBaseline, spacing: 10) {
-					Text(model.name)
-						.font(.system(size: 16, weight: .medium))
-						.foregroundStyle(.primary)
-
-					if isSelected {
-						Tag(title: "active", color: .green)
-					}
-				}
+				Text(model.name)
+					.font(.system(size: 16, weight: .medium))
+					.foregroundStyle(.primary)
 
 				Text(model.description)
 					.font(.system(size: 16, weight: .regular))
@@ -222,36 +216,58 @@ private struct ModelMarketPlaceRow: View {
 				if model.type == .reasoning {
 					Tag(title: "reasoning", color: .orange)
 				} else {
-					Tag(title: "chat", color: .gray)
+					Tag(title: "chat", color: .orange)
 				}
-
-				Tag(title: isDownloaded ? "downloaded" : "available", color: isDownloaded ? .green : .gray)
 			}
 
-			HStack( spacing: 10) {
-				if isDownloaded {
-					BeaconButton(isDeleting ? "Deleting" : "Delete", variant: .destructive, size: .small, isDisabled: isSelected, isLoading: isDeleting) {
-						onDelete()
+			VStack(alignment: .leading, spacing: 14) {
+				HStack(spacing: 10) {
+					if isDownloaded {
+						DownloadedModelButton()
+					} else {
+						BeaconButton("Download", variant: .secondary, size: .small, trailingAssetIcon: "download.icon", isLoading: isDownloading) {
+							isDownloading = true
+							onDownload()
+						}
 					}
 
-					if isSelected {
-						Text("Switch to another model before deleting this one.")
-							.font(.system(size: 14, weight: .regular))
-							.foregroundStyle(.secondary)
-					}
-				} else {
-					BeaconButton("Download", variant: .secondary, size: .small, trailingAssetIcon: "download.icon", isLoading: isDownloading) {
-						isDownloading = true
-						onDownload()
+					BeaconButton("View on Hugging Face", variant: .subtle, size: .small, trailingIcon: "arrow.up.right") {
+						onOpenLink()
 					}
 				}
 
-				BeaconButton("View on Hugging Face", variant: .subtle, size: .small, trailingIcon: "arrow.up.right") {
-					onOpenLink()
+				if isDownloaded {
+					VStack(alignment: .leading, spacing: 8) {
+						BeaconButton(isDeleting ? "Deleting" : "Delete", variant: .destructive, size: .small, isDisabled: isSelected, isLoading: isDeleting) {
+							onDelete()
+						}
+
+						if isSelected {
+							Text("Switch to another model before deleting this one.")
+								.font(.system(size: 14, weight: .regular))
+								.foregroundStyle(.secondary)
+						}
+					}
 				}
 			}
 		}
 		.frame(maxWidth: .infinity, alignment: .leading)
+	}
+}
+
+private struct DownloadedModelButton: View {
+	var body: some View {
+		HStack(spacing: 8) {
+			Text("Downloaded")
+				.font(.system(size: 14, weight: .semibold))
+
+			Image(systemName: "checkmark")
+				.font(.system(size: 14, weight: .bold))
+		}
+		.foregroundStyle(Color(uiColor: .systemGreen))
+		.padding(.horizontal, 14)
+		.frame(minHeight: 34)
+		.background(Color(uiColor: .systemGreen).opacity(0.14), in: Capsule())
 	}
 }
 
