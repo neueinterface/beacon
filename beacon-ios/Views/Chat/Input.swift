@@ -36,8 +36,8 @@ struct Input: View {
 				Image(systemName: "arrow.up")
 					.font(.system(size: 16, weight: .bold))
 					.frame(width: 28, height: 28)
-					.foregroundStyle(hasTypedText ? .white : .secondary)
-					.background(hasTypedText ? Color.black : Color(UIColor.systemGray4), in: Circle())
+					.foregroundStyle(hasTypedText ? Color(uiColor: .systemBackground) : .secondary)
+					.background(hasTypedText ? Color.primary : Color(uiColor: .systemGray4), in: Circle())
 			}
 			.buttonStyle(.plain)
 			.disabled(!hasTypedText)
@@ -45,7 +45,7 @@ struct Input: View {
 		}
 		.padding(.horizontal, 14)
 		.padding(.vertical, 12)
-		.background(Color(UIColor.systemGray6), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+		.background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
 		.animation(.easeInOut(duration: 0.18), value: text)
 	}
 }
@@ -60,6 +60,6 @@ private struct InputPreviewContainer: View {
 	var body: some View {
 		Input(text: $previewText) { _ in }
 			.padding()
-			.background(Color.white)
+			.background(Color(uiColor: .systemBackground))
 	}
 }

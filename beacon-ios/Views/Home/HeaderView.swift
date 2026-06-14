@@ -33,11 +33,10 @@ struct HeaderView: View {
 		}
 		.padding(.horizontal, 12)
 		.padding(.vertical, 10)
-		.background(.white)
+		.background(Color(uiColor: .systemBackground))
 	}
 }
 
 #Preview {
 	HeaderView(title: "Local Model") { }
 }
-

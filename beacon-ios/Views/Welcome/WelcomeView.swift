@@ -10,6 +10,9 @@ import SwiftUI
 struct WelcomeView: View {
 	@State private var isShowingFAQ = false
 	@State private var hasAppeared = false
+	@State private var logoAccentColor: Color?
+	@State private var logoScale = 1.0
+	@State private var isAnimatingLogo = false
 
 	var onGetStarted: () -> Void = { }
 	var onReadFAQ: () -> Void = { }
@@ -32,7 +35,7 @@ struct WelcomeView: View {
 		.padding(.horizontal, 20)
 		.padding(.bottom, 60)
 		.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-		.background(.white)
+		.background(Color(uiColor: .systemBackground))
 		.sheet(isPresented: $isShowingFAQ) {
 			FAQView {
 				isShowingFAQ = false
@@ -47,20 +50,53 @@ struct WelcomeView: View {
 
 	private var logo: some View {
 		Image("beacon.logo")
+			.renderingMode(.template)
 			.resizable()
 			.scaledToFit()
 			.frame(width: 50, height: 50)
+			.foregroundStyle(logoAccentColor ?? .primary)
+			.scaleEffect(logoScale)
+			.contentShape(Rectangle())
+			.onTapGesture {
+				animateLogo()
+			}
+	}
+
+	private func animateLogo() {
+		guard !isAnimatingLogo else { return }
+
+		isAnimatingLogo = true
+		logoAccentColor = nextLogoColor
+
+		withAnimation(.spring(response: 0.24, dampingFraction: 0.52)) {
+			logoScale = 1.16
+		}
+
+		DispatchQueue.main.asyncAfter(deadline: .now() + 0.16) {
+			withAnimation(.spring(response: 0.32, dampingFraction: 0.64)) {
+				logoScale = 1
+			}
+		}
+
+		DispatchQueue.main.asyncAfter(deadline: .now() + 0.42) {
+			isAnimatingLogo = false
+		}
+	}
+
+	private var nextLogoColor: Color {
+		let colors: [Color] = [.blue, .indigo, .purple, .mint, .orange]
+		return colors.randomElement() ?? .blue
 	}
 
 	private var header: some View {
 		VStack(alignment: .leading, spacing: 10) {
 			Text("Chat with AI, locally.")
 				.font(.system(size: 32, weight: .medium))
-				.foregroundStyle(.black)
+				.foregroundStyle(.primary)
 
 			Text("Beacon provides private, on-device AI that feels simple and approachable.")
 				.font(.system(size: 16, weight: .regular))
-				.foregroundStyle(.gray)
+				.foregroundStyle(.secondary)
 				.lineSpacing(3)
 		}
 	}
@@ -89,7 +125,7 @@ struct WelcomeView: View {
 
 	private var actions: some View {
 		HStack(spacing: 12) {
-			BeaconButton("Get Started", action: onGetStarted)
+			BeaconButton("Choose model", trailingAssetIcon: "download.icon", action: onGetStarted)
 			BeaconButton("Read FAQ", variant: .secondary) {
 				onReadFAQ()
 				isShowingFAQ = true
@@ -106,19 +142,21 @@ private struct FeatureRow: View {
 	var body: some View {
 		HStack(alignment: .top, spacing: 10) {
 			Image(icon)
+				.renderingMode(.template)
 				.resizable()
 				.scaledToFit()
 				.frame(width: 24, height: 24)
+				.foregroundStyle(.primary)
 				.padding(.top, 2)
 
 			VStack(alignment: .leading, spacing: 8) {
 				Text(title)
 					.font(.system(size: 16, weight: .medium))
-					.foregroundStyle(.black)
+					.foregroundStyle(.primary)
 
 				Text(description)
 					.font(.system(size: 16, weight: .regular))
-					.foregroundStyle(.gray)
+					.foregroundStyle(.secondary)
 					.lineSpacing(3)
 			}
 		}

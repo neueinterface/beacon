@@ -1,13 +1,9 @@
 import SwiftUI
+import MarkdownView
 
 struct MessageBubble: View {
-    enum Role {
-        case user
-        case assistant
-    }
-
-    let text: String
-    let role: Role
+	let text: String
+	let role: ChatMessage.Role
 
     var body: some View {
         HStack {
@@ -22,11 +18,17 @@ struct MessageBubble: View {
         .frame(maxWidth: .infinity)
     }
 
-    private var assistantText: some View {
-        Text(text)
-            .font(.body)
-            .foregroundStyle(.primary)
-    }
+	private var assistantText: some View {
+		MarkdownView(text)
+			.font(.body, for: .body)
+			.font(.system(size: 20, weight: .semibold), for: .h1)
+			.font(.system(size: 18, weight: .semibold), for: .h2)
+			.font(.system(size: 16, weight: .semibold), for: .h3)
+			.font(.system(.body, design: .monospaced), for: .codeBlock)
+			.foregroundStyle(.primary)
+			.tint(.secondary, for: .inlineCodeBlock)
+			.frame(maxWidth: .infinity, alignment: .leading)
+	}
 
     private var userBubble: some View {
         Text(text)
@@ -34,15 +36,21 @@ struct MessageBubble: View {
             .foregroundStyle(.primary)
             .padding(.horizontal, 14)
             .padding(.vertical, 14)
-            .background(Color(UIColor.systemGray6), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+			.background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
 }
 
 #Preview {
-    VStack(spacing: 12) {
-        MessageBubble(text: "Hello! This is a placeholder response from the model.", role: .assistant)
-        MessageBubble(text: "Great, can you explain local inference in simple terms?", role: .user)
-    }
+	VStack(spacing: 12) {
+		MessageBubble(text: """
+			Here are a few things:
+
+			- **Private** by default
+			- Supports `inline code`
+			- Handles markdown lists cleanly
+			""", role: .assistant)
+		MessageBubble(text: "Great, can you explain local inference in simple terms?", role: .user)
+	}
     .padding()
-    .background(Color.white)
+	.background(Color(uiColor: .systemBackground))
 }

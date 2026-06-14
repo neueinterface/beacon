@@ -6,6 +6,15 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		99BC002C2FDE4ED800E1AF28 /* MarkdownView in Frameworks */ = {isa = PBXBuildFile; productRef = 99BC002B2FDE4ED800E1AF28 /* MarkdownView */; };
+		99BCFF8D2FDE2A8F00E1AF28 /* MLXHuggingFace in Frameworks */ = {isa = PBXBuildFile; productRef = 99BCFF8C2FDE2A8F00E1AF28 /* MLXHuggingFace */; };
+		99BCFF8F2FDE2A8F00E1AF28 /* MLXLLM in Frameworks */ = {isa = PBXBuildFile; productRef = 99BCFF8E2FDE2A8F00E1AF28 /* MLXLLM */; };
+		99BCFF912FDE2A8F00E1AF28 /* MLXLMCommon in Frameworks */ = {isa = PBXBuildFile; productRef = 99BCFF902FDE2A8F00E1AF28 /* MLXLMCommon */; };
+		99BCFF932FDE3F4F00E1AF28 /* HuggingFace in Frameworks */ = {isa = PBXBuildFile; productRef = 99BCFF922FDE3F4F00E1AF28 /* HuggingFace */; };
+		99BCFF952FDE3F4F00E1AF28 /* Tokenizers in Frameworks */ = {isa = PBXBuildFile; productRef = 99BCFF942FDE3F4F00E1AF28 /* Tokenizers */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		9933A7D72F5CB3DE009E269F /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -52,6 +61,12 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				99BCFF8F2FDE2A8F00E1AF28 /* MLXLLM in Frameworks */,
+				99BCFF912FDE2A8F00E1AF28 /* MLXLMCommon in Frameworks */,
+				99BC002C2FDE4ED800E1AF28 /* MarkdownView in Frameworks */,
+				99BCFF932FDE3F4F00E1AF28 /* HuggingFace in Frameworks */,
+				99BCFF952FDE3F4F00E1AF28 /* Tokenizers in Frameworks */,
+				99BCFF8D2FDE2A8F00E1AF28 /* MLXHuggingFace in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -112,6 +127,12 @@
 			);
 			name = "beacon-ios";
 			packageProductDependencies = (
+				99BCFF8C2FDE2A8F00E1AF28 /* MLXHuggingFace */,
+				99BCFF8E2FDE2A8F00E1AF28 /* MLXLLM */,
+				99BCFF902FDE2A8F00E1AF28 /* MLXLMCommon */,
+				99BCFF922FDE3F4F00E1AF28 /* HuggingFace */,
+				99BCFF942FDE3F4F00E1AF28 /* Tokenizers */,
+				99BC002B2FDE4ED800E1AF28 /* MarkdownView */,
 			);
 			productName = "beacon-ios";
 			productReference = 9933A7C92F5CB3DD009E269F /* beacon-ios.app */;
@@ -195,6 +216,13 @@
 			);
 			mainGroup = 9933A7C02F5CB3DD009E269F;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				99BCFEC22FDE1F3800E1AF28 /* XCRemoteSwiftPackageReference "mlx-swift" */,
+				99BCFF8B2FDE2A8F00E1AF28 /* XCRemoteSwiftPackageReference "mlx-swift-lm" */,
+				99BCFF962FDE3F4F00E1AF28 /* XCRemoteSwiftPackageReference "swift-huggingface" */,
+				99BCFF972FDE3F4F00E1AF28 /* XCRemoteSwiftPackageReference "swift-transformers" */,
+				99BC002A2FDE4ED800E1AF28 /* XCRemoteSwiftPackageReference "MarkdownView" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 9933A7CA2F5CB3DD009E269F /* Products */;
 			projectDirPath = "";
@@ -613,6 +641,82 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		99BC002A2FDE4ED800E1AF28 /* XCRemoteSwiftPackageReference "MarkdownView" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/LiYanan2004/MarkdownView";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.7.0;
+			};
+		};
+		99BCFEC22FDE1F3800E1AF28 /* XCRemoteSwiftPackageReference "mlx-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/ml-explore/mlx-swift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.31.4;
+			};
+		};
+		99BCFF8B2FDE2A8F00E1AF28 /* XCRemoteSwiftPackageReference "mlx-swift-lm" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/ml-explore/mlx-swift-lm";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 3.31.3;
+			};
+		};
+		99BCFF962FDE3F4F00E1AF28 /* XCRemoteSwiftPackageReference "swift-huggingface" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/huggingface/swift-huggingface";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.9.0;
+			};
+		};
+		99BCFF972FDE3F4F00E1AF28 /* XCRemoteSwiftPackageReference "swift-transformers" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/huggingface/swift-transformers";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.3.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		99BC002B2FDE4ED800E1AF28 /* MarkdownView */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 99BC002A2FDE4ED800E1AF28 /* XCRemoteSwiftPackageReference "MarkdownView" */;
+			productName = MarkdownView;
+		};
+		99BCFF8C2FDE2A8F00E1AF28 /* MLXHuggingFace */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 99BCFF8B2FDE2A8F00E1AF28 /* XCRemoteSwiftPackageReference "mlx-swift-lm" */;
+			productName = MLXHuggingFace;
+		};
+		99BCFF8E2FDE2A8F00E1AF28 /* MLXLLM */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 99BCFF8B2FDE2A8F00E1AF28 /* XCRemoteSwiftPackageReference "mlx-swift-lm" */;
+			productName = MLXLLM;
+		};
+		99BCFF902FDE2A8F00E1AF28 /* MLXLMCommon */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 99BCFF8B2FDE2A8F00E1AF28 /* XCRemoteSwiftPackageReference "mlx-swift-lm" */;
+			productName = MLXLMCommon;
+		};
+		99BCFF922FDE3F4F00E1AF28 /* HuggingFace */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 99BCFF962FDE3F4F00E1AF28 /* XCRemoteSwiftPackageReference "swift-huggingface" */;
+			productName = HuggingFace;
+		};
+		99BCFF942FDE3F4F00E1AF28 /* Tokenizers */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 99BCFF972FDE3F4F00E1AF28 /* XCRemoteSwiftPackageReference "swift-transformers" */;
+			productName = Tokenizers;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 9933A7C12F5CB3DD009E269F /* Project object */;
 }
