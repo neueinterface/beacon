@@ -14,6 +14,7 @@ struct Input: View {
 	var onSend: (String) -> Void
 
 	@State private var textFieldHeight: CGFloat = 0
+	@State private var inputHeight: CGFloat = 52
 
 	private var hasTypedText: Bool {
 		!text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -22,7 +23,8 @@ struct Input: View {
 	private var cornerRadius: CGFloat {
 		let singleLineHeight: CGFloat = 22
 		let multilineAmount = min(max((textFieldHeight - singleLineHeight) / singleLineHeight, 0), 1)
-		return 24 - (multilineAmount * 8)
+		let singleLineRadius = inputHeight / 2
+		return singleLineRadius - (multilineAmount * (singleLineRadius - 16))
 	}
 
 	var body: some View {
@@ -49,10 +51,8 @@ struct Input: View {
 			Button {
 				let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
 				guard !trimmed.isEmpty else { return }
+				text = ""
 				onSend(trimmed)
-				withAnimation(.easeInOut(duration: 0.18)) {
-					text = ""
-				}
 			} label: {
 				Image(systemName: "arrow.up")
 					.font(.system(size: 16, weight: .bold))
@@ -67,8 +67,18 @@ struct Input: View {
 		.padding(.horizontal, 14)
 		.padding(.vertical, 12)
 		.background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+		.background {
+			GeometryReader { proxy in
+				Color.clear
+					.onAppear {
+						inputHeight = proxy.size.height
+					}
+					.onChange(of: proxy.size.height) { _, newHeight in
+						inputHeight = newHeight
+					}
+			}
+		}
 		.animation(.smooth(duration: 0.22), value: cornerRadius)
-		.animation(.easeInOut(duration: 0.18), value: text)
 	}
 }
 

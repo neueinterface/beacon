@@ -41,6 +41,7 @@ struct ChatHistoryDrawerView: View {
 					}
 					.listStyle(.plain)
 					.scrollContentBackground(.hidden)
+					.scrollEdgeEffectStyle(.soft, for: .top)
 				}
 			}
 
@@ -80,18 +81,6 @@ struct ChatHistoryDrawerView: View {
 		.padding(.horizontal, 20)
 		.padding(.top, 20)
 		.padding(.bottom, 40)
-		.background(alignment: .top) {
-			LinearGradient(
-				colors: [
-					Color(uiColor: .systemBackground),
-					Color(uiColor: .systemBackground).opacity(0.92),
-					Color(uiColor: .systemBackground).opacity(0)
-				],
-				startPoint: .top,
-				endPoint: .bottom
-			)
-			.frame(height: 132)
-		}
 	}
 
 	private var emptyState: some View {
