@@ -10,10 +10,10 @@ final class ChatHistoryViewModel: ObservableObject {
 	@Published var selectedChatID: StartedChat.ID?
 
 	private static let storageKey = "chatConversations"
+	private static let readyMessageText = "Your model is ready."
 
 	private let timeFormatter: DateFormatter
 	private var currentConversationID: ChatConversation.ID?
-	private let readyMessage = ChatMessage(text: "Your model is ready.", role: .assistant)
 
 	var chats: [StartedChat] {
 		conversations
@@ -30,8 +30,8 @@ final class ChatHistoryViewModel: ObservableObject {
 	}
 
 	init(conversations: [ChatConversation]? = nil) {
-		self.conversations = (conversations ?? Self.loadConversations()).sorted { $0.updatedAt > $1.updatedAt }
-		self.currentMessages = [readyMessage]
+		self.conversations = Self.sanitized(conversations ?? Self.loadConversations()).sorted { $0.updatedAt > $1.updatedAt }
+		self.currentMessages = []
 
 		let formatter = DateFormatter()
 		formatter.dateStyle = .none
@@ -42,13 +42,13 @@ final class ChatHistoryViewModel: ObservableObject {
 	func select(_ chat: StartedChat) {
 		selectedChatID = chat.id
 		currentConversationID = chat.id
-		currentMessages = conversations.first { $0.id == chat.id }?.messages ?? [readyMessage]
+		currentMessages = conversations.first { $0.id == chat.id }?.messages ?? []
 	}
 
 	func startNewChat() {
 		selectedChatID = nil
 		currentConversationID = nil
-		currentMessages = [readyMessage]
+		currentMessages = []
 	}
 
 	func delete(_ chat: StartedChat) {
@@ -57,7 +57,7 @@ final class ChatHistoryViewModel: ObservableObject {
 		if currentConversationID == chat.id || selectedChatID == chat.id {
 			selectedChatID = nil
 			currentConversationID = nil
-			currentMessages = [readyMessage]
+			currentMessages = []
 		}
 	}
 
@@ -73,7 +73,7 @@ final class ChatHistoryViewModel: ObservableObject {
 		} else {
 			let conversation = ChatConversation(
 				modelName: modelName,
-				messages: [readyMessage, userMessage, assistantMessage]
+				messages: [userMessage, assistantMessage]
 			)
 			conversations.insert(conversation, at: 0)
 			currentConversationID = conversation.id
@@ -122,5 +122,15 @@ final class ChatHistoryViewModel: ObservableObject {
 		}
 
 		return conversations
+	}
+
+	private static func sanitized(_ conversations: [ChatConversation]) -> [ChatConversation] {
+		conversations.map { conversation in
+			var conversation = conversation
+			conversation.messages.removeAll { message in
+				message.role == .assistant && message.text == readyMessageText
+			}
+			return conversation
+		}
 	}
 }

@@ -29,17 +29,6 @@ struct HeaderView: View {
 		}
 		.padding(.horizontal, 12)
 		.padding(.vertical, 10)
-		.background(alignment: .top) {
-			LinearGradient(
-				colors: [
-					Color(uiColor: .systemBackground),
-					Color(uiColor: .systemBackground).opacity(0.92),
-					Color(uiColor: .systemBackground).opacity(0)
-				],
-				startPoint: .top,
-				endPoint: .bottom
-			)
-		}
 	}
 }
 

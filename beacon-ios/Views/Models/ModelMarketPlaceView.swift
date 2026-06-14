@@ -202,7 +202,7 @@ private struct ModelMarketPlaceRow: View {
 			VStack(alignment: .leading, spacing: 12) {
 				HStack(alignment: .firstTextBaseline, spacing: 10) {
 					Text(model.name)
-						.font(.system(size: 18, weight: .medium))
+						.font(.system(size: 16, weight: .medium))
 						.foregroundStyle(.primary)
 
 					if isSelected {
@@ -211,7 +211,7 @@ private struct ModelMarketPlaceRow: View {
 				}
 
 				Text(model.description)
-					.font(.system(size: 18, weight: .regular))
+					.font(.system(size: 16, weight: .regular))
 					.foregroundStyle(.secondary)
 					.lineSpacing(3)
 			}
@@ -228,7 +228,7 @@ private struct ModelMarketPlaceRow: View {
 				Tag(title: isDownloaded ? "downloaded" : "available", color: isDownloaded ? .green : .gray)
 			}
 
-			VStack(alignment: .leading, spacing: 10) {
+			HStack( spacing: 10) {
 				if isDownloaded {
 					BeaconButton(isDeleting ? "Deleting" : "Delete", variant: .destructive, size: .small, isDisabled: isSelected, isLoading: isDeleting) {
 						onDelete()

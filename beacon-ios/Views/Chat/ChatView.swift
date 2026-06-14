@@ -110,6 +110,7 @@ struct ChatView: View {
 				.padding(.bottom, 18)
 			}
 			.scrollDismissesKeyboard(.interactively)
+			.scrollEdgeEffectStyle(.soft, for: .top)
 
 			Input(text: $inputText) { text in
 				send(text)
