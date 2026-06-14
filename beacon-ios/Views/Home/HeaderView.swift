@@ -13,12 +13,7 @@ struct HeaderView: View {
 
 	var body: some View {
 		HStack {
-            Button(action: onOpenHistory) {
-                Image(systemName: "list.dash")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(.primary)
-                    .buttonStyle(.plain)
-            }
+			BeaconButton(icon: "list.dash", variant: .subtle, size: .small, action: onOpenHistory)
 
 			Spacer()
 

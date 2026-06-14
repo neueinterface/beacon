@@ -5,14 +5,13 @@ struct MessageBubble: View {
 	let text: String
 	let role: ChatMessage.Role
 
-    var body: some View {
-        HStack {
-            if role == .assistant {
-                assistantText
-                Spacer(minLength: 56)
-            } else {
-                Spacer(minLength: 56)
-                userBubble
+	var body: some View {
+		HStack {
+			if role == .assistant {
+				assistantText
+			} else {
+				Spacer(minLength: 56)
+				userBubble
             }
         }
         .frame(maxWidth: .infinity)

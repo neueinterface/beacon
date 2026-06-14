@@ -13,8 +13,16 @@ struct Input: View {
 	var placeholder: String = "Message"
 	var onSend: (String) -> Void
 
+	@State private var textFieldHeight: CGFloat = 0
+
 	private var hasTypedText: Bool {
 		!text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+	}
+
+	private var cornerRadius: CGFloat {
+		let singleLineHeight: CGFloat = 22
+		let multilineAmount = min(max((textFieldHeight - singleLineHeight) / singleLineHeight, 0), 1)
+		return 24 - (multilineAmount * 8)
 	}
 
 	var body: some View {
@@ -24,6 +32,19 @@ struct Input: View {
 				.textInputAutocapitalization(.sentences)
 				.autocorrectionDisabled(false)
 				.padding(.vertical, 4)
+				.background {
+					GeometryReader { proxy in
+						Color.clear
+							.onAppear {
+								textFieldHeight = proxy.size.height
+							}
+							.onChange(of: proxy.size.height) { _, newHeight in
+								withAnimation(.smooth(duration: 0.22)) {
+									textFieldHeight = newHeight
+								}
+							}
+					}
+				}
 
 			Button {
 				let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -45,7 +66,8 @@ struct Input: View {
 		}
 		.padding(.horizontal, 14)
 		.padding(.vertical, 12)
-		.background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+		.background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+		.animation(.smooth(duration: 0.22), value: cornerRadius)
 		.animation(.easeInOut(duration: 0.18), value: text)
 	}
 }

@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct ChatView: View {
 	@ObservedObject var runtime: BeaconModelRuntime
@@ -51,6 +52,7 @@ struct ChatView: View {
 	private var chatContent: some View {
 		VStack(spacing: 0) {
 			HeaderView(title: selectedModel.name) {
+				dismissKeyboard()
 				withAnimation(.smooth(duration: 0.28)) {
 					isShowingHistory = true
 				}
@@ -66,6 +68,7 @@ struct ChatView: View {
 				.padding(.top, 24)
 				.padding(.bottom, 18)
 			}
+			.scrollDismissesKeyboard(.interactively)
 
 			Input(text: $inputText) { text in
 				send(text)
@@ -76,9 +79,17 @@ struct ChatView: View {
 			.padding(.vertical, 12)
 		}
 		.background(Color(uiColor: .systemBackground))
+		.simultaneousGesture(
+			DragGesture(minimumDistance: 16)
+				.onEnded { value in
+					guard value.translation.height > 28 else { return }
+					dismissKeyboard()
+				}
+		)
     }
 
 	private func send(_ text: String) {
+		dismissKeyboard()
 		let responseID = historyViewModel.appendUserMessage(text, modelName: selectedModel.name)
 
 		Task {
@@ -90,6 +101,10 @@ struct ChatView: View {
 				historyViewModel.replaceMessage(responseID, with: error.localizedDescription)
 			}
 		}
+	}
+
+	private func dismissKeyboard() {
+		UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
 	}
 }
 
