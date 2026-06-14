@@ -15,7 +15,7 @@ import MLXLMCommon
 import Tokenizers
 
 @MainActor
-final class BeaconModelRuntime: ObservableObject {
+final class BeaconModelRuntime: ModelDownloadRuntime {
 	enum RuntimeError: LocalizedError {
 		case modelNotLoaded
 		case alreadyGenerating

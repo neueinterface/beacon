@@ -6,11 +6,13 @@
 //
 
 import SwiftUI
+import UIKit
 
 struct WelcomeView: View {
 	@State private var isShowingFAQ = false
 	@State private var hasAppeared = false
 	@State private var logoAccentColor: Color?
+	@State private var logoColorIndex = 0
 	@State private var logoScale = 1.0
 	@State private var isAnimatingLogo = false
 
@@ -66,7 +68,8 @@ struct WelcomeView: View {
 		guard !isAnimatingLogo else { return }
 
 		isAnimatingLogo = true
-		logoAccentColor = nextLogoColor
+		logoAccentColor = nextLogoColor()
+		playLogoHapticDance()
 
 		withAnimation(.spring(response: 0.24, dampingFraction: 0.52)) {
 			logoScale = 1.16
@@ -83,9 +86,26 @@ struct WelcomeView: View {
 		}
 	}
 
-	private var nextLogoColor: Color {
-		let colors: [Color] = [.blue, .indigo, .purple, .mint, .orange]
-		return colors.randomElement() ?? .blue
+	private func nextLogoColor() -> Color {
+		let colors: [Color] = [.blue, .indigo, .purple, .pink, .red, .orange, .yellow, .green, .mint, .teal, .cyan]
+		let color = colors[logoColorIndex % colors.count]
+		logoColorIndex += 1
+		return color
+	}
+
+	private func playLogoHapticDance() {
+		Task { @MainActor in
+			let generator = UIImpactFeedbackGenerator(style: .light)
+			generator.prepare()
+
+			generator.impactOccurred(intensity: 0.42)
+			try? await Task.sleep(for: .seconds(0.07))
+			generator.impactOccurred(intensity: 0.72)
+			try? await Task.sleep(for: .seconds(0.09))
+			generator.impactOccurred(intensity: 0.52)
+			try? await Task.sleep(for: .seconds(0.06))
+			UISelectionFeedbackGenerator().selectionChanged()
+		}
 	}
 
 	private var header: some View {

@@ -51,6 +51,16 @@ final class ChatHistoryViewModel: ObservableObject {
 		currentMessages = [readyMessage]
 	}
 
+	func delete(_ chat: StartedChat) {
+		conversations.removeAll { $0.id == chat.id }
+
+		if currentConversationID == chat.id || selectedChatID == chat.id {
+			selectedChatID = nil
+			currentConversationID = nil
+			currentMessages = [readyMessage]
+		}
+	}
+
 	func appendUserMessage(_ text: String, modelName: String) -> ChatMessage.ID {
 		let userMessage = ChatMessage(text: text, role: .user)
 		let assistantMessage = ChatMessage(text: "", role: .assistant)

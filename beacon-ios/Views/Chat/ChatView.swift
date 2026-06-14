@@ -3,10 +3,14 @@ import UIKit
 
 struct ChatView: View {
 	@ObservedObject var runtime: BeaconModelRuntime
+	var onDownloadModel: (BeaconModel) -> Void = { _ in }
 	@StateObject private var historyViewModel = ChatHistoryViewModel()
 	@AppStorage("selectedModelID") private var selectedModelID = ""
 	@State private var inputText = ""
 	@State private var isShowingHistory = false
+	@State private var isShowingModels = false
+
+	private let screenSpring = Animation.spring(response: 0.46, dampingFraction: 0.86, blendDuration: 0.12)
 
 	private var selectedModel: BeaconModel {
 		ModelCatalog.model(id: selectedModelID) ?? ModelCatalog.defaultModel
@@ -15,32 +19,69 @@ struct ChatView: View {
 	var body: some View {
 		GeometryReader { geometry in
 			ZStack(alignment: .leading) {
+				chatContent
+					.depthLayer(isActive: !isShowingHistory && !isShowingModels, edge: .trailing)
+					.blur(radius: (isShowingHistory || isShowingModels) ? 10 : 0)
+					.scaleEffect((isShowingHistory || isShowingModels) ? 0.94 : 1)
+					.opacity((isShowingHistory || isShowingModels) ? 0.68 : 1)
+					.zIndex(0)
+
 				ChatHistoryDrawerView(
 					viewModel: historyViewModel,
 					onClose: {
-						withAnimation(.smooth(duration: 0.32)) {
+						withAnimation(screenSpring) {
 							isShowingHistory = false
+							isShowingModels = false
 						}
 					},
 					onNewChat: {
 						historyViewModel.startNewChat()
-						withAnimation(.smooth(duration: 0.32)) {
+						withAnimation(screenSpring) {
 							isShowingHistory = false
+							isShowingModels = false
+						}
+					},
+					onOpenModels: {
+						withAnimation(screenSpring) {
+							isShowingModels = true
 						}
 					}
 				) { _ in
-					withAnimation(.smooth(duration: 0.28)) {
+					withAnimation(screenSpring) {
 						isShowingHistory = false
+						isShowingModels = false
 					}
 				}
 				.frame(width: geometry.size.width)
 				.frame(maxHeight: .infinity)
-				.offset(x: isShowingHistory ? 0 : -geometry.size.width)
+				.depthLayer(isActive: isShowingHistory && !isShowingModels, edge: .leading)
+				.blur(radius: isShowingModels ? 10 : 0)
+				.scaleEffect(isShowingModels ? 0.96 : 1)
+				.opacity(isShowingHistory ? (isShowingModels ? 0.45 : 1) : 0)
+				.allowsHitTesting(isShowingHistory && !isShowingModels)
+				.zIndex(isShowingModels ? 1 : 2)
 
-				chatContent
-					.offset(x: isShowingHistory ? geometry.size.width : 0)
+				ModelMarketPlaceView(
+					models: ModelCatalog.availableModels,
+					onClose: {
+						withAnimation(screenSpring) {
+							isShowingModels = false
+							isShowingHistory = false
+						}
+					},
+					onDownload: { model in
+						onDownloadModel(model)
+					}
+				)
+				.frame(width: geometry.size.width)
+				.frame(maxHeight: .infinity)
+				.depthLayer(isActive: isShowingModels, edge: .trailing)
+				.opacity(isShowingModels ? 1 : 0)
+				.allowsHitTesting(isShowingModels)
+				.zIndex(3)
 			}
-			.animation(.smooth(duration: 0.32), value: isShowingHistory)
+			.animation(screenSpring, value: isShowingHistory)
+			.animation(screenSpring, value: isShowingModels)
 		}
 		.background(Color(uiColor: .systemBackground))
 		.task {
@@ -53,7 +94,7 @@ struct ChatView: View {
 		VStack(spacing: 0) {
 			HeaderView(title: selectedModel.name) {
 				dismissKeyboard()
-				withAnimation(.smooth(duration: 0.28)) {
+				withAnimation(screenSpring) {
 					isShowingHistory = true
 				}
 			}
@@ -86,7 +127,7 @@ struct ChatView: View {
 					dismissKeyboard()
 				}
 		)
-    }
+	}
 
 	private func send(_ text: String) {
 		dismissKeyboard()
@@ -105,6 +146,34 @@ struct ChatView: View {
 
 	private func dismissKeyboard() {
 		UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+	}
+}
+
+private enum ScreenEdge {
+	case leading
+	case trailing
+}
+
+private struct DepthLayerModifier: ViewModifier {
+	let isActive: Bool
+	let edge: ScreenEdge
+
+	func body(content: Content) -> some View {
+		content
+			.blur(radius: isActive ? 0 : 8)
+			.scaleEffect(isActive ? 1 : 0.94)
+			.rotation3DEffect(
+				.degrees(isActive ? 0 : (edge == .leading ? -4 : 4)),
+				axis: (x: 0, y: 1, z: 0),
+				perspective: 0.75
+			)
+			.offset(x: isActive ? 0 : (edge == .leading ? -28 : 28))
+	}
+}
+
+private extension View {
+	func depthLayer(isActive: Bool, edge: ScreenEdge) -> some View {
+		modifier(DepthLayerModifier(isActive: isActive, edge: edge))
 	}
 }
 

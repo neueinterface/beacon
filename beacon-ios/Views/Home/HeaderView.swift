@@ -14,6 +14,7 @@ struct HeaderView: View {
 	var body: some View {
 		HStack {
 			BeaconButton(icon: "list.dash", variant: .subtle, size: .small, action: onOpenHistory)
+				.background(Color(uiColor: .systemGray6), in: Circle())
 
 			Spacer()
 
@@ -28,7 +29,17 @@ struct HeaderView: View {
 		}
 		.padding(.horizontal, 12)
 		.padding(.vertical, 10)
-		.background(Color(uiColor: .systemBackground))
+		.background(alignment: .top) {
+			LinearGradient(
+				colors: [
+					Color(uiColor: .systemBackground),
+					Color(uiColor: .systemBackground).opacity(0.92),
+					Color(uiColor: .systemBackground).opacity(0)
+				],
+				startPoint: .top,
+				endPoint: .bottom
+			)
+		}
 	}
 }
 
