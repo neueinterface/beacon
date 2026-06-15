@@ -5,11 +5,16 @@ import UIKit
 struct MessageBubble: View {
 	let text: String
 	let role: ChatMessage.Role
+	var isWaitingForResponse = false
 
 	var body: some View {
 		HStack {
 			if role == .assistant {
-				assistantText
+				if isWaitingForResponse && text.isEmpty {
+					ThinkingText()
+				} else {
+					assistantText
+				}
 			} else {
 				Spacer(minLength: 56)
 				userBubble
@@ -45,11 +50,22 @@ struct MessageBubble: View {
             .padding(.horizontal, 14)
             .padding(.vertical, 14)
 			.background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-    }
+	}
+}
+
+private struct ThinkingText: View {
+	var body: some View {
+		Text("Thinking...")
+			.font(.body)
+			.foregroundStyle(.secondary)
+			.shimmering()
+			.frame(maxWidth: .infinity, alignment: .leading)
+	}
 }
 
 #Preview {
 	VStack(spacing: 12) {
+		MessageBubble(text: "", role: .assistant, isWaitingForResponse: true)
 		MessageBubble(text: """
 			Here are a few things:
 

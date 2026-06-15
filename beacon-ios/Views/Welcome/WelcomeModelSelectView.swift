@@ -50,7 +50,7 @@ struct WelcomeModelSelectView: View {
 	}
 
 	private var header: some View {
-		Text("Choose an initial model to download and use.")
+		Text("Choose an initial model to use.")
 			.font(.system(size: 28, weight: .medium))
 			.foregroundStyle(.primary)
 			.lineSpacing(2)
@@ -76,19 +76,29 @@ private struct WelcomeModelSelectRow: View {
 					.lineSpacing(3)
 			}
 
-			HStack(spacing: 12) {
-				Tag(title: model.formattedSize, color: .indigo)
+			VStack(alignment: .leading, spacing: 8) {
+				HStack(spacing: 12) {
+					Tag(title: model.formattedSize, color: .indigo)
 
-				if model.type == .reasoning {
-					Tag(title: "reasoning", color: .orange)
-				} else {
-					Tag(title: "chat", color: .gray)
+					if model.type == .reasoning {
+						Tag(title: "reasoning", color: .orange)
+					} else {
+						Tag(title: "chat", color: .gray)
+					}
 				}
+
+				Tag(title: "Recommended: \(model.recommendedDevice)", color: .green)
 			}
 
-			BeaconButton("Download", variant: .secondary, trailingAssetIcon: "download.icon", isLoading: isDownloading) {
+			BeaconButton(
+				model.isBuiltIn ? "Use" : "Download",
+				variant: .secondary,
+				trailingIcon: model.isBuiltIn ? "checkmark" : nil,
+				trailingAssetIcon: model.isBuiltIn ? nil : "download.icon",
+				isLoading: isDownloading
+			) {
 				UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-				isDownloading = true
+				isDownloading = !model.isBuiltIn
 				onDownload()
 			}
 		}

@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 struct ModelMarketPlaceView: View {
 	let models: [BeaconModel]
@@ -20,10 +21,13 @@ struct ModelMarketPlaceView: View {
 	@State private var deleteErrorMessage: String?
 
 	var body: some View {
-		VStack(alignment: .leading, spacing: 0) {
+		NavigationStack {
 			ScrollView {
 				VStack(alignment: .leading, spacing: 40) {
-					header
+					Text("Download, delete and learn more about the local models you use.")
+						.font(.system(size: 16, weight: .regular))
+						.foregroundStyle(.secondary)
+						.lineSpacing(3)
 						.modelMarketplaceEntrance(hasAppeared, delay: 0.04)
 
 					if let deleteErrorMessage {
@@ -46,6 +50,9 @@ struct ModelMarketPlaceView: View {
 								onDownload: {
 									onDownload(model)
 								},
+								onSelect: {
+									selectedModelID = model.id
+								},
 								onDelete: {
 									delete(model)
 								},
@@ -66,6 +73,21 @@ struct ModelMarketPlaceView: View {
 				.padding(.horizontal, 20)
 				.padding(.bottom, 60)
 			}
+			.scrollEdgeEffectStyle(.soft, for: .top)
+			.navigationTitle("Model Marketplace")
+			.navigationBarTitleDisplayMode(.large)
+			.background(ModelMarketplaceNavigationAppearance())
+			.toolbar {
+				ToolbarItem(placement: .topBarTrailing) {
+					Button(action: onClose) {
+						Image(systemName: "xmark")
+							.font(.system(size: 16, weight: .semibold))
+							.foregroundStyle(.primary)
+							.frame(width: 34, height: 34)
+					}
+					.buttonStyle(.plain)
+				}
+			}
 		}
 		.background(Color(uiColor: .systemBackground))
 		.sheet(item: $safariViewModel.page) { page in
@@ -77,39 +99,13 @@ struct ModelMarketPlaceView: View {
 		}
 	}
 
-	private var header: some View {
-		HStack(alignment: .top, spacing: 18) {
-			VStack(alignment: .leading, spacing: 8) {
-				Text("Model Marketplace")
-					.font(.system(size: 28, weight: .semibold))
-					.foregroundStyle(.primary)
-
-				Text("Download, delete and learn more about the local models you use.")
-					.font(.system(size: 16, weight: .regular))
-					.foregroundStyle(.secondary)
-					.lineSpacing(3)
-			}
-
-			Spacer(minLength: 12)
-
-			Button(action: onClose) {
-				Image(systemName: "xmark")
-					.font(.system(size: 16, weight: .semibold))
-					.foregroundStyle(.primary)
-					.frame(width: 34, height: 34)
-					.background(Color(uiColor: .systemGray6), in: Circle())
-			}
-			.buttonStyle(SpringButtonStyle())
-		}
-		.padding(.top, 20)
-	}
-
 	private var downloadedIDs: Set<String> {
 		Set(downloadedModelIDs.split(separator: ",").map(String.init))
 	}
 
 	private func isDownloaded(_ model: BeaconModel) -> Bool {
-		downloadedIDs.contains(model.id) || FileManager.default.fileExists(atPath: cacheDirectory(for: model).path)
+		if model.isBuiltIn { return true }
+		return downloadedIDs.contains(model.id) || FileManager.default.fileExists(atPath: cacheDirectory(for: model).path)
 	}
 
 	private func delete(_ model: BeaconModel) {
@@ -120,7 +116,9 @@ struct ModelMarketPlaceView: View {
 
 		do {
 			let fileManager = FileManager.default
-			let cacheURL = cacheDirectory(for: model)
+		guard !model.isBuiltIn else { return }
+
+		let cacheURL = cacheDirectory(for: model)
 			let metadataURL = metadataDirectory(for: model)
 
 			if fileManager.fileExists(atPath: cacheURL.path) {
@@ -164,6 +162,22 @@ struct ModelMarketPlaceView: View {
 	}
 }
 
+private struct ModelMarketplaceNavigationAppearance: UIViewControllerRepresentable {
+	func makeUIViewController(context: Context) -> UIViewController {
+		UIViewController()
+	}
+
+	func updateUIViewController(_ viewController: UIViewController, context: Context) {
+		Task { @MainActor in
+			guard let navigationBar = viewController.navigationController?.navigationBar else { return }
+			let appearance = navigationBar.standardAppearance.copy()
+			appearance.largeTitleTextAttributes[.font] = UIFont.systemFont(ofSize: 28, weight: .semibold)
+			navigationBar.standardAppearance = appearance
+			navigationBar.scrollEdgeAppearance = appearance
+		}
+	}
+}
+
 private struct ModelMarketPlaceRow: View {
 	let model: BeaconModel
 	let isDownloaded: Bool
@@ -171,6 +185,7 @@ private struct ModelMarketPlaceRow: View {
 	let isDeleting: Bool
 	var showsDownloadInProgress = false
 	var onDownload: () -> Void
+	var onSelect: () -> Void
 	var onDelete: () -> Void
 	var onOpenLink: () -> Void
 
@@ -183,6 +198,7 @@ private struct ModelMarketPlaceRow: View {
 		isDeleting: Bool,
 		showsDownloadInProgress: Bool = false,
 		onDownload: @escaping () -> Void,
+		onSelect: @escaping () -> Void = { },
 		onDelete: @escaping () -> Void,
 		onOpenLink: @escaping () -> Void = { }
 	) {
@@ -192,6 +208,7 @@ private struct ModelMarketPlaceRow: View {
 		self.isDeleting = isDeleting
 		self.showsDownloadInProgress = showsDownloadInProgress
 		self.onDownload = onDownload
+		self.onSelect = onSelect
 		self.onDelete = onDelete
 		self.onOpenLink = onOpenLink
 		self._isDownloading = State(initialValue: showsDownloadInProgress)
@@ -210,20 +227,30 @@ private struct ModelMarketPlaceRow: View {
 					.lineSpacing(3)
 			}
 
-			HStack(spacing: 12) {
-				Tag(title: model.formattedSize, color: .indigo)
+			VStack(alignment: .leading, spacing: 8) {
+				HStack(spacing: 12) {
+					Tag(title: model.formattedSize, color: .indigo)
 
-				if model.type == .reasoning {
-					Tag(title: "reasoning", color: .orange)
-				} else {
-					Tag(title: "chat", color: .orange)
+					if model.type == .reasoning {
+						Tag(title: "reasoning", color: .orange)
+					} else {
+						Tag(title: "chat", color: .gray)
+					}
 				}
+
+				Tag(title: "Recommended: \(model.recommendedDevice)", color: .green)
 			}
 
 			VStack(alignment: .leading, spacing: 14) {
 				HStack(spacing: 10) {
 					if isDownloaded {
-						DownloadedModelButton()
+						DownloadedModelButton(title: model.isBuiltIn ? "Built in" : "Downloaded")
+
+						if !isSelected {
+							BeaconButton("Use", variant: .secondary, size: .small) {
+								onSelect()
+							}
+						}
 					} else {
 						BeaconButton("Download", variant: .secondary, size: .small, trailingAssetIcon: "download.icon", isLoading: isDownloading) {
 							isDownloading = true
@@ -231,12 +258,14 @@ private struct ModelMarketPlaceRow: View {
 						}
 					}
 
-					BeaconButton("View on Hugging Face", variant: .subtle, size: .small, trailingIcon: "arrow.up.right") {
-						onOpenLink()
+					if !model.isBuiltIn {
+						BeaconButton("View on Hugging Face", variant: .subtle, size: .small, trailingIcon: "arrow.up.right") {
+							onOpenLink()
+						}
 					}
 				}
 
-				if isDownloaded {
+				if isDownloaded && !model.isBuiltIn {
 					VStack(alignment: .leading, spacing: 8) {
 						BeaconButton(isDeleting ? "Deleting" : "Delete", variant: .destructive, size: .small, isDisabled: isSelected, isLoading: isDeleting) {
 							onDelete()
@@ -256,9 +285,11 @@ private struct ModelMarketPlaceRow: View {
 }
 
 private struct DownloadedModelButton: View {
+	var title = "Downloaded"
+
 	var body: some View {
 		HStack(spacing: 8) {
-			Text("Downloaded")
+			Text(title)
 				.font(.system(size: 14, weight: .semibold))
 
 			Image(systemName: "checkmark")

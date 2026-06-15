@@ -92,37 +92,58 @@ struct ChatView: View {
 
 	private var chatContent: some View {
 		VStack(spacing: 0) {
-			ScrollView {
-				LazyVStack(alignment: .leading, spacing: 20) {
-					ForEach(historyViewModel.currentMessages) { message in
-						MessageBubble(text: message.text, role: message.role)
+			GeometryReader { proxy in
+				ZStack {
+					if historyViewModel.currentMessages.isEmpty {
+						Image("beacon.logo")
+							.resizable()
+							.scaledToFit()
+							.foregroundStyle(Color(uiColor: .systemGray6))
+							.frame(width: 64, height: 64)
+							.frame(maxWidth: .infinity, maxHeight: .infinity)
+							.allowsHitTesting(false)
 					}
-				}
-				.padding(.horizontal, 18)
-				.padding(.top, 24)
-				.padding(.bottom, 18)
-			}
-			.scrollDismissesKeyboard(.interactively)
-			.scrollEdgeEffectStyle(.soft, for: .top)
-			.safeAreaBar(edge: .top, spacing: 0) {
-				HeaderView {
-					dismissKeyboard()
-					withAnimation(screenSpring) {
-						isShowingHistory = true
-					}
-				} onNewChat: {
-					historyViewModel.startNewChat()
-					dismissKeyboard()
-				}
-			}
 
-			Input(text: $inputText) { text in
-				send(text)
+					ScrollView {
+						LazyVStack(alignment: .leading, spacing: 20) {
+							ForEach(historyViewModel.currentMessages) { message in
+								MessageBubble(
+									text: message.text,
+									role: message.role,
+									isWaitingForResponse: runtime.isGenerating && message == historyViewModel.currentMessages.last
+								)
+							}
+						}
+						.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+						.padding(.horizontal, 18)
+						.padding(.top, 24)
+						.padding(.bottom, 18)
+					}
+					.frame(maxWidth: .infinity, minHeight: proxy.size.height)
+					.scrollDismissesKeyboard(.interactively)
+					.scrollEdgeEffectStyle(.soft, for: [.top, .bottom])
+				}
+				.safeAreaBar(edge: .top, spacing: 0) {
+					HeaderView {
+						dismissKeyboard()
+						withAnimation(screenSpring) {
+							isShowingHistory = true
+						}
+					} onNewChat: {
+						historyViewModel.startNewChat()
+						dismissKeyboard()
+					}
+				}
+				.safeAreaBar(edge: .bottom, spacing: 0) {
+					Input(text: $inputText) { text in
+						send(text)
+					}
+					.disabled(runtime.isLoading || runtime.isGenerating)
+					.opacity(runtime.isLoading ? 0.5 : 1)
+					.padding(.horizontal, 14)
+					.padding(.vertical, 12)
+				}
 			}
-			.disabled(runtime.isLoading || runtime.isGenerating)
-			.opacity(runtime.isLoading ? 0.5 : 1)
-			.padding(.horizontal, 14)
-			.padding(.vertical, 12)
 		}
 		.background(Color(uiColor: .systemBackground))
 		.simultaneousGesture(

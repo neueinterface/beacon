@@ -23,10 +23,12 @@ struct ModelDownloadView<Runtime: ModelDownloadRuntime>: View {
 	let model: BeaconModel
 	@ObservedObject var runtime: Runtime
 	var onComplete: () -> Void = { }
+	var onCancel: () -> Void = { }
 	var startsAutomatically = true
 
 	@StateObject private var haptics = ModelDownloadHaptics()
 	@State private var hasStarted = false
+	@State private var loadingTask: Task<Void, Never>?
 
 	var body: some View {
 		VStack(alignment: .leading, spacing: 0) {
@@ -56,19 +58,33 @@ struct ModelDownloadView<Runtime: ModelDownloadRuntime>: View {
 
 						BeaconButton("Try again", variant: .secondary) {
 							hasStarted = false
-							Task { await startLoading() }
+							loadingTask = Task { await startLoading() }
 						}
 					}
 				}
 
-				VStack(alignment: .leading, spacing: 8) {
-					Text(model.name)
-						.font(.system(size: 16, weight: .semibold))
-						.foregroundStyle(.primary)
+				HStack(alignment: .top, spacing: 16) {
+					VStack(alignment: .leading, spacing: 8) {
+						Text(model.name)
+							.font(.system(size: 16, weight: .semibold))
+							.foregroundStyle(.primary)
 
-					Text("Approx. \(model.formattedSize)")
-						.font(.system(size: 14, weight: .medium))
-						.foregroundStyle(.secondary)
+						Text("Approx. \(model.formattedSize)")
+							.font(.system(size: 14, weight: .medium))
+							.foregroundStyle(.secondary)
+					}
+
+					Spacer(minLength: 12)
+
+					Button(action: cancelDownload) {
+						Image(systemName: "xmark")
+							.font(.system(size: 14, weight: .semibold))
+							.foregroundStyle(.secondary)
+							.frame(width: 30, height: 30)
+							.background(Color(uiColor: .systemGray5), in: Circle())
+					}
+					.buttonStyle(SpringButtonStyle())
+					.accessibilityLabel("Cancel download")
 				}
 				.padding(18)
 				.frame(maxWidth: .infinity, alignment: .leading)
@@ -82,7 +98,7 @@ struct ModelDownloadView<Runtime: ModelDownloadRuntime>: View {
 		.onAppear {
 			guard startsAutomatically else { return }
 			guard !hasStarted else { return }
-			Task {
+			loadingTask = Task {
 				await startLoading()
 			}
 		}
@@ -94,6 +110,7 @@ struct ModelDownloadView<Runtime: ModelDownloadRuntime>: View {
 			}
 		}
 		.onDisappear {
+			loadingTask?.cancel()
 			haptics.stop()
 		}
 	}
@@ -118,6 +135,13 @@ struct ModelDownloadView<Runtime: ModelDownloadRuntime>: View {
 		if runtime.isReady(for: model) {
 			onComplete()
 		}
+	}
+
+	private func cancelDownload() {
+		loadingTask?.cancel()
+		loadingTask = nil
+		haptics.stop()
+		onCancel()
 	}
 }
 
