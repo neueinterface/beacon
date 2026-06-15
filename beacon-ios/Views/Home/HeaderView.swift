@@ -8,30 +8,23 @@
 import SwiftUI
 
 struct HeaderView: View {
-	let title: String
 	var onOpenHistory: () -> Void
+	var onNewChat: () -> Void
 
 	var body: some View {
 		HStack {
-			BeaconButton(icon: "list.dash", variant: .subtle, size: .small, action: onOpenHistory)
-				.background(Color(uiColor: .systemGray6), in: Circle())
+			BeaconButton(icon: "line.3.horizontal", variant: .secondary, size: .large, action: onOpenHistory)
 
 			Spacer()
 
-			Text(title)
-				.font(.headline)
-
-			Spacer()
-
-			// Keeps the title centered while only showing a left action.
-			Color.clear
-				.frame(width: 34, height: 34)
+			BeaconButton(assetIcon: "chat.icon", variant: .secondary, size: .large, action: onNewChat)
 		}
-		.padding(.horizontal, 12)
-		.padding(.vertical, 10)
+		.padding(.horizontal, 46)
+		.padding(.top, 20)
+		.padding(.bottom, 24)
 	}
 }
 
 #Preview {
-	HeaderView(title: "Local Model") { }
+	HeaderView(onOpenHistory: { }, onNewChat: { })
 }

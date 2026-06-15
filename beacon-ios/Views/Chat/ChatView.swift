@@ -92,13 +92,6 @@ struct ChatView: View {
 
 	private var chatContent: some View {
 		VStack(spacing: 0) {
-			HeaderView(title: selectedModel.name) {
-				dismissKeyboard()
-				withAnimation(screenSpring) {
-					isShowingHistory = true
-				}
-			}
-
 			ScrollView {
 				LazyVStack(alignment: .leading, spacing: 20) {
 					ForEach(historyViewModel.currentMessages) { message in
@@ -111,6 +104,17 @@ struct ChatView: View {
 			}
 			.scrollDismissesKeyboard(.interactively)
 			.scrollEdgeEffectStyle(.soft, for: .top)
+			.safeAreaBar(edge: .top, spacing: 0) {
+				HeaderView {
+					dismissKeyboard()
+					withAnimation(screenSpring) {
+						isShowingHistory = true
+					}
+				} onNewChat: {
+					historyViewModel.startNewChat()
+					dismissKeyboard()
+				}
+			}
 
 			Input(text: $inputText) { text in
 				send(text)

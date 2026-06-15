@@ -94,6 +94,8 @@ final class BeaconModelRuntime: ModelDownloadRuntime {
 			LLMRegistry.llama3_2_1B_4bit
 		case "mlx-community/Llama-3.2-3B-Instruct-4bit":
 			LLMRegistry.llama3_2_3B_4bit
+		case "mlx-community/Qwen3-1.7B-4bit":
+			LLMRegistry.qwen3_1_7b_4bit
 		default:
 			ModelConfiguration(id: model.repositoryID)
 		}

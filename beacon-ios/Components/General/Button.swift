@@ -27,6 +27,7 @@ struct BeaconButton: View {
 	private let trailingIcon: String?
 	private let trailingAssetIcon: String?
 	private let icon: String?
+	private let assetIcon: String?
 	private let variant: Variant
 	private let size: Size
 	private let isDisabled: Bool
@@ -51,6 +52,7 @@ struct BeaconButton: View {
 		self.trailingIcon = trailingIcon
 		self.trailingAssetIcon = trailingAssetIcon
 		self.icon = nil
+		self.assetIcon = nil
 		self.variant = variant
 		self.size = size
 		self.isDisabled = isDisabled
@@ -72,6 +74,29 @@ struct BeaconButton: View {
 		self.trailingIcon = nil
 		self.trailingAssetIcon = nil
 		self.icon = icon
+		self.assetIcon = nil
+		self.variant = variant
+		self.size = size
+		self.isDisabled = isDisabled
+		self.isLoading = isLoading
+		self.action = action
+	}
+
+	init(
+		assetIcon: String,
+		variant: Variant = .primary,
+		size: Size = .default,
+		isDisabled: Bool = false,
+		isLoading: Bool = false,
+		action: @escaping () -> Void
+	) {
+		self.title = nil
+		self.leadingIcon = nil
+		self.leadingAssetIcon = nil
+		self.trailingIcon = nil
+		self.trailingAssetIcon = nil
+		self.icon = nil
+		self.assetIcon = assetIcon
 		self.variant = variant
 		self.size = size
 		self.isDisabled = isDisabled
@@ -90,9 +115,8 @@ struct BeaconButton: View {
 
 	@ViewBuilder
 	private var content: some View {
-		if let icon {
-			Image(systemName: icon)
-				.font(iconFont)
+		if icon != nil || assetIcon != nil {
+			iconContent
 				.foregroundStyle(foregroundStyle)
 				.frame(width: iconButtonLength, height: iconButtonLength)
 				.background(backgroundStyle, in: Circle())
@@ -102,7 +126,7 @@ struct BeaconButton: View {
 					Image(systemName: leadingIcon)
 						.font(iconFont)
 				} else if let leadingAssetIcon {
-					assetIcon(leadingAssetIcon)
+					assetIconView(leadingAssetIcon)
 				}
 
 				if let title {
@@ -113,7 +137,7 @@ struct BeaconButton: View {
 				if isLoading {
 					BeaconLoader(size: loaderSize, lineWidth: 2, color: foregroundStyle)
 				} else if let trailingAssetIcon {
-					assetIcon(trailingAssetIcon)
+					assetIconView(trailingAssetIcon)
 				} else if let trailingIcon {
 					Image(systemName: trailingIcon)
 						.font(iconFont)
@@ -126,12 +150,22 @@ struct BeaconButton: View {
 		}
 	}
 
-	private func assetIcon(_ name: String) -> some View {
+	private func assetIconView(_ name: String) -> some View {
 		Image(name)
 			.renderingMode(.template)
 			.resizable()
 			.scaledToFit()
 			.frame(width: 20, height: 20)
+	}
+
+	@ViewBuilder
+	private var iconContent: some View {
+		if let icon {
+			Image(systemName: icon)
+				.font(iconFont)
+		} else if let assetIcon {
+			assetIconView(assetIcon)
+		}
 	}
 
 	private var textFont: Font {
