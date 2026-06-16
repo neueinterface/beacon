@@ -56,7 +56,7 @@ struct ModelDownloadView<Runtime: ModelDownloadRuntime>: View {
 							.font(.system(size: 16, weight: .regular))
 							.foregroundStyle(.red)
 
-						BeaconButton("Try again", variant: .secondary) {
+						BeaconButton("Try again", variant: .secondary, size: .small) {
 							hasStarted = false
 							loadingTask = Task { await startLoading() }
 						}
@@ -66,7 +66,7 @@ struct ModelDownloadView<Runtime: ModelDownloadRuntime>: View {
 				HStack(alignment: .top, spacing: 16) {
 					VStack(alignment: .leading, spacing: 8) {
 						Text(model.name)
-							.font(.system(size: 16, weight: .semibold))
+							.font(.system(size: 18, weight: .medium))
 							.foregroundStyle(.primary)
 
 						Text("Approx. \(model.formattedSize)")
