@@ -17,19 +17,18 @@ struct ContentView: View {
 
     var body: some View {
 		if let downloadingModel {
-			ModelDownloadView(model: downloadingModel, runtime: modelRuntime) {
-				recordDownloaded(downloadingModel)
-				selectedModelID = downloadingModel.id
-				hasCompletedWelcome = true
+			ModelDownloadView(model: downloadingModel, runtime: modelRuntime, onComplete: {
+				select(downloadingModel)
+			}, onCancel: {
 				self.downloadingModel = nil
-			}
+			})
 		} else if hasCompletedWelcome {
 			ChatView(runtime: modelRuntime) { model in
-				downloadingModel = model
+				prepare(model)
 			}
 		} else if isChoosingModel {
-			WelcomeModelSelectView(models: ModelCatalog.availableModels) { model in
-				downloadingModel = model
+			WelcomeModelSelectView(models: ModelCatalog.onboardingModels) { model in
+				prepare(model)
 			}
 		} else {
 			WelcomeView(onGetStarted: {
@@ -42,6 +41,24 @@ struct ContentView: View {
 		var ids = Set(downloadedModelIDs.split(separator: ",").map(String.init))
 		ids.insert(model.id)
 		downloadedModelIDs = ids.sorted().joined(separator: ",")
+	}
+
+	private func prepare(_ model: BeaconModel) {
+		if model.isBuiltIn {
+			select(model)
+		} else {
+			downloadingModel = model
+		}
+	}
+
+	private func select(_ model: BeaconModel) {
+		if !model.isBuiltIn {
+			recordDownloaded(model)
+		}
+
+		selectedModelID = model.id
+		hasCompletedWelcome = true
+		downloadingModel = nil
 	}
 }
 

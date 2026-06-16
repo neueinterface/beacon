@@ -13,15 +13,15 @@ struct HeaderView: View {
 
 	var body: some View {
 		HStack {
-			BeaconButton(icon: "line.3.horizontal", variant: .secondary, size: .large, action: onOpenHistory)
+			BeaconButton(icon: "line.3.horizontal", variant: .secondary, action: onOpenHistory)
 
 			Spacer()
 
-			BeaconButton(assetIcon: "chat.icon", variant: .secondary, size: .large, action: onNewChat)
+			BeaconButton(assetIcon: "chat.icon", variant: .secondary, action: onNewChat)
 		}
-		.padding(.horizontal, 46)
-		.padding(.top, 20)
-		.padding(.bottom, 24)
+		.padding(.horizontal, 20)
+		.padding(.top, 8)
+		.padding(.bottom, 12)
 	}
 }
 
