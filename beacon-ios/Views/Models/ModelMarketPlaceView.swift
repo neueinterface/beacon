@@ -109,6 +109,8 @@ struct ModelMarketPlaceView: View {
 	}
 
 	private func delete(_ model: BeaconModel) {
+		guard !model.isBuiltIn else { return }
+
 		deleteErrorMessage = nil
 		deletingModelID = model.id
 
@@ -116,10 +118,9 @@ struct ModelMarketPlaceView: View {
 
 		do {
 			let fileManager = FileManager.default
-		guard !model.isBuiltIn else { return }
-
-		let cacheURL = cacheDirectory(for: model)
+			let cacheURL = cacheDirectory(for: model)
 			let metadataURL = metadataDirectory(for: model)
+			let lockURL = lockDirectory(for: model)
 
 			if fileManager.fileExists(atPath: cacheURL.path) {
 				try fileManager.removeItem(at: cacheURL)
@@ -127,6 +128,10 @@ struct ModelMarketPlaceView: View {
 
 			if fileManager.fileExists(atPath: metadataURL.path) {
 				try fileManager.removeItem(at: metadataURL)
+			}
+
+			if fileManager.fileExists(atPath: lockURL.path) {
+				try fileManager.removeItem(at: lockURL)
 			}
 
 			var ids = downloadedIDs
@@ -148,6 +153,12 @@ struct ModelMarketPlaceView: View {
 	private func metadataDirectory(for model: BeaconModel) -> URL {
 		huggingFaceHubCacheDirectory
 			.appendingPathComponent(".metadata")
+			.appendingPathComponent(cacheDirectoryName(for: model))
+	}
+
+	private func lockDirectory(for model: BeaconModel) -> URL {
+		huggingFaceHubCacheDirectory
+			.appendingPathComponent(".locks")
 			.appendingPathComponent(cacheDirectoryName(for: model))
 	}
 
@@ -221,36 +232,26 @@ private struct ModelMarketPlaceRow: View {
 					.font(.system(size: 16, weight: .medium))
 					.foregroundStyle(.primary)
 
-				Text(model.description)
+				Text(descriptionText)
 					.font(.system(size: 16, weight: .regular))
 					.foregroundStyle(.secondary)
 					.lineSpacing(3)
 			}
 
-			VStack(alignment: .leading, spacing: 8) {
-				HStack(spacing: 12) {
-					Tag(title: model.formattedSize, color: .indigo)
+			HStack(spacing: 12) {
+				Tag(title: model.formattedSize, color: .indigo)
 
-					if model.type == .reasoning {
-						Tag(title: "reasoning", color: .orange)
-					} else {
-						Tag(title: "chat", color: .gray)
-					}
+				if model.type == .reasoning {
+					Tag(title: "reasoning", color: .orange)
+				} else {
+					Tag(title: "chat", color: .gray)
 				}
-
-				Tag(title: "Recommended: \(model.recommendedDevice)", color: .green)
 			}
 
 			VStack(alignment: .leading, spacing: 14) {
 				HStack(spacing: 10) {
 					if isDownloaded {
 						DownloadedModelButton(title: model.isBuiltIn ? "Built in" : "Downloaded")
-
-						if !isSelected {
-							BeaconButton("Use", variant: .secondary, size: .small) {
-								onSelect()
-							}
-						}
 					} else {
 						BeaconButton("Download", variant: .secondary, size: .small, trailingAssetIcon: "download.icon", isLoading: isDownloading) {
 							isDownloading = true
@@ -265,13 +266,23 @@ private struct ModelMarketPlaceRow: View {
 					}
 				}
 
-				if isDownloaded && !model.isBuiltIn {
-					VStack(alignment: .leading, spacing: 8) {
-						BeaconButton(isDeleting ? "Deleting" : "Delete", variant: .destructive, size: .small, isDisabled: isSelected, isLoading: isDeleting) {
-							onDelete()
+				if isDownloaded {
+					VStack(alignment: .leading, spacing: 10) {
+						HStack(spacing: 10) {
+							if !model.isBuiltIn {
+								BeaconButton(isDeleting ? "Deleting" : "Delete", variant: .destructive, size: .small, isDisabled: isSelected, isLoading: isDeleting) {
+									onDelete()
+								}
+							}
+
+							if !isSelected {
+								BeaconButton("Use", variant: .secondary, size: .small) {
+									onSelect()
+								}
+							}
 						}
 
-						if isSelected {
+						if isSelected && !model.isBuiltIn {
 							Text("Switch to another model before deleting this one.")
 								.font(.system(size: 14, weight: .regular))
 								.foregroundStyle(.secondary)
@@ -281,6 +292,17 @@ private struct ModelMarketPlaceRow: View {
 			}
 		}
 		.frame(maxWidth: .infinity, alignment: .leading)
+	}
+
+	private var descriptionText: String {
+		let trimmedDescription = model.description.trimmingCharacters(in: .whitespacesAndNewlines)
+		let recommendation = "Recommended for \(model.recommendedDevice)."
+
+		if trimmedDescription.hasSuffix(".") {
+			return "\(trimmedDescription) \(recommendation)"
+		}
+
+		return "\(trimmedDescription). \(recommendation)"
 	}
 }
 

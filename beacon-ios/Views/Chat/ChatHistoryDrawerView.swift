@@ -5,6 +5,7 @@ struct ChatHistoryDrawerView: View {
 	var onClose: () -> Void
 	var onNewChat: () -> Void
 	var onOpenModels: () -> Void = { }
+	var onOpenSettings: () -> Void = { }
 	var onSelect: (ChatConversation) -> Void
 
 	var body: some View {
@@ -68,7 +69,7 @@ struct ChatHistoryDrawerView: View {
 
 			Spacer()
 
-			BeaconButton(assetIcon: "settings.icon", variant: .secondary, action: { })
+			BeaconButton(assetIcon: "settings.icon", variant: .secondary, action: onOpenSettings)
 			BeaconButton(icon: "arrow.right", variant: .secondary, action: onClose)
 		}
 		.padding(.horizontal, 20)

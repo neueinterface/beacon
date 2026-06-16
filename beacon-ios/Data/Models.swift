@@ -25,7 +25,7 @@ struct BeaconModel: Identifiable, Equatable {
 
 	var formattedSize: String {
 		if isBuiltIn { return "Built in" }
-		return "\(sizeInGB) GB"
+		return String(format: "%.2f GB", NSDecimalNumber(decimal: sizeInGB).doubleValue)
 	}
 }
 

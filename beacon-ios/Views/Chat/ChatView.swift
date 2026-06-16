@@ -10,7 +10,10 @@ struct ChatView: View {
 	@State private var inputText = ""
 	@State private var isShowingHistory = false
 	@State private var isShowingModels = false
+	@State private var isModelMarketplaceMounted = false
 	@State private var isShowingModelSwitcher = false
+	@State private var isShowingSettings = false
+	@State private var shouldOpenMarketplaceAfterModelSwitcherDismisses = false
 
 	private let screenSpring = Animation.spring(response: 0.46, dampingFraction: 0.86, blendDuration: 0.12)
 
@@ -48,9 +51,10 @@ struct ChatView: View {
 						}
 					},
 					onOpenModels: {
-						withAnimation(screenSpring) {
-							isShowingModels = true
-						}
+						showMarketplace()
+					},
+					onOpenSettings: {
+						isShowingSettings = true
 					}
 				) { _ in
 					withAnimation(screenSpring) {
@@ -67,39 +71,45 @@ struct ChatView: View {
 				.allowsHitTesting(isShowingHistory && !isShowingModels)
 				.zIndex(isShowingModels ? 1 : 2)
 
-				ModelMarketPlaceView(
-					models: ModelCatalog.availableModels,
-					onClose: {
-						withAnimation(screenSpring) {
-							isShowingModels = false
-							isShowingHistory = false
+				if isModelMarketplaceMounted {
+					ModelMarketPlaceView(
+						models: ModelCatalog.availableModels,
+						onClose: {
+							hideMarketplace()
+						},
+						onDownload: { model in
+							onDownloadModel(model)
 						}
-					},
-					onDownload: { model in
-						onDownloadModel(model)
-					}
-				)
-				.frame(width: geometry.size.width)
-				.frame(maxHeight: .infinity)
-				.depthLayer(isActive: isShowingModels, edge: .trailing)
-				.opacity(isShowingModels ? 1 : 0)
-				.allowsHitTesting(isShowingModels)
-				.zIndex(3)
+					)
+					.frame(width: geometry.size.width)
+					.frame(maxHeight: .infinity)
+					.depthLayer(isActive: isShowingModels, edge: .trailing)
+					.opacity(isShowingModels ? 1 : 0)
+					.allowsHitTesting(isShowingModels)
+					.zIndex(3)
+				}
 			}
 			.animation(screenSpring, value: isShowingHistory)
 			.animation(screenSpring, value: isShowingModels)
 		}
 		.background(Color(uiColor: .systemBackground))
-		.sheet(isPresented: $isShowingModelSwitcher) {
+		.sheet(isPresented: $isShowingModelSwitcher, onDismiss: openMarketplaceAfterModelSwitcherDismissesIfNeeded) {
 			ChatModelSwitcherSheet(
 				models: downloadedModels,
 				selectedModelID: selectedModel.id,
 				onSelect: { model in
 					select(model)
+				},
+				onOpenMarketplace: {
+					shouldOpenMarketplaceAfterModelSwitcherDismisses = true
+					isShowingModelSwitcher = false
 				}
 			)
 			.presentationDetents([.medium, .large])
 			.presentationDragIndicator(.visible)
+		}
+		.sheet(isPresented: $isShowingSettings) {
+			SettingsView(chatHistoryViewModel: historyViewModel)
 		}
 		.task(id: selectedModelID) {
 			guard !runtime.isReady(for: selectedModel) else { return }
@@ -198,6 +208,42 @@ struct ChatView: View {
 		isShowingModelSwitcher = false
 	}
 
+	private func showMarketplace() {
+		isModelMarketplaceMounted = true
+
+		Task { @MainActor in
+			await Task.yield()
+			withAnimation(screenSpring) {
+				isShowingHistory = false
+				isShowingModels = true
+			}
+		}
+	}
+
+	private func hideMarketplace() {
+		withAnimation(screenSpring) {
+			isShowingModels = false
+			isShowingHistory = false
+		}
+
+		Task { @MainActor in
+			try? await Task.sleep(for: .milliseconds(420))
+			if !isShowingModels {
+				isModelMarketplaceMounted = false
+			}
+		}
+	}
+
+	private func openMarketplaceAfterModelSwitcherDismissesIfNeeded() {
+		guard shouldOpenMarketplaceAfterModelSwitcherDismisses else { return }
+		shouldOpenMarketplaceAfterModelSwitcherDismisses = false
+
+		Task { @MainActor in
+			try? await Task.sleep(for: .milliseconds(180))
+			showMarketplace()
+		}
+	}
+
 	private func isDownloaded(_ model: BeaconModel) -> Bool {
 		if model.isBuiltIn { return true }
 		let ids = Set(downloadedModelIDs.split(separator: ",").map(String.init))
@@ -216,35 +262,37 @@ private struct ChatModelSwitcherSheet: View {
 	let models: [BeaconModel]
 	let selectedModelID: String
 	var onSelect: (BeaconModel) -> Void
+	var onOpenMarketplace: () -> Void
 
 	var body: some View {
 		NavigationStack {
-			List(models) { model in
-				Button {
-					onSelect(model)
-				} label: {
-					HStack(spacing: 14) {
-						VStack(alignment: .leading, spacing: 6) {
+			VStack(spacing: 0) {
+				List(models) { model in
+					Button {
+						onSelect(model)
+					} label: {
+						HStack(spacing: 14) {
 							Text(model.name)
 								.font(.system(size: 16, weight: .medium))
 								.foregroundStyle(.primary)
 
-							Text(model.formattedSize)
-								.font(.system(size: 13, weight: .regular))
-								.foregroundStyle(.secondary)
-						}
+							Spacer()
 
-						Spacer()
-
-						if selectedModelID == model.id {
-							Image(systemName: "checkmark.circle.fill")
-								.font(.system(size: 20, weight: .semibold))
-								.foregroundStyle(.primary)
+							if selectedModelID == model.id {
+								Image(systemName: "checkmark.circle.fill")
+									.font(.system(size: 20, weight: .semibold))
+									.foregroundStyle(.primary)
+							}
 						}
+						.padding(.vertical, 6)
 					}
-					.padding(.vertical, 6)
+					.buttonStyle(.plain)
 				}
-				.buttonStyle(.plain)
+
+				BeaconButton("Open Model Marketplace", variant: .secondary, leadingAssetIcon: "playground.icon", action: onOpenMarketplace)
+					.padding(.horizontal, 18)
+					.padding(.top, 12)
+					.padding(.bottom, 16)
 			}
 			.navigationTitle("Switch Model")
 			.navigationBarTitleDisplayMode(.inline)
