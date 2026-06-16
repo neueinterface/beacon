@@ -5,82 +5,75 @@ struct ChatHistoryDrawerView: View {
 	var onClose: () -> Void
 	var onNewChat: () -> Void
 	var onOpenModels: () -> Void = { }
-	var onSelect: (StartedChat) -> Void
+	var onSelect: (ChatConversation) -> Void
 
 	var body: some View {
 		ZStack(alignment: .bottomTrailing) {
-			VStack(alignment: .leading, spacing: 0) {
-				header
+			historyContent
 
-				if viewModel.chats.isEmpty {
-					emptyState
-				} else {
-					List {
-						ForEach(Array(viewModel.chats.enumerated()), id: \.element.id) { index, chat in
-							ChatHistoryRow(
-								chat: chat,
-								timeText: viewModel.formattedTime(for: chat),
-								showsDivider: index < viewModel.chats.count - 1
-							) {
-								viewModel.select(chat)
-								onSelect(chat)
-							}
-							.listRowInsets(EdgeInsets())
-							.listRowSeparator(.hidden)
-							.listRowBackground(Color(uiColor: .systemBackground))
-							.swipeActions(edge: .trailing, allowsFullSwipe: true) {
-								Button(role: .destructive) {
-									withAnimation(.smooth(duration: 0.24)) {
-										viewModel.delete(chat)
-									}
-								} label: {
-									Label("Delete", systemImage: "trash")
-								}
-							}
-						}
-					}
-					.listStyle(.plain)
-					.scrollContentBackground(.hidden)
-					.scrollEdgeEffectStyle(.soft, for: .top)
-				}
-			}
-
-			Button(action: onNewChat) {
-				HStack(spacing: 12) {
-					Image("chat.icon")
-						.renderingMode(.template)
-						.resizable()
-						.scaledToFit()
-						.frame(width: 24, height: 24)
-
-					Text("New Chat")
-						.font(.system(size: 18, weight: .semibold))
-				}
-				.foregroundStyle(.white)
-				.padding(.horizontal, 24)
-				.frame(height: 60)
-				.background(.black, in: Capsule())
-				.shadow(color: .black.opacity(0.18), radius: 18, x: 0, y: 8)
-			}
-			.buttonStyle(SpringButtonStyle())
+			BeaconButton("New Chat", size: .large, leadingAssetIcon: "chat.icon", action: onNewChat)
 			.padding(.trailing, 20)
 			.padding(.bottom, 24)
 		}
 		.background(Color(uiColor: .systemBackground))
 	}
 
+	@ViewBuilder
+	private var historyContent: some View {
+		if viewModel.chats.isEmpty {
+			ScrollView {
+				emptyState
+			}
+			.scrollEdgeEffectStyle(.soft, for: .top)
+			.safeAreaBar(edge: .top, spacing: 0) {
+				header
+			}
+		} else {
+			List {
+				ForEach(Array(viewModel.chats.enumerated()), id: \.element.id) { index, chat in
+					ChatHistoryRow(
+						chat: chat,
+						timeText: viewModel.formattedTime(for: chat),
+						showsDivider: index < viewModel.chats.count - 1
+					) {
+						viewModel.select(chat)
+						onSelect(chat)
+					}
+					.listRowInsets(EdgeInsets())
+					.listRowSeparator(.hidden)
+					.listRowBackground(Color(uiColor: .systemBackground))
+					.swipeActions(edge: .trailing, allowsFullSwipe: true) {
+						Button(role: .destructive) {
+							withAnimation(.smooth(duration: 0.24)) {
+								viewModel.delete(chat)
+							}
+						} label: {
+							Label("Delete", systemImage: "trash")
+						}
+					}
+				}
+			}
+			.listStyle(.plain)
+			.scrollContentBackground(.hidden)
+			.scrollEdgeEffectStyle(.soft, for: .top)
+			.safeAreaBar(edge: .top, spacing: 0) {
+				header
+			}
+		}
+	}
+
 	private var header: some View {
 		HStack(spacing: 16) {
-			ChatHistoryGlassPill(title: "Models", assetIcon: "playground.icon", action: onOpenModels)
+			BeaconButton("Models", variant: .secondary, leadingAssetIcon: "playground.icon", action: onOpenModels)
 
 			Spacer()
 
-			ChatHistoryGlassIconButton("settings.icon") { }
-			ChatHistoryGlassIconButton(systemName: "arrow.right", action: onClose)
+			BeaconButton(assetIcon: "settings.icon", variant: .secondary, action: { })
+			BeaconButton(icon: "arrow.right", variant: .secondary, action: onClose)
 		}
 		.padding(.horizontal, 20)
 		.padding(.top, 20)
-		.padding(.bottom, 40)
+		.padding(.bottom, 20)
 	}
 
 	private var emptyState: some View {
@@ -100,78 +93,8 @@ struct ChatHistoryDrawerView: View {
 	}
 }
 
-private struct ChatHistoryGlassPill: View {
-	let title: String
-	let assetIcon: String
-	var action: () -> Void
-
-	var body: some View {
-		Button(action: action) {
-			HStack(spacing: 10) {
-				Image(assetIcon)
-					.renderingMode(.template)
-					.resizable()
-					.scaledToFit()
-					.frame(width: 24, height: 24)
-
-				Text(title)
-					.font(.system(size: 21, weight: .medium))
-			}
-			.foregroundStyle(.primary)
-			.padding(.horizontal, 18)
-			.frame(height: 52)
-			.background(Color(uiColor: .systemGray6), in: Capsule())
-			.shadow(color: .black.opacity(0.05), radius: 14, x: 0, y: 6)
-		}
-		.buttonStyle(SpringButtonStyle())
-	}
-}
-
-private struct ChatHistoryGlassIconButton: View {
-	let assetIcon: String?
-	let systemName: String?
-	var action: () -> Void
-
-	init(_ assetIcon: String, action: @escaping () -> Void) {
-		self.assetIcon = assetIcon
-		self.systemName = nil
-		self.action = action
-	}
-
-	init(systemName: String, action: @escaping () -> Void) {
-		self.assetIcon = nil
-		self.systemName = systemName
-		self.action = action
-	}
-
-	var body: some View {
-		Button(action: action) {
-			icon
-				.foregroundStyle(.primary)
-				.frame(width: 52, height: 52)
-				.background(Color(uiColor: .systemGray6), in: Circle())
-				.shadow(color: .black.opacity(0.05), radius: 14, x: 0, y: 6)
-		}
-		.buttonStyle(SpringButtonStyle())
-	}
-
-	@ViewBuilder
-	private var icon: some View {
-		if let assetIcon {
-			Image(assetIcon)
-				.renderingMode(.template)
-				.resizable()
-				.scaledToFit()
-				.frame(width: 25, height: 25)
-		} else if let systemName {
-			Image(systemName: systemName)
-				.font(.system(size: 25, weight: .regular))
-		}
-	}
-}
-
 private struct ChatHistoryRow: View {
-	let chat: StartedChat
+	let chat: ChatConversation
 	let timeText: String
 	let showsDivider: Bool
 	var onSelect: () -> Void
@@ -181,7 +104,7 @@ private struct ChatHistoryRow: View {
 			VStack(alignment: .leading, spacing: 0) {
 				VStack(alignment: .leading, spacing: 18) {
 				HStack(alignment: .firstTextBaseline, spacing: 14) {
-					Text(chat.firstMessage)
+					Text(chat.historyTitle)
 						.font(.system(size: 18, weight: .medium))
 						.foregroundStyle(.primary)
 						.lineLimit(1)
@@ -189,7 +112,7 @@ private struct ChatHistoryRow: View {
 					Spacer(minLength: 12)
 
 					Text(timeText)
-						.font(.system(size: 16, weight: .regular))
+						.font(.system(size: 12, weight: .medium))
 						.foregroundStyle(.secondary)
 						.lineLimit(1)
 				}

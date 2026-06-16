@@ -7,7 +7,7 @@ final class ChatHistoryViewModel: ObservableObject {
 		didSet { saveConversations() }
 	}
 	@Published private(set) var currentMessages: [ChatMessage]
-	@Published var selectedChatID: StartedChat.ID?
+	@Published var selectedChatID: ChatConversation.ID?
 
 	private static let storageKey = "chatConversations"
 	private static let readyMessageText = "Your model is ready."
@@ -15,18 +15,8 @@ final class ChatHistoryViewModel: ObservableObject {
 	private let timeFormatter: DateFormatter
 	private var currentConversationID: ChatConversation.ID?
 
-	var chats: [StartedChat] {
-		conversations
-			.sorted { $0.updatedAt > $1.updatedAt }
-			.map {
-				StartedChat(
-					id: $0.id,
-					firstMessage: $0.historyTitle,
-					modelName: $0.modelName,
-					updatedAt: $0.updatedAt,
-					unreadCount: 0
-				)
-			}
+	var chats: [ChatConversation] {
+		conversations.sorted { $0.updatedAt > $1.updatedAt }
 	}
 
 	init(conversations: [ChatConversation]? = nil) {
@@ -39,10 +29,10 @@ final class ChatHistoryViewModel: ObservableObject {
 		self.timeFormatter = formatter
 	}
 
-	func select(_ chat: StartedChat) {
+	func select(_ chat: ChatConversation) {
 		selectedChatID = chat.id
 		currentConversationID = chat.id
-		currentMessages = conversations.first { $0.id == chat.id }?.messages ?? []
+		currentMessages = chat.messages
 	}
 
 	func startNewChat() {
@@ -51,7 +41,7 @@ final class ChatHistoryViewModel: ObservableObject {
 		currentMessages = []
 	}
 
-	func delete(_ chat: StartedChat) {
+	func delete(_ chat: ChatConversation) {
 		conversations.removeAll { $0.id == chat.id }
 
 		if currentConversationID == chat.id || selectedChatID == chat.id {
@@ -96,7 +86,7 @@ final class ChatHistoryViewModel: ObservableObject {
 		}
 	}
 
-	func formattedTime(for chat: StartedChat) -> String {
+	func formattedTime(for chat: ChatConversation) -> String {
 		timeFormatter.string(from: chat.updatedAt)
 	}
 
