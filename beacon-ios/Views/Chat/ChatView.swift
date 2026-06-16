@@ -6,14 +6,20 @@ struct ChatView: View {
 	var onDownloadModel: (BeaconModel) -> Void = { _ in }
 	@StateObject private var historyViewModel = ChatHistoryViewModel()
 	@AppStorage("selectedModelID") private var selectedModelID = ""
+	@AppStorage("downloadedModelIDs") private var downloadedModelIDs = ""
 	@State private var inputText = ""
 	@State private var isShowingHistory = false
 	@State private var isShowingModels = false
+	@State private var isShowingModelSwitcher = false
 
 	private let screenSpring = Animation.spring(response: 0.46, dampingFraction: 0.86, blendDuration: 0.12)
 
 	private var selectedModel: BeaconModel {
 		ModelCatalog.model(id: selectedModelID) ?? ModelCatalog.defaultModel
+	}
+
+	private var downloadedModels: [BeaconModel] {
+		ModelCatalog.availableModels.filter(isDownloaded)
 	}
 
 	var body: some View {
@@ -84,7 +90,18 @@ struct ChatView: View {
 			.animation(screenSpring, value: isShowingModels)
 		}
 		.background(Color(uiColor: .systemBackground))
-		.task {
+		.sheet(isPresented: $isShowingModelSwitcher) {
+			ChatModelSwitcherSheet(
+				models: downloadedModels,
+				selectedModelID: selectedModel.id,
+				onSelect: { model in
+					select(model)
+				}
+			)
+			.presentationDetents([.medium, .large])
+			.presentationDragIndicator(.visible)
+		}
+		.task(id: selectedModelID) {
 			guard !runtime.isReady(for: selectedModel) else { return }
 			await runtime.load(selectedModel)
 		}
@@ -134,16 +151,18 @@ struct ChatView: View {
 						dismissKeyboard()
 					}
 				}
-				.safeAreaBar(edge: .bottom, spacing: 0) {
-					Input(text: $inputText) { text in
-						send(text)
-					}
-					.disabled(runtime.isLoading || runtime.isGenerating)
-					.opacity(runtime.isLoading ? 0.5 : 1)
-					.padding(.horizontal, 14)
-					.padding(.vertical, 12)
-				}
 			}
+
+			Input(text: $inputText, onOpenModels: {
+				dismissKeyboard()
+				isShowingModelSwitcher = true
+			}) { text in
+				send(text)
+			}
+			.disabled(runtime.isLoading || runtime.isGenerating)
+			.opacity(runtime.isLoading ? 0.5 : 1)
+			.padding(.horizontal, 14)
+			.padding(.vertical, 12)
 		}
 		.background(Color(uiColor: .systemBackground))
 		.simultaneousGesture(
@@ -172,6 +191,64 @@ struct ChatView: View {
 
 	private func dismissKeyboard() {
 		UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+	}
+
+	private func select(_ model: BeaconModel) {
+		selectedModelID = model.id
+		isShowingModelSwitcher = false
+	}
+
+	private func isDownloaded(_ model: BeaconModel) -> Bool {
+		if model.isBuiltIn { return true }
+		let ids = Set(downloadedModelIDs.split(separator: ",").map(String.init))
+		return ids.contains(model.id) || FileManager.default.fileExists(atPath: cacheDirectory(for: model).path)
+	}
+
+	private func cacheDirectory(for model: BeaconModel) -> URL {
+		FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+			.appendingPathComponent("huggingface")
+			.appendingPathComponent("hub")
+			.appendingPathComponent("models--\(model.repositoryID.replacingOccurrences(of: "/", with: "--"))")
+	}
+}
+
+private struct ChatModelSwitcherSheet: View {
+	let models: [BeaconModel]
+	let selectedModelID: String
+	var onSelect: (BeaconModel) -> Void
+
+	var body: some View {
+		NavigationStack {
+			List(models) { model in
+				Button {
+					onSelect(model)
+				} label: {
+					HStack(spacing: 14) {
+						VStack(alignment: .leading, spacing: 6) {
+							Text(model.name)
+								.font(.system(size: 16, weight: .medium))
+								.foregroundStyle(.primary)
+
+							Text(model.formattedSize)
+								.font(.system(size: 13, weight: .regular))
+								.foregroundStyle(.secondary)
+						}
+
+						Spacer()
+
+						if selectedModelID == model.id {
+							Image(systemName: "checkmark.circle.fill")
+								.font(.system(size: 20, weight: .semibold))
+								.foregroundStyle(.primary)
+						}
+					}
+					.padding(.vertical, 6)
+				}
+				.buttonStyle(.plain)
+			}
+			.navigationTitle("Switch Model")
+			.navigationBarTitleDisplayMode(.inline)
+		}
 	}
 }
 

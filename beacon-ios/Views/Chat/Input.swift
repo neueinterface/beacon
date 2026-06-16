@@ -11,6 +11,7 @@ import UIKit
 struct Input: View {
 	@Binding var text: String
 	var placeholder: String = "Message"
+	var onOpenModels: () -> Void = { }
 	var onSend: (String) -> Void
 
 	@State private var textFieldHeight: CGFloat = 0
@@ -28,8 +29,27 @@ struct Input: View {
 	}
 
 	var body: some View {
+		HStack(alignment: .bottom, spacing: 10) {
+			Button(action: onOpenModels) {
+				Image(systemName: "sparkles")
+					.font(.system(size: 18, weight: .semibold))
+					.foregroundStyle(.secondary)
+					.frame(width: 52, height: 52)
+					.background(Color(uiColor: .secondarySystemBackground), in: Circle())
+			}
+			.buttonStyle(.plain)
+
+			inputCapsule
+				.frame(maxWidth: .infinity)
+		}
+		.frame(maxWidth: .infinity)
+		.animation(.smooth(duration: 0.22), value: cornerRadius)
+	}
+
+	private var inputCapsule: some View {
 		HStack(alignment: .bottom, spacing: 8) {
 			TextField(placeholder, text: $text, axis: .vertical)
+				.frame(maxWidth: .infinity, alignment: .leading)
 				.lineLimit(1 ... 4)
 				.textInputAutocapitalization(.sentences)
 				.autocorrectionDisabled(false)
@@ -78,7 +98,6 @@ struct Input: View {
 					}
 			}
 		}
-		.animation(.smooth(duration: 0.22), value: cornerRadius)
 	}
 }
 
