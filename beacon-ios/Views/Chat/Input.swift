@@ -31,9 +31,12 @@ struct Input: View {
 	var body: some View {
 		HStack(alignment: .bottom, spacing: 10) {
 			Button(action: onOpenModels) {
-				Image(systemName: "sparkles")
-					.font(.system(size: 18, weight: .semibold))
+				Image("playground.icon")
+					.renderingMode(.template)
+					.resizable()
+					.scaledToFit()
 					.foregroundStyle(.secondary)
+					.frame(width: 22, height: 22)
 					.frame(width: 52, height: 52)
 					.background(Color(uiColor: .secondarySystemBackground), in: Circle())
 			}
