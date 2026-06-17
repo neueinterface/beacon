@@ -71,7 +71,7 @@ private struct WelcomeModelSelectRow: View {
 					.foregroundStyle(.primary)
 
 				Text(model.description)
-					.font(.system(size: 18, weight: .regular))
+					.font(.system(size: 16, weight: .regular))
 					.foregroundStyle(.secondary)
 					.lineSpacing(3)
 			}
@@ -93,6 +93,7 @@ private struct WelcomeModelSelectRow: View {
 			BeaconButton(
 				model.isBuiltIn ? "Use" : "Download",
 				variant: .secondary,
+				size: .small,
 				trailingIcon: model.isBuiltIn ? "checkmark" : nil,
 				trailingAssetIcon: model.isBuiltIn ? nil : "download.icon",
 				isLoading: isDownloading

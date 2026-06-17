@@ -229,7 +229,7 @@ private struct ModelMarketPlaceRow: View {
 		VStack(alignment: .leading, spacing: 16) {
 			VStack(alignment: .leading, spacing: 12) {
 				Text(model.name)
-					.font(.system(size: 16, weight: .medium))
+					.font(.system(size: 18, weight: .medium))
 					.foregroundStyle(.primary)
 
 				Text(descriptionText)
