@@ -24,18 +24,21 @@ struct ModelDownloadView<Runtime: ModelDownloadRuntime>: View {
 	@ObservedObject var runtime: Runtime
 	var onComplete: () -> Void = { }
 	var onCancel: () -> Void = { }
+	var onError: (String) -> Void = { _ in }
 	var startsAutomatically = true
 
-	@StateObject private var haptics = ModelDownloadHaptics()
 	@State private var hasStarted = false
+	@State private var isCancelled = false
 	@State private var loadingTask: Task<Void, Never>?
+	@State private var progressAnimationTask: Task<Void, Never>?
+	@State private var displayedProgress = 0.02
 
 	var body: some View {
 		VStack(alignment: .leading, spacing: 0) {
 			Spacer()
 
 			VStack(alignment: .leading, spacing: 28) {
-				ProgressView(value: runtime.progress)
+				ProgressView(value: displayedProgress)
 					.progressViewStyle(.linear)
 					.tint(.primary)
 
@@ -58,6 +61,7 @@ struct ModelDownloadView<Runtime: ModelDownloadRuntime>: View {
 
 						BeaconButton("Try again", variant: .secondary, size: .small) {
 							hasStarted = false
+							displayedProgress = 0.02
 							loadingTask = Task { await startLoading() }
 						}
 					}
@@ -104,14 +108,25 @@ struct ModelDownloadView<Runtime: ModelDownloadRuntime>: View {
 		}
 		.onChange(of: runtime.isLoading) { _, isLoading in
 			if isLoading {
-				haptics.start()
+				startProgressAnimation()
 			} else {
-				haptics.stop()
+				stopProgressAnimation(finished: runtime.isReady(for: model))
 			}
 		}
+		.onChange(of: runtime.progress) { _, progress in
+			updateDisplayedProgress(with: progress)
+		}
+		.onChange(of: runtime.errorMessage) { _, errorMessage in
+			guard let errorMessage else { return }
+			UINotificationFeedbackGenerator().notificationOccurred(.error)
+			onError(errorMessage)
+		}
 		.onDisappear {
+			if !runtime.isReady(for: model) {
+				isCancelled = true
+			}
 			loadingTask?.cancel()
-			haptics.stop()
+			progressAnimationTask?.cancel()
 		}
 	}
 
@@ -126,62 +141,65 @@ struct ModelDownloadView<Runtime: ModelDownloadRuntime>: View {
 	private func startLoading() async {
 		guard !hasStarted else { return }
 		hasStarted = true
-		if runtime.isLoading {
-			haptics.start()
-		}
+		isCancelled = false
+		UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+		startProgressAnimation()
 		await runtime.load(model)
-		haptics.stop()
+		stopProgressAnimation(finished: runtime.isReady(for: model))
 
-		if runtime.isReady(for: model) {
+		if !isCancelled && !Task.isCancelled && runtime.isReady(for: model) {
+			UINotificationFeedbackGenerator().notificationOccurred(.success)
 			onComplete()
 		}
 	}
 
 	private func cancelDownload() {
+		isCancelled = true
 		loadingTask?.cancel()
 		loadingTask = nil
-		haptics.stop()
+		progressAnimationTask?.cancel()
+		displayedProgress = 0.02
+		UINotificationFeedbackGenerator().notificationOccurred(.warning)
 		onCancel()
 	}
-}
 
-@MainActor
-private final class ModelDownloadHaptics: ObservableObject {
-	private var task: Task<Void, Never>?
-	private let generator = UIImpactFeedbackGenerator(style: .medium)
+	private func updateDisplayedProgress(with progress: Double) {
+		let clampedProgress = min(max(progress, 0.02), 1)
+		guard clampedProgress > displayedProgress else { return }
 
-	func start() {
-		guard task == nil else { return }
-		generator.prepare()
+		withAnimation(.smooth(duration: 0.24)) {
+			displayedProgress = clampedProgress
+		}
+	}
 
-		task = Task { [weak self] in
-			guard let self else { return }
+	private func startProgressAnimation() {
+		guard progressAnimationTask == nil else { return }
 
+		updateDisplayedProgress(with: runtime.progress)
+		progressAnimationTask = Task { @MainActor in
 			while !Task.isCancelled {
-				let steps = 7
+				try? await Task.sleep(for: .milliseconds(350))
+				guard !Task.isCancelled else { return }
 
-				for step in 0..<steps {
-					guard !Task.isCancelled else { return }
+				let reportedProgress = min(max(runtime.progress, 0.02), 1)
+				let fallbackProgress = min(displayedProgress + max((0.92 - displayedProgress) * 0.08, 0.006), 0.92)
+				let nextProgress = max(reportedProgress, fallbackProgress)
 
-					let progress = Double(step) / Double(steps - 1)
-					let eased = 0.5 - cos(progress * .pi) / 2
-					let intensity = 0.34 + eased * 0.62
-
-					generator.impactOccurred(intensity: intensity)
-					generator.prepare()
-
-					let interval = 0.12 - eased * 0.04
-					try? await Task.sleep(for: .seconds(interval))
+				withAnimation(.smooth(duration: 0.32)) {
+					displayedProgress = nextProgress
 				}
-
-				try? await Task.sleep(for: .seconds(0.28))
 			}
 		}
 	}
 
-	func stop() {
-		task?.cancel()
-		task = nil
+	private func stopProgressAnimation(finished: Bool) {
+		progressAnimationTask?.cancel()
+		progressAnimationTask = nil
+
+		guard finished else { return }
+		withAnimation(.smooth(duration: 0.2)) {
+			displayedProgress = 1
+		}
 	}
 }
 

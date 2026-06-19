@@ -94,8 +94,15 @@ struct ModelMarketPlaceView: View {
 			SafariView(url: page.url)
 				.ignoresSafeArea()
 		}
-		.onAppear {
-			hasAppeared = true
+		.task {
+			do {
+				try await Task.sleep(for: .milliseconds(120))
+				guard !Task.isCancelled else { return }
+				hasAppeared = true
+			} catch { }
+		}
+		.onDisappear {
+			hasAppeared = false
 		}
 	}
 
@@ -105,7 +112,7 @@ struct ModelMarketPlaceView: View {
 
 	private func isDownloaded(_ model: BeaconModel) -> Bool {
 		if model.isBuiltIn { return true }
-		return downloadedIDs.contains(model.id) || FileManager.default.fileExists(atPath: cacheDirectory(for: model).path)
+		return downloadedIDs.contains(model.id)
 	}
 
 	private func delete(_ model: BeaconModel) {

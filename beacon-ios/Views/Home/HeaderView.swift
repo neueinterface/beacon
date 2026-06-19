@@ -9,11 +9,13 @@ import SwiftUI
 
 struct HeaderView: View {
 	var onOpenHistory: () -> Void
+	var onOpenModels: () -> Void
 	var onNewChat: () -> Void
 
 	var body: some View {
-		HStack {
+		HStack(spacing: 10) {
 			BeaconButton(icon: "line.3.horizontal", variant: .secondary, action: onOpenHistory)
+			BeaconButton(assetIcon: "playground.icon", variant: .secondary, action: onOpenModels)
 
 			Spacer()
 
@@ -26,5 +28,5 @@ struct HeaderView: View {
 }
 
 #Preview {
-	HeaderView(onOpenHistory: { }, onNewChat: { })
+	HeaderView(onOpenHistory: { }, onOpenModels: { }, onNewChat: { })
 }
