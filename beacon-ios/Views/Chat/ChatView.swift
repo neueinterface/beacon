@@ -14,6 +14,7 @@ struct ChatView: View {
 	@State private var isShowingModelSwitcher = false
 	@State private var isShowingSettings = false
 	@State private var shouldOpenMarketplaceAfterModelSwitcherDismisses = false
+	private let responseHaptics = StreamingResponseHaptics()
 
 	private let screenSpring = Animation.spring(response: 0.46, dampingFraction: 0.86, blendDuration: 0.12)
 
@@ -144,7 +145,7 @@ struct ChatView: View {
 						.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
 						.padding(.horizontal, 18)
 						.padding(.top, 24)
-						.padding(.bottom, 18)
+						.padding(.bottom, 96)
 					}
 					.frame(maxWidth: .infinity, minHeight: proxy.size.height)
 					.scrollDismissesKeyboard(.interactively)
@@ -156,6 +157,9 @@ struct ChatView: View {
 						withAnimation(screenSpring) {
 							isShowingHistory = true
 						}
+					} onOpenModels: {
+						dismissKeyboard()
+						isShowingModelSwitcher = true
 					} onNewChat: {
 						historyViewModel.startNewChat()
 						dismissKeyboard()
@@ -163,16 +167,7 @@ struct ChatView: View {
 				}
 			}
 
-			Input(text: $inputText, onOpenModels: {
-				dismissKeyboard()
-				isShowingModelSwitcher = true
-			}) { text in
-				send(text)
-			}
-			.disabled(runtime.isLoading || runtime.isGenerating)
-			.opacity(runtime.isLoading ? 0.5 : 1)
-			.padding(.horizontal, 14)
-			.padding(.vertical, 12)
+			inputBar
 		}
 		.background(Color(uiColor: .systemBackground))
 		.simultaneousGesture(
@@ -184,18 +179,47 @@ struct ChatView: View {
 		)
 	}
 
+	private var inputBar: some View {
+		Input(text: $inputText) { text in
+			send(text)
+		}
+		.disabled(runtime.isLoading || runtime.isGenerating)
+		.opacity(runtime.isLoading ? 0.5 : 1)
+		.padding(.horizontal, 14)
+		.padding(.vertical, 12)
+		.background(alignment: .top) {
+			LinearGradient(
+				colors: [
+					Color(uiColor: .systemBackground).opacity(0),
+					Color(uiColor: .systemBackground)
+				],
+				startPoint: .top,
+				endPoint: .bottom
+			)
+			.frame(height: 28)
+			.offset(y: -28)
+			.allowsHitTesting(false)
+		}
+		.background(Color(uiColor: .systemBackground))
+	}
+
 	private func send(_ text: String) {
 		dismissKeyboard()
+		UIImpactFeedbackGenerator(style: .medium).impactOccurred()
 		let responseID = historyViewModel.appendUserMessage(text, modelName: selectedModel.name)
+		responseHaptics.start()
 
 		Task {
 			do {
 				try await runtime.streamResponse(to: text) { chunk in
 					historyViewModel.appendAssistantChunk(chunk, to: responseID)
+					responseHaptics.tick(for: chunk)
 				}
 			} catch {
 				historyViewModel.replaceMessage(responseID, with: error.localizedDescription)
 			}
+
+			responseHaptics.stop()
 		}
 	}
 
@@ -209,10 +233,14 @@ struct ChatView: View {
 	}
 
 	private func showMarketplace() {
-		isModelMarketplaceMounted = true
+		var transaction = Transaction()
+		transaction.disablesAnimations = true
+		withTransaction(transaction) {
+			isModelMarketplaceMounted = true
+		}
 
 		Task { @MainActor in
-			await Task.yield()
+			try? await Task.sleep(for: .milliseconds(40))
 			withAnimation(screenSpring) {
 				isShowingHistory = false
 				isShowingModels = true
@@ -247,14 +275,7 @@ struct ChatView: View {
 	private func isDownloaded(_ model: BeaconModel) -> Bool {
 		if model.isBuiltIn { return true }
 		let ids = Set(downloadedModelIDs.split(separator: ",").map(String.init))
-		return ids.contains(model.id) || FileManager.default.fileExists(atPath: cacheDirectory(for: model).path)
-	}
-
-	private func cacheDirectory(for model: BeaconModel) -> URL {
-		FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
-			.appendingPathComponent("huggingface")
-			.appendingPathComponent("hub")
-			.appendingPathComponent("models--\(model.repositoryID.replacingOccurrences(of: "/", with: "--"))")
+		return ids.contains(model.id)
 	}
 }
 
@@ -325,6 +346,36 @@ private struct DepthLayerModifier: ViewModifier {
 private extension View {
 	func depthLayer(isActive: Bool, edge: ScreenEdge) -> some View {
 		modifier(DepthLayerModifier(isActive: isActive, edge: edge))
+	}
+}
+
+@MainActor
+private final class StreamingResponseHaptics {
+	private let generator = UIImpactFeedbackGenerator(style: .light)
+	private var lastImpactTime = Date.distantPast
+	private var pendingText = ""
+
+	func start() {
+		pendingText = ""
+		lastImpactTime = .distantPast
+		generator.prepare()
+	}
+
+	func tick(for chunk: String) {
+		pendingText += chunk
+
+		let now = Date()
+		let hasTextBoundary = pendingText.contains("\n") || pendingText.count >= 40
+		guard hasTextBoundary, now.timeIntervalSince(lastImpactTime) >= 0.45 else { return }
+
+		generator.impactOccurred(intensity: 0.18)
+		generator.prepare()
+		lastImpactTime = now
+		pendingText = ""
+	}
+
+	func stop() {
+		pendingText = ""
 	}
 }
 

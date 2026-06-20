@@ -5,31 +5,37 @@
 //  Created by Armond Schneider on 3/7/26.
 //
 
-import XCTest
+import Testing
+@testable import beacon_ios
 
-final class beacon_iosTests: XCTestCase {
+@Suite("Beacon app data")
+struct BeaconAppDataTests {
+	@Test("Default model is available during onboarding")
+	func defaultModelIsAvailableDuringOnboarding() {
+		#expect(ModelCatalog.onboardingModels.contains(ModelCatalog.defaultModel))
+	}
 
-    override func setUpWithError() throws {
-        // Put setup code here. This method is called before the invocation of each test method in the class.
-    }
+	@Test("Model lookup returns matching catalog model")
+	func modelLookupReturnsMatchingModel() throws {
+		let model = try #require(ModelCatalog.model(id: "beacon-lite"))
 
-    override func tearDownWithError() throws {
-        // Put teardown code here. This method is called after the invocation of each test method in the class.
-    }
+		#expect(model.id == "beacon-lite")
+		#expect(model.repositoryID == "mlx-community/Qwen3-0.6B-4bit")
+	}
 
-    func testExample() throws {
-        // This is an example of a functional test case.
-        // Use XCTAssert and related functions to verify your tests produce the correct results.
-        // Any test you write for XCTest can be annotated as throws and async.
-        // Mark your test throws to produce an unexpected failure when your test encounters an uncaught error.
-        // Mark your test async to allow awaiting for asynchronous code to complete. Check the results with assertions afterwards.
-    }
+	@Test("Built-in model formats size clearly")
+	func builtInModelFormatsSizeClearly() throws {
+		let model = try #require(ModelCatalog.model(id: "apple-foundation"))
 
-    func testPerformanceExample() throws {
-        // This is an example of a performance test case.
-        measure {
-            // Put the code you want to measure the time of here.
-        }
-    }
+		#expect(model.isBuiltIn)
+		#expect(model.formattedSize == "Built in")
+	}
 
+	@Test("Downloadable models show GB size")
+	func downloadableModelsShowGBSize() throws {
+		let model = try #require(ModelCatalog.model(id: "beacon-plus"))
+
+		#expect(!model.isBuiltIn)
+		#expect(model.formattedSize.hasSuffix("GB"))
+	}
 }

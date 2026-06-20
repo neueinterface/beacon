@@ -106,7 +106,7 @@ private struct ChatHistoryRow: View {
 				VStack(alignment: .leading, spacing: 18) {
 				HStack(alignment: .firstTextBaseline, spacing: 14) {
 					Text(chat.historyTitle)
-						.font(.system(size: 18, weight: .medium))
+						.font(.system(size: 14, weight: .medium))
 						.foregroundStyle(.primary)
 						.lineLimit(1)
 

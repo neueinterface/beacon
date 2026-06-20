@@ -11,11 +11,11 @@ import UIKit
 struct Input: View {
 	@Binding var text: String
 	var placeholder: String = "Message"
-	var onOpenModels: () -> Void = { }
 	var onSend: (String) -> Void
 
 	@State private var textFieldHeight: CGFloat = 0
 	@State private var inputHeight: CGFloat = 52
+	@State private var resetID = UUID()
 
 	private var hasTypedText: Bool {
 		!text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -24,34 +24,29 @@ struct Input: View {
 	private var cornerRadius: CGFloat {
 		let singleLineHeight: CGFloat = 22
 		let multilineAmount = min(max((textFieldHeight - singleLineHeight) / singleLineHeight, 0), 1)
-		let singleLineRadius = inputHeight / 2
+		let singleLineRadius: CGFloat = 30
 		return singleLineRadius - (multilineAmount * (singleLineRadius - 16))
 	}
 
 	var body: some View {
-		HStack(alignment: .bottom, spacing: 10) {
-			Button(action: onOpenModels) {
-				Image("playground.icon")
-					.renderingMode(.template)
-					.resizable()
-					.scaledToFit()
-					.foregroundStyle(.secondary)
-					.frame(width: 22, height: 22)
-					.frame(width: 52, height: 52)
-					.background(Color(uiColor: .secondarySystemBackground), in: Circle())
-			}
-			.buttonStyle(.plain)
-
-			inputCapsule
-				.frame(maxWidth: .infinity)
-		}
+		inputCapsule
 		.frame(maxWidth: .infinity)
 		.animation(.smooth(duration: 0.22), value: cornerRadius)
+		.onChange(of: text) { _, newText in
+			guard newText.isEmpty else { return }
+
+			withAnimation(.smooth(duration: 0.18)) {
+				textFieldHeight = 22
+				inputHeight = 52
+				resetID = UUID()
+			}
+		}
 	}
 
 	private var inputCapsule: some View {
 		HStack(alignment: .bottom, spacing: 8) {
 			TextField(placeholder, text: $text, axis: .vertical)
+				.id(resetID)
 				.frame(maxWidth: .infinity, alignment: .leading)
 				.lineLimit(1 ... 4)
 				.textInputAutocapitalization(.sentences)
