@@ -1,0 +1,732 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		99BC002C2FDE4ED800E1AF28 /* MarkdownView in Frameworks */ = {isa = PBXBuildFile; productRef = 99BC002B2FDE4ED800E1AF28 /* MarkdownView */; };
+		99BCFF8D2FDE2A8F00E1AF28 /* MLXHuggingFace in Frameworks */ = {isa = PBXBuildFile; productRef = 99BCFF8C2FDE2A8F00E1AF28 /* MLXHuggingFace */; };
+		99BCFF8F2FDE2A8F00E1AF28 /* MLXLLM in Frameworks */ = {isa = PBXBuildFile; productRef = 99BCFF8E2FDE2A8F00E1AF28 /* MLXLLM */; };
+		99BCFF912FDE2A8F00E1AF28 /* MLXLMCommon in Frameworks */ = {isa = PBXBuildFile; productRef = 99BCFF902FDE2A8F00E1AF28 /* MLXLMCommon */; };
+		99BCFF932FDE3F4F00E1AF28 /* HuggingFace in Frameworks */ = {isa = PBXBuildFile; productRef = 99BCFF922FDE3F4F00E1AF28 /* HuggingFace */; };
+		99BCFF952FDE3F4F00E1AF28 /* Tokenizers in Frameworks */ = {isa = PBXBuildFile; productRef = 99BCFF942FDE3F4F00E1AF28 /* Tokenizers */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		9933A7D72F5CB3DE009E269F /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 9933A7C12F5CB3DD009E269F /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 9933A7C82F5CB3DD009E269F;
+			remoteInfo = "sonara-ios";
+		};
+		9933A7E12F5CB3DE009E269F /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 9933A7C12F5CB3DD009E269F /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 9933A7C82F5CB3DD009E269F;
+			remoteInfo = "sonara-ios";
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		9933A7C92F5CB3DD009E269F /* Sonara.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Sonara.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		9933A7D62F5CB3DE009E269F /* sonara-iosTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "sonara-iosTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		9933A7E02F5CB3DE009E269F /* sonara-iosUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "sonara-iosUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		9933A7CB2F5CB3DD009E269F /* sonara-ios */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "sonara-ios";
+			sourceTree = "<group>";
+		};
+		9933A7D92F5CB3DE009E269F /* sonara-iosTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "sonara-iosTests";
+			sourceTree = "<group>";
+		};
+		9933A7E32F5CB3DE009E269F /* sonara-iosUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "sonara-iosUITests";
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		9933A7C62F5CB3DD009E269F /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				99BCFF8F2FDE2A8F00E1AF28 /* MLXLLM in Frameworks */,
+				99BCFF912FDE2A8F00E1AF28 /* MLXLMCommon in Frameworks */,
+				99BC002C2FDE4ED800E1AF28 /* MarkdownView in Frameworks */,
+				99BCFF932FDE3F4F00E1AF28 /* HuggingFace in Frameworks */,
+				99BCFF952FDE3F4F00E1AF28 /* Tokenizers in Frameworks */,
+				99BCFF8D2FDE2A8F00E1AF28 /* MLXHuggingFace in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		9933A7D32F5CB3DE009E269F /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		9933A7DD2F5CB3DE009E269F /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		9933A7C02F5CB3DD009E269F = {
+			isa = PBXGroup;
+			children = (
+				9933A7CB2F5CB3DD009E269F /* sonara-ios */,
+				9933A7D92F5CB3DE009E269F /* sonara-iosTests */,
+				9933A7E32F5CB3DE009E269F /* sonara-iosUITests */,
+				9933A7CA2F5CB3DD009E269F /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		9933A7CA2F5CB3DD009E269F /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				9933A7C92F5CB3DD009E269F /* Sonara.app */,
+				9933A7D62F5CB3DE009E269F /* sonara-iosTests.xctest */,
+				9933A7E02F5CB3DE009E269F /* sonara-iosUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		9933A7C82F5CB3DD009E269F /* sonara-ios */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 9933A7EA2F5CB3DE009E269F /* Build configuration list for PBXNativeTarget "sonara-ios" */;
+			buildPhases = (
+				9933A7C52F5CB3DD009E269F /* Sources */,
+				9933A7C62F5CB3DD009E269F /* Frameworks */,
+				9933A7C72F5CB3DD009E269F /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				9933A7CB2F5CB3DD009E269F /* sonara-ios */,
+			);
+			name = "sonara-ios";
+			packageProductDependencies = (
+				99BCFF8C2FDE2A8F00E1AF28 /* MLXHuggingFace */,
+				99BCFF8E2FDE2A8F00E1AF28 /* MLXLLM */,
+				99BCFF902FDE2A8F00E1AF28 /* MLXLMCommon */,
+				99BCFF922FDE3F4F00E1AF28 /* HuggingFace */,
+				99BCFF942FDE3F4F00E1AF28 /* Tokenizers */,
+				99BC002B2FDE4ED800E1AF28 /* MarkdownView */,
+			);
+			productName = "sonara-ios";
+			productReference = 9933A7C92F5CB3DD009E269F /* Sonara.app */;
+			productType = "com.apple.product-type.application";
+		};
+		9933A7D52F5CB3DE009E269F /* sonara-iosTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 9933A7ED2F5CB3DE009E269F /* Build configuration list for PBXNativeTarget "sonara-iosTests" */;
+			buildPhases = (
+				9933A7D22F5CB3DE009E269F /* Sources */,
+				9933A7D32F5CB3DE009E269F /* Frameworks */,
+				9933A7D42F5CB3DE009E269F /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				9933A7D82F5CB3DE009E269F /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				9933A7D92F5CB3DE009E269F /* sonara-iosTests */,
+			);
+			name = "sonara-iosTests";
+			packageProductDependencies = (
+			);
+			productName = "sonara-iosTests";
+			productReference = 9933A7D62F5CB3DE009E269F /* sonara-iosTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		9933A7DF2F5CB3DE009E269F /* sonara-iosUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 9933A7F02F5CB3DE009E269F /* Build configuration list for PBXNativeTarget "sonara-iosUITests" */;
+			buildPhases = (
+				9933A7DC2F5CB3DE009E269F /* Sources */,
+				9933A7DD2F5CB3DE009E269F /* Frameworks */,
+				9933A7DE2F5CB3DE009E269F /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				9933A7E22F5CB3DE009E269F /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				9933A7E32F5CB3DE009E269F /* sonara-iosUITests */,
+			);
+			name = "sonara-iosUITests";
+			packageProductDependencies = (
+			);
+			productName = "sonara-iosUITests";
+			productReference = 9933A7E02F5CB3DE009E269F /* sonara-iosUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		9933A7C12F5CB3DD009E269F /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2630;
+				LastUpgradeCheck = 2630;
+				TargetAttributes = {
+					9933A7C82F5CB3DD009E269F = {
+						CreatedOnToolsVersion = 26.3;
+					};
+					9933A7D52F5CB3DE009E269F = {
+						CreatedOnToolsVersion = 26.3;
+						TestTargetID = 9933A7C82F5CB3DD009E269F;
+					};
+					9933A7DF2F5CB3DE009E269F = {
+						CreatedOnToolsVersion = 26.3;
+						TestTargetID = 9933A7C82F5CB3DD009E269F;
+					};
+				};
+			};
+			buildConfigurationList = 9933A7C42F5CB3DD009E269F /* Build configuration list for PBXProject "sonara-ios" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 9933A7C02F5CB3DD009E269F;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				99BCFEC22FDE1F3800E1AF28 /* XCRemoteSwiftPackageReference "mlx-swift" */,
+				99BCFF8B2FDE2A8F00E1AF28 /* XCRemoteSwiftPackageReference "mlx-swift-lm" */,
+				99BCFF962FDE3F4F00E1AF28 /* XCRemoteSwiftPackageReference "swift-huggingface" */,
+				99BCFF972FDE3F4F00E1AF28 /* XCRemoteSwiftPackageReference "swift-transformers" */,
+				99BC002A2FDE4ED800E1AF28 /* XCRemoteSwiftPackageReference "MarkdownView" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 9933A7CA2F5CB3DD009E269F /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				9933A7C82F5CB3DD009E269F /* sonara-ios */,
+				9933A7D52F5CB3DE009E269F /* sonara-iosTests */,
+				9933A7DF2F5CB3DE009E269F /* sonara-iosUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		9933A7C72F5CB3DD009E269F /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		9933A7D42F5CB3DE009E269F /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		9933A7DE2F5CB3DE009E269F /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		9933A7C52F5CB3DD009E269F /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		9933A7D22F5CB3DE009E269F /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		9933A7DC2F5CB3DE009E269F /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		9933A7D82F5CB3DE009E269F /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 9933A7C82F5CB3DD009E269F /* sonara-ios */;
+			targetProxy = 9933A7D72F5CB3DE009E269F /* PBXContainerItemProxy */;
+		};
+		9933A7E22F5CB3DE009E269F /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 9933A7C82F5CB3DD009E269F /* sonara-ios */;
+			targetProxy = 9933A7E12F5CB3DE009E269F /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		9933A7E82F5CB3DE009E269F /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = QKJNPJ67XX;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		9933A7E92F5CB3DE009E269F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = QKJNPJ67XX;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+			};
+			name = Release;
+		};
+		9933A7EB2F5CB3DE009E269F /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = "icon2 icon3 icon4 icon5 icon6";
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = QKJNPJ67XX;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SELECTED_FILES = readonly;
+				"EXCLUDED_SOURCE_FILE_NAMES[sdk=macosx*]" = LaunchScreen.storyboard;
+				GENERATE_INFOPLIST_FILE = YES;
+				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
+				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
+				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
+				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphonesimulator*]" = YES;
+				"INFOPLIST_KEY_UILaunchStoryboardName[sdk=iphoneos*]" = LaunchScreen;
+				"INFOPLIST_KEY_UILaunchStoryboardName[sdk=iphonesimulator*]" = LaunchScreen;
+				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphoneos*]" = UIStatusBarStyleDefault;
+				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphonesimulator*]" = UIStatusBarStyleDefault;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
+				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
+				MACOSX_DEPLOYMENT_TARGET = 26.2;
+				MARKETING_VERSION = 1.0;
+				INFOPLIST_KEY_CFBundleDisplayName = Sonara;
+				PRODUCT_BUNDLE_IDENTIFIER = "me.armond.sonara-ios";
+				PRODUCT_NAME = Sonara;
+				REGISTER_APP_GROUPS = YES;
+				SDKROOT = auto;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2,7";
+				XROS_DEPLOYMENT_TARGET = 26.2;
+			};
+			name = Debug;
+		};
+		9933A7EC2F5CB3DE009E269F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = "icon2 icon3 icon4 icon5 icon6";
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = QKJNPJ67XX;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SELECTED_FILES = readonly;
+				"EXCLUDED_SOURCE_FILE_NAMES[sdk=macosx*]" = LaunchScreen.storyboard;
+				GENERATE_INFOPLIST_FILE = YES;
+				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
+				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
+				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
+				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphonesimulator*]" = YES;
+				"INFOPLIST_KEY_UILaunchStoryboardName[sdk=iphoneos*]" = LaunchScreen;
+				"INFOPLIST_KEY_UILaunchStoryboardName[sdk=iphonesimulator*]" = LaunchScreen;
+				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphoneos*]" = UIStatusBarStyleDefault;
+				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphonesimulator*]" = UIStatusBarStyleDefault;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
+				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
+				MACOSX_DEPLOYMENT_TARGET = 26.2;
+				MARKETING_VERSION = 1.0;
+				INFOPLIST_KEY_CFBundleDisplayName = Sonara;
+				PRODUCT_BUNDLE_IDENTIFIER = "me.armond.sonara-ios";
+				PRODUCT_NAME = Sonara;
+				REGISTER_APP_GROUPS = YES;
+				SDKROOT = auto;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2,7";
+				XROS_DEPLOYMENT_TARGET = 26.2;
+			};
+			name = Release;
+		};
+		9933A7EE2F5CB3DE009E269F /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = QKJNPJ67XX;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				MACOSX_DEPLOYMENT_TARGET = 26.2;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "me.armond.sonara-iosTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = auto;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2,7";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Sonara.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Sonara";
+				XROS_DEPLOYMENT_TARGET = 26.2;
+			};
+			name = Debug;
+		};
+		9933A7EF2F5CB3DE009E269F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = QKJNPJ67XX;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				MACOSX_DEPLOYMENT_TARGET = 26.2;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "me.armond.sonara-iosTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = auto;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2,7";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Sonara.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Sonara";
+				XROS_DEPLOYMENT_TARGET = 26.2;
+			};
+			name = Release;
+		};
+		9933A7F12F5CB3DE009E269F /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = QKJNPJ67XX;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				MACOSX_DEPLOYMENT_TARGET = 26.2;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "me.armond.sonara-iosUITests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = auto;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2,7";
+				TEST_TARGET_NAME = "sonara-ios";
+				XROS_DEPLOYMENT_TARGET = 26.2;
+			};
+			name = Debug;
+		};
+		9933A7F22F5CB3DE009E269F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = QKJNPJ67XX;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				MACOSX_DEPLOYMENT_TARGET = 26.2;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "me.armond.sonara-iosUITests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = auto;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2,7";
+				TEST_TARGET_NAME = "sonara-ios";
+				XROS_DEPLOYMENT_TARGET = 26.2;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		9933A7C42F5CB3DD009E269F /* Build configuration list for PBXProject "sonara-ios" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				9933A7E82F5CB3DE009E269F /* Debug */,
+				9933A7E92F5CB3DE009E269F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		9933A7EA2F5CB3DE009E269F /* Build configuration list for PBXNativeTarget "sonara-ios" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				9933A7EB2F5CB3DE009E269F /* Debug */,
+				9933A7EC2F5CB3DE009E269F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		9933A7ED2F5CB3DE009E269F /* Build configuration list for PBXNativeTarget "sonara-iosTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				9933A7EE2F5CB3DE009E269F /* Debug */,
+				9933A7EF2F5CB3DE009E269F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		9933A7F02F5CB3DE009E269F /* Build configuration list for PBXNativeTarget "sonara-iosUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				9933A7F12F5CB3DE009E269F /* Debug */,
+				9933A7F22F5CB3DE009E269F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		99BC002A2FDE4ED800E1AF28 /* XCRemoteSwiftPackageReference "MarkdownView" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/LiYanan2004/MarkdownView";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.7.0;
+			};
+		};
+		99BCFEC22FDE1F3800E1AF28 /* XCRemoteSwiftPackageReference "mlx-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/ml-explore/mlx-swift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.31.4;
+			};
+		};
+		99BCFF8B2FDE2A8F00E1AF28 /* XCRemoteSwiftPackageReference "mlx-swift-lm" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/ml-explore/mlx-swift-lm";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 3.31.3;
+			};
+		};
+		99BCFF962FDE3F4F00E1AF28 /* XCRemoteSwiftPackageReference "swift-huggingface" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/huggingface/swift-huggingface";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.9.0;
+			};
+		};
+		99BCFF972FDE3F4F00E1AF28 /* XCRemoteSwiftPackageReference "swift-transformers" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/huggingface/swift-transformers";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.3.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		99BC002B2FDE4ED800E1AF28 /* MarkdownView */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 99BC002A2FDE4ED800E1AF28 /* XCRemoteSwiftPackageReference "MarkdownView" */;
+			productName = MarkdownView;
+		};
+		99BCFF8C2FDE2A8F00E1AF28 /* MLXHuggingFace */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 99BCFF8B2FDE2A8F00E1AF28 /* XCRemoteSwiftPackageReference "mlx-swift-lm" */;
+			productName = MLXHuggingFace;
+		};
+		99BCFF8E2FDE2A8F00E1AF28 /* MLXLLM */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 99BCFF8B2FDE2A8F00E1AF28 /* XCRemoteSwiftPackageReference "mlx-swift-lm" */;
+			productName = MLXLLM;
+		};
+		99BCFF902FDE2A8F00E1AF28 /* MLXLMCommon */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 99BCFF8B2FDE2A8F00E1AF28 /* XCRemoteSwiftPackageReference "mlx-swift-lm" */;
+			productName = MLXLMCommon;
+		};
+		99BCFF922FDE3F4F00E1AF28 /* HuggingFace */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 99BCFF962FDE3F4F00E1AF28 /* XCRemoteSwiftPackageReference "swift-huggingface" */;
+			productName = HuggingFace;
+		};
+		99BCFF942FDE3F4F00E1AF28 /* Tokenizers */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 99BCFF972FDE3F4F00E1AF28 /* XCRemoteSwiftPackageReference "swift-transformers" */;
+			productName = Tokenizers;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 9933A7C12F5CB3DD009E269F /* Project object */;
+}
