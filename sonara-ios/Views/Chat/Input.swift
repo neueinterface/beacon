@@ -10,6 +10,8 @@ import SwiftUI
 struct Input: View {
 	@Binding var text: String
 	var placeholder: String = "Message"
+	var isGenerating = false
+	var onStop: () -> Void = {}
 	var onSend: (String) -> Void
 
 	@State private var textFieldHeight: CGFloat = 0
@@ -47,20 +49,25 @@ struct Input: View {
 			messageTextField
 
 			Button {
+				if isGenerating {
+					onStop()
+					return
+				}
+
 				let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
 				guard !trimmed.isEmpty else { return }
 				text = ""
 				onSend(trimmed)
 			} label: {
-				Image(systemName: "arrow.up")
+				Image(systemName: isGenerating ? "stop.fill" : "arrow.up")
 					.font(.system(size: 16, weight: .bold))
 					.frame(width: 28, height: 28)
-					.foregroundStyle(hasTypedText ? Color(uiColor: .systemBackground) : .secondary)
-					.background(hasTypedText ? Color.primary : Color(uiColor: .systemGray4), in: Circle())
+					.foregroundStyle((hasTypedText || isGenerating) ? Color(uiColor: .systemBackground) : .secondary)
+					.background((hasTypedText || isGenerating) ? Color.primary : Color(uiColor: .systemGray4), in: Circle())
 			}
 			.buttonStyle(.plain)
-			.disabled(!hasTypedText)
-			.opacity(hasTypedText ? 1 : 0.9)
+			.disabled(!hasTypedText && !isGenerating)
+			.opacity((hasTypedText || isGenerating) ? 1 : 0.9)
 		}
 		.padding(.horizontal, 14)
 		.padding(.vertical, 12)
@@ -80,6 +87,7 @@ struct Input: View {
 
 	private var messageTextField: some View {
 		TextField(placeholder, text: $text, axis: .vertical)
+			.font(.system(size: 15))
 			.id(resetID)
 			.frame(maxWidth: .infinity, alignment: .leading)
 			.lineLimit(1 ... 4)

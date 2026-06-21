@@ -50,6 +50,7 @@ final class BeaconModelRuntime: ModelDownloadRuntime {
 
 	private var loadedModelID: String?
 	private var loadedModelRepositoryID: String?
+	private var loadedModelType: BeaconModel.ModelType = .regular
 	private var session: ChatSession?
 	private var foundationSession: LanguageModelSession?
 	private var progressObservations: [NSKeyValueObservation] = []
@@ -91,10 +92,11 @@ final class BeaconModelRuntime: ModelDownloadRuntime {
 			session = ChatSession(
 				container,
 				instructions: BeaconSystemPrompt.instructions,
-				generateParameters: GenerateParameters(maxTokens: 256, temperature: 0.5)
+				generateParameters: GenerateParameters(maxTokens: 4096, temperature: 0.5)
 			)
 			loadedModelID = model.id
 			loadedModelRepositoryID = model.repositoryID
+			loadedModelType = model.type
 			foundationSession = nil
 			progress = 1
 			print("SonaraModelRuntime: loaded \(model.repositoryID)")
@@ -112,7 +114,11 @@ final class BeaconModelRuntime: ModelDownloadRuntime {
 		observedProgresses.removeAll()
 	}
 
-	func streamResponse(to prompt: String, onChunk: @escaping @MainActor (String) -> Void) async throws {
+	func streamResponse(
+		to prompt: String,
+		onThinking: (@MainActor (String) -> Void)? = nil,
+		onChunk: @escaping @MainActor (String) -> Void
+	) async throws {
 		guard !isGenerating else { throw RuntimeError.alreadyGenerating }
 		guard session != nil || foundationSession != nil else { throw RuntimeError.modelNotLoaded }
 
@@ -128,9 +134,15 @@ final class BeaconModelRuntime: ModelDownloadRuntime {
 		let prompt = promptForLoadedModel(prompt)
 
 		for try await chunk in session!.streamResponse(to: prompt) {
-			let visibleChunk = filter.append(chunk)
-			if !visibleChunk.isEmpty {
-				onChunk(visibleChunk)
+			try Task.checkCancellation()
+
+			let output = filter.append(chunk)
+			if !output.thinking.isEmpty {
+				onThinking?(output.thinking)
+			}
+
+			if !output.visible.isEmpty {
+				onChunk(output.visible)
 			}
 		}
 	}
@@ -173,7 +185,7 @@ final class BeaconModelRuntime: ModelDownloadRuntime {
 	}
 
 	private func promptForLoadedModel(_ prompt: String) -> String {
-		guard loadedModelRepositoryID?.contains("Qwen3") == true else { return prompt }
+		guard loadedModelType == .regular, loadedModelRepositoryID?.contains("Qwen3") == true else { return prompt }
 		return "\(prompt) /no_think"
 	}
 
@@ -186,6 +198,7 @@ final class BeaconModelRuntime: ModelDownloadRuntime {
 			session = nil
 			loadedModelID = model.id
 			loadedModelRepositoryID = model.repositoryID
+			loadedModelType = model.type
 			progress = 1
 			print("SonaraModelRuntime: loaded Apple Foundation Model")
 		case let .unavailable(reason):
@@ -201,6 +214,8 @@ final class BeaconModelRuntime: ModelDownloadRuntime {
 		var previousResponse = ""
 
 		for try await snapshot in session.streamResponse(to: prompt) {
+			try Task.checkCancellation()
+
 			let response = snapshot.content
 			guard response.count >= previousResponse.count else {
 				previousResponse = response
@@ -218,20 +233,29 @@ final class BeaconModelRuntime: ModelDownloadRuntime {
 }
 
 private struct ThinkingOutputFilter {
+	struct Output {
+		var visible = ""
+		var thinking = ""
+	}
+
 	private var buffer = ""
 	private var isInsideThinkBlock = false
 
-	mutating func append(_ chunk: String) -> String {
+	mutating func append(_ chunk: String) -> Output {
 		buffer += chunk
-		var output = ""
+		var output = Output()
 
 		while !buffer.isEmpty {
 			if isInsideThinkBlock {
 				guard let endRange = buffer.range(of: "</think>", options: [.caseInsensitive]) else {
-					buffer = String(buffer.suffix(7))
+					let retainedCount = partialClosingTagLength(in: buffer)
+					let emitEnd = buffer.index(buffer.endIndex, offsetBy: -retainedCount)
+					output.thinking += buffer[..<emitEnd]
+					buffer = String(buffer[emitEnd...])
 					break
 				}
 
+				output.thinking += buffer[..<endRange.lowerBound]
 				buffer.removeSubrange(buffer.startIndex..<endRange.upperBound)
 				isInsideThinkBlock = false
 				continue
@@ -240,12 +264,12 @@ private struct ThinkingOutputFilter {
 			guard let startRange = buffer.range(of: "<think", options: [.caseInsensitive]) else {
 				let retainedCount = partialOpeningTagLength(in: buffer)
 				let emitEnd = buffer.index(buffer.endIndex, offsetBy: -retainedCount)
-				output += buffer[..<emitEnd]
+				output.visible += buffer[..<emitEnd]
 				buffer = String(buffer[emitEnd...])
 				break
 			}
 
-			output += buffer[..<startRange.lowerBound]
+			output.visible += buffer[..<startRange.lowerBound]
 
 			guard let tagEnd = buffer[startRange.lowerBound...].firstIndex(of: ">") else {
 				buffer = String(buffer[startRange.lowerBound...])
@@ -261,6 +285,19 @@ private struct ThinkingOutputFilter {
 
 	private func partialOpeningTagLength(in text: String) -> Int {
 		let tag = "<think"
+		let lowercasedText = text.lowercased()
+
+		for count in stride(from: min(tag.count - 1, lowercasedText.count), through: 1, by: -1) {
+			if lowercasedText.hasSuffix(String(tag.prefix(count))) {
+				return count
+			}
+		}
+
+		return 0
+	}
+
+	private func partialClosingTagLength(in text: String) -> Int {
+		let tag = "</think>"
 		let lowercasedText = text.lowercased()
 
 		for count in stride(from: min(tag.count - 1, lowercasedText.count), through: 1, by: -1) {

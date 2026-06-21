@@ -22,6 +22,12 @@ Carthage/Build/
 # macOS
 .DS_Store
 
+# Local environment secrets
+.env
+.env.*
+!.env.example
+*.env
+
 # Fastlane
 fastlane/report.xml
 fastlane/Preview.html

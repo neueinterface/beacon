@@ -16,6 +16,9 @@ struct ChatView: View {
 	@State private var isShowingModelSwitcher = false
 	@State private var isShowingSettings = false
 	@State private var shouldOpenMarketplaceAfterModelSwitcherDismisses = false
+	@State private var responseTask: Task<Void, Never>?
+	@StateObject private var safariViewModel = SafariViewModel()
+	private let webSearchService = WebSearchService()
 	private let responseHaptics = StreamingResponseHaptics()
 
 	private let screenSpring = Animation.spring(response: 0.46, dampingFraction: 0.86, blendDuration: 0.12)
@@ -114,6 +117,9 @@ struct ChatView: View {
 		.sheet(isPresented: $isShowingSettings) {
 			SettingsView(chatHistoryViewModel: historyViewModel)
 		}
+		.sheet(item: $safariViewModel.page) { page in
+			SafariView(url: page.url)
+		}
 		.task(id: selectedModelID) {
 			guard !runtime.isReady(for: selectedModel) else { return }
 			await runtime.load(selectedModel)
@@ -137,11 +143,16 @@ struct ChatView: View {
 					ScrollView {
 						LazyVStack(alignment: .leading, spacing: 20) {
 							ForEach(historyViewModel.currentMessages) { message in
-								MessageBubble(
-									text: message.text,
-									role: message.role,
-									isWaitingForResponse: runtime.isGenerating && message == historyViewModel.currentMessages.last
-								)
+				MessageBubble(
+					text: message.text,
+					thinkingText: message.thinkingText,
+					sources: message.sources,
+					role: message.role,
+					isWaitingForResponse: runtime.isGenerating && message == historyViewModel.currentMessages.last,
+					onOpenSource: { url in
+						safariViewModel.open(url)
+					}
+				)
 							}
 						}
 						.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -182,10 +193,12 @@ struct ChatView: View {
 	}
 
 	private var inputBar: some View {
-		Input(text: $inputText) { text in
+		Input(text: $inputText, isGenerating: runtime.isGenerating) {
+			stopGenerating()
+		} onSend: { text in
 			send(text)
 		}
-		.disabled(runtime.isLoading || runtime.isGenerating)
+		.disabled(runtime.isLoading)
 		.opacity(runtime.isLoading ? 0.5 : 1)
 		.padding(.horizontal, 14)
 		.padding(.vertical, 12)
@@ -213,18 +226,117 @@ struct ChatView: View {
 		let responseID = historyViewModel.appendUserMessage(text, modelName: selectedModel.name)
 		responseHaptics.start()
 
-		Task {
+		responseTask = Task {
 			do {
-				try await runtime.streamResponse(to: text) { chunk in
+				let prompt = try await promptWithWebResultsIfNeeded(for: text, responseID: responseID)
+
+				try await runtime.streamResponse(to: prompt, onThinking: { chunk in
+					historyViewModel.appendAssistantThinking(chunk, to: responseID)
+				}) { chunk in
 					historyViewModel.appendAssistantChunk(chunk, to: responseID)
 					responseHaptics.tick(for: chunk)
+				}
+			} catch is CancellationError {
+				if historyViewModel.currentMessages.first(where: { $0.id == responseID })?.text.isEmpty == true {
+					historyViewModel.replaceMessage(responseID, with: "Stopped.")
 				}
 			} catch {
 				historyViewModel.replaceMessage(responseID, with: error.localizedDescription)
 			}
 
 			responseHaptics.stop()
+			responseTask = nil
 		}
+	}
+
+	private func stopGenerating() {
+		responseTask?.cancel()
+		responseTask = nil
+		responseHaptics.stop()
+	}
+
+	private func promptWithWebResultsIfNeeded(for text: String, responseID: ChatMessage.ID) async throws -> String {
+		let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+		let lowercased = trimmed.lowercased()
+
+		if lowercased == "/noweb" {
+			return "Ask the user what they want to answer without web search."
+		}
+
+		if lowercased.hasPrefix("/noweb ") {
+			return String(trimmed.dropFirst(7)).trimmingCharacters(in: .whitespacesAndNewlines)
+		}
+
+		guard let query = webSearchQuery(for: text) else { return text }
+		guard !query.isEmpty else { return "Ask the user what they want to search for." }
+
+		historyViewModel.appendAssistantThinking("Searching the web for: \(query)\n", to: responseID)
+		let results = try await webSearchService.search(String(query))
+		historyViewModel.replaceAssistantSources(results.map(Source.init), for: responseID)
+		historyViewModel.appendAssistantThinking("Found \(results.count) web result\(results.count == 1 ? "" : "s").\n", to: responseID)
+
+		let context = results.enumerated().map { index, result in
+			"""
+			[\(index + 1)] \(result.title)
+			URL: \(result.url.absoluteString)
+			Summary: \(result.description)
+			"""
+		}.joined(separator: "\n\n")
+
+		return """
+		Answer the user's question using the web search results below. Cite sources by number when using them. If the results are not enough, say what is missing.
+
+		Question: \(query)
+
+		Web search results:
+		\(context)
+		"""
+	}
+
+	private func webSearchQuery(for text: String) -> String? {
+		let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+		let lowercased = trimmed.lowercased()
+
+		if lowercased == "/noweb" {
+			return nil
+		}
+
+		if lowercased.hasPrefix("/noweb ") {
+			return nil
+		}
+
+		if lowercased == "/web" {
+			return ""
+		}
+
+		if lowercased.hasPrefix("/web ") {
+			return String(trimmed.dropFirst(5)).trimmingCharacters(in: .whitespacesAndNewlines)
+		}
+
+		guard shouldUseWebSearch(for: lowercased) else { return nil }
+		return trimmed
+	}
+
+	private func shouldUseWebSearch(for lowercasedText: String) -> Bool {
+		let currentSignals = [
+			"latest", "current", "today", "right now", "this week", "this month", "this year",
+			"news", "breaking", "recent", "newest", "updated", "price", "stock", "weather",
+			"score", "schedule", "release date", "available now", "who won", "what happened"
+		]
+
+		if currentSignals.contains(where: lowercasedText.contains) {
+			return true
+		}
+
+		let searchPhrases = [
+			"search the web", "look up", "google", "find sources", "find articles", "cite sources"
+		]
+
+		if searchPhrases.contains(where: lowercasedText.contains) {
+			return true
+		}
+
+		return lowercasedText.contains("2026")
 	}
 
 	private func dismissKeyboard() {
