@@ -87,6 +87,18 @@ final class ChatHistoryViewModel: ObservableObject {
 		}
 	}
 
+	func appendAssistantThinking(_ chunk: String, to messageID: ChatMessage.ID) {
+		updateMessage(messageID) { message in
+			message.thinkingText += chunk
+		}
+	}
+
+	func replaceAssistantSources(_ sources: [Source], for messageID: ChatMessage.ID) {
+		updateMessage(messageID) { message in
+			message.sources = sources
+		}
+	}
+
 	func replaceMessage(_ messageID: ChatMessage.ID, with text: String) {
 		updateMessage(messageID) { message in
 			message.text = text

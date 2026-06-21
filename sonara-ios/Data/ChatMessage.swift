@@ -8,11 +8,32 @@ struct ChatMessage: Identifiable, Hashable, Codable {
 
 	let id: UUID
 	var text: String
+	var thinkingText: String
+	var sources: [Source]
 	let role: Role
 
-	init(id: UUID = UUID(), text: String, role: Role) {
+	init(id: UUID = UUID(), text: String, thinkingText: String = "", sources: [Source] = [], role: Role) {
 		self.id = id
 		self.text = text
+		self.thinkingText = thinkingText
+		self.sources = sources
 		self.role = role
+	}
+
+	private enum CodingKeys: String, CodingKey {
+		case id
+		case text
+		case thinkingText
+		case sources
+		case role
+	}
+
+	init(from decoder: Decoder) throws {
+		let container = try decoder.container(keyedBy: CodingKeys.self)
+		id = try container.decode(UUID.self, forKey: .id)
+		text = try container.decode(String.self, forKey: .text)
+		thinkingText = try container.decodeIfPresent(String.self, forKey: .thinkingText) ?? ""
+		sources = try container.decodeIfPresent([Source].self, forKey: .sources) ?? []
+		role = try container.decode(Role.self, forKey: .role)
 	}
 }
