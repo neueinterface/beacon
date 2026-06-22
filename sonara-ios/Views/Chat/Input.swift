@@ -87,7 +87,7 @@ struct Input: View {
 
 	private var messageTextField: some View {
 		TextField(placeholder, text: $text, axis: .vertical)
-			.font(.system(size: 15))
+			.font(.system(size: 16))
 			.id(resetID)
 			.frame(maxWidth: .infinity, alignment: .leading)
 			.lineLimit(1 ... 4)
