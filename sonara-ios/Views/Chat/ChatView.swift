@@ -11,8 +11,7 @@ struct ChatView: View {
 	@AppStorage("downloadedModelIDs") private var downloadedModelIDs = ""
 	@State private var inputText = ""
 	@State private var isShowingHistory = false
-	@State private var isShowingModels = false
-	@State private var isModelMarketplaceMounted = false
+	@State private var isShowingModelMarketplace = false
 	@State private var isShowingModelSwitcher = false
 	@State private var isShowingSettings = false
 	@State private var shouldOpenMarketplaceAfterModelSwitcherDismisses = false
@@ -36,10 +35,10 @@ struct ChatView: View {
 		GeometryReader { geometry in
 			ZStack(alignment: .leading) {
 				chatContent
-					.depthLayer(isActive: !isShowingHistory && !isShowingModels, edge: .trailing)
-					.blur(radius: (isShowingHistory || isShowingModels) ? 10 : 0)
-					.scaleEffect((isShowingHistory || isShowingModels) ? 0.94 : 1)
-					.opacity((isShowingHistory || isShowingModels) ? 0.68 : 1)
+					.depthLayer(isActive: !isShowingHistory, edge: .trailing)
+					.blur(radius: isShowingHistory ? 10 : 0)
+					.scaleEffect(isShowingHistory ? 0.94 : 1)
+					.opacity(isShowingHistory ? 0.68 : 1)
 					.zIndex(0)
 
 				ChatHistoryDrawerView(
@@ -47,14 +46,12 @@ struct ChatView: View {
 					onClose: {
 						withAnimation(screenSpring) {
 							isShowingHistory = false
-							isShowingModels = false
 						}
 					},
 					onNewChat: {
 						historyViewModel.startNewChat()
 						withAnimation(screenSpring) {
 							isShowingHistory = false
-							isShowingModels = false
 						}
 					},
 					onOpenModels: {
@@ -67,39 +64,16 @@ struct ChatView: View {
 					pendingScrollMessageID = historyViewModel.lastUserMessageID(in: chat) ?? historyViewModel.firstMessageID(in: chat)
 					withAnimation(screenSpring) {
 						isShowingHistory = false
-						isShowingModels = false
 					}
 				}
 				.frame(width: geometry.size.width)
 				.frame(maxHeight: .infinity)
-				.depthLayer(isActive: isShowingHistory && !isShowingModels, edge: .leading)
-				.blur(radius: isShowingModels ? 10 : 0)
-				.scaleEffect(isShowingModels ? 0.96 : 1)
-				.opacity(isShowingHistory ? (isShowingModels ? 0.45 : 1) : 0)
-				.allowsHitTesting(isShowingHistory && !isShowingModels)
-				.zIndex(isShowingModels ? 1 : 2)
-
-				if isModelMarketplaceMounted {
-					ModelMarketPlaceView(
-						models: ModelCatalog.availableModels,
-						onClose: {
-							hideMarketplace()
-						},
-						onDownload: { model in
-							onDownloadModel(model)
-						}
-					)
-					.frame(width: geometry.size.width)
-					.frame(maxHeight: .infinity)
-					.opacity(isShowingModels ? 1 : 0)
-					.scaleEffect(isShowingModels ? 1 : 0.985)
-					.animation(.easeOut(duration: 0.22), value: isShowingModels)
-					.allowsHitTesting(isShowingModels)
-					.zIndex(3)
-				}
+				.depthLayer(isActive: isShowingHistory, edge: .leading)
+				.opacity(isShowingHistory ? 1 : 0)
+				.allowsHitTesting(isShowingHistory)
+				.zIndex(2)
 			}
 			.animation(screenSpring, value: isShowingHistory)
-			.animation(screenSpring, value: isShowingModels)
 		}
 		.background(Color(uiColor: .systemBackground))
 		.sheet(isPresented: $isShowingModelSwitcher, onDismiss: openMarketplaceAfterModelSwitcherDismissesIfNeeded) {
@@ -119,6 +93,17 @@ struct ChatView: View {
 		}
 		.sheet(isPresented: $isShowingSettings) {
 			SettingsView(chatHistoryViewModel: historyViewModel)
+		}
+		.fullScreenCover(isPresented: $isShowingModelMarketplace) {
+			ModelMarketPlaceView(
+				models: ModelCatalog.availableModels,
+				onClose: {
+					hideMarketplace()
+				},
+				onDownload: { model in
+					onDownloadModel(model)
+				}
+			)
 		}
 		.sheet(item: $safariViewModel.page) { page in
 			SafariView(url: page.url)
@@ -176,7 +161,7 @@ struct ChatView: View {
 						}
 					}
 				}
-				.safeAreaBar(edge: .top, spacing: 0) {
+				.safeAreaInset(edge: .top, spacing: 0) {
 					HeaderView {
 						dismissKeyboard()
 						withAnimation(screenSpring) {
@@ -189,6 +174,7 @@ struct ChatView: View {
 						historyViewModel.startNewChat()
 						dismissKeyboard()
 					}
+					.background(Color(uiColor: .systemBackground))
 				}
 			}
 
@@ -307,7 +293,7 @@ struct ChatView: View {
 		}.joined(separator: "\n\n")
 
 		return """
-		Answer the user's question using the web search results below. Cite sources by number when using them. If the results are not enough, say what is missing.
+		Answer the user's question using the web search results below. Do not include source URLs, markdown links, citations, footnotes, or a sources/references section in the answer text. The app shows sources separately in a dropdown. If the results are not enough, say what is missing.
 
 		Question: \(query)
 
@@ -374,33 +360,18 @@ struct ChatView: View {
 	}
 
 	private func showMarketplace() {
-		var transaction = Transaction()
-		transaction.disablesAnimations = true
-		withTransaction(transaction) {
-			isModelMarketplaceMounted = true
-		}
-
-		Task { @MainActor in
-			try? await Task.sleep(for: .milliseconds(40))
-			withAnimation(screenSpring) {
-				isShowingHistory = false
-				isShowingModels = true
-			}
-		}
-	}
-
-	private func hideMarketplace() {
 		withAnimation(screenSpring) {
-			isShowingModels = false
 			isShowingHistory = false
 		}
 
 		Task { @MainActor in
-			try? await Task.sleep(for: .milliseconds(420))
-			if !isShowingModels {
-				isModelMarketplaceMounted = false
-			}
+			try? await Task.sleep(for: .milliseconds(120))
+			isShowingModelMarketplace = true
 		}
+	}
+
+	private func hideMarketplace() {
+		isShowingModelMarketplace = false
 	}
 
 	private func openMarketplaceAfterModelSwitcherDismissesIfNeeded() {
