@@ -13,6 +13,7 @@ final class ChatHistoryViewModel: ObservableObject {
 	private static let readyMessageText = "Your model is ready."
 
 	private let timeFormatter: DateFormatter
+	private let calendar = Calendar.current
 	private var currentConversationID: ChatConversation.ID?
 
 	var chats: [ChatConversation] {
@@ -106,7 +107,47 @@ final class ChatHistoryViewModel: ObservableObject {
 	}
 
 	func formattedTime(for chat: ChatConversation) -> String {
-		timeFormatter.string(from: chat.updatedAt)
+		if calendar.isDateInToday(chat.updatedAt) {
+			return timeFormatter.string(from: chat.updatedAt)
+		}
+
+		let startOfToday = calendar.startOfDay(for: .now)
+		let startOfChatDay = calendar.startOfDay(for: chat.updatedAt)
+		let daysAgo = calendar.dateComponents([.day], from: startOfChatDay, to: startOfToday).day ?? 0
+
+		if daysAgo <= 1 {
+			return "Yesterday"
+		}
+
+		if daysAgo < 7 {
+			return "\(daysAgo) days ago"
+		}
+
+		if daysAgo < 30 {
+			return relativeLabel(value: max(1, daysAgo / 7), unit: "week")
+		}
+
+		if daysAgo < 365 {
+			return relativeLabel(value: max(1, daysAgo / 30), unit: "month")
+		}
+
+		return relativeLabel(value: max(1, daysAgo / 365), unit: "year")
+	}
+
+	private func relativeLabel(value: Int, unit: String) -> String {
+		if value == 1 {
+			return "1 \(unit) ago"
+		}
+
+		return "\(value) \(unit)s ago"
+	}
+
+	func lastUserMessageID(in chat: ChatConversation) -> ChatMessage.ID? {
+		chat.messages.last { $0.role == .user }?.id
+	}
+
+	func firstMessageID(in chat: ChatConversation) -> ChatMessage.ID? {
+		chat.messages.first?.id
 	}
 
 	private func updateMessage(_ messageID: ChatMessage.ID, mutate: (inout ChatMessage) -> Void) {
