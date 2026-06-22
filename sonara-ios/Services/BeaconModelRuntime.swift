@@ -44,6 +44,8 @@ final class BeaconModelRuntime: ModelDownloadRuntime {
 	}
 
 	@Published private(set) var progress = 0.0
+	@Published private(set) var completedUnitCount: Int64?
+	@Published private(set) var totalUnitCount: Int64?
 	@Published private(set) var isLoading = false
 	@Published private(set) var isGenerating = false
 	@Published var errorMessage: String?
@@ -71,6 +73,8 @@ final class BeaconModelRuntime: ModelDownloadRuntime {
 		defer { isLoading = false }
 		errorMessage = nil
 		progress = 0.02
+		completedUnitCount = nil
+		totalUnitCount = nil
 		progressObservations.removeAll()
 		observedProgresses.removeAll()
 
@@ -102,6 +106,8 @@ final class BeaconModelRuntime: ModelDownloadRuntime {
 			print("SonaraModelRuntime: loaded \(model.repositoryID)")
 		} catch is CancellationError {
 			progress = 0
+			completedUnitCount = nil
+			totalUnitCount = nil
 			errorMessage = nil
 			print("SonaraModelRuntime: cancelled loading \(model.repositoryID)")
 		} catch {
@@ -175,6 +181,15 @@ final class BeaconModelRuntime: ModelDownloadRuntime {
 	private func updateProgress(from downloadProgress: Progress) {
 		let fractionCompleted = downloadProgress.fractionCompleted
 		guard fractionCompleted.isFinite else { return }
+
+		if downloadProgress.completedUnitCount >= 0 {
+			completedUnitCount = downloadProgress.completedUnitCount
+		}
+
+		if downloadProgress.totalUnitCount > 0 {
+			totalUnitCount = downloadProgress.totalUnitCount
+		}
+
 		progress = min(max(0.02, fractionCompleted), 1)
 	}
 
@@ -194,6 +209,8 @@ final class BeaconModelRuntime: ModelDownloadRuntime {
 			loadedModelRepositoryID = model.repositoryID
 			loadedModelType = model.type
 			progress = 1
+			completedUnitCount = nil
+			totalUnitCount = nil
 			print("SonaraModelRuntime: loaded Apple Foundation Model")
 		case let .unavailable(reason):
 			throw RuntimeError.foundationModelUnavailable(reason)

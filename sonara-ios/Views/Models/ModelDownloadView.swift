@@ -14,6 +14,8 @@ import UIKit
 @MainActor
 protocol ModelDownloadRuntime: ObservableObject {
 	var progress: Double { get }
+	var completedUnitCount: Int64? { get }
+	var totalUnitCount: Int64? { get }
 	var isLoading: Bool { get }
 	var errorMessage: String? { get set }
 
@@ -75,7 +77,7 @@ struct ModelDownloadView<Runtime: ModelDownloadRuntime>: View {
 							.font(.system(size: 18, weight: .medium))
 							.foregroundStyle(.primary)
 
-						Text("Approx. \(model.formattedSize)")
+						Text(downloadSizeText)
 							.font(.system(size: 14, weight: .medium))
 							.foregroundStyle(.secondary)
 					}
@@ -94,7 +96,7 @@ struct ModelDownloadView<Runtime: ModelDownloadRuntime>: View {
 				}
 				.padding(18)
 				.frame(maxWidth: .infinity, alignment: .leading)
-				.background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+				.background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
 			}
 		}
 		.padding(.horizontal, 20)
@@ -140,6 +142,33 @@ struct ModelDownloadView<Runtime: ModelDownloadRuntime>: View {
 		}
 
 		return "Keep this screen open while \(model.name) downloads to your device. This only needs to happen once."
+	}
+
+	private var downloadSizeText: String {
+		if let completedUnitCount = runtime.completedUnitCount,
+		   let totalUnitCount = runtime.totalUnitCount,
+		   completedUnitCount >= 0,
+		   totalUnitCount > 0 {
+			let completedGB = min(Double(completedUnitCount), Double(totalUnitCount)) / 1_000_000_000
+			let totalGB = Double(totalUnitCount) / 1_000_000_000
+			return "\(formattedGB(completedGB))/\(formattedGB(totalGB)) GB"
+		}
+
+		let totalGB = downloadTotalGB
+		let completedGB = min(max(totalGB * displayedProgress, 0), totalGB)
+		return "\(formattedGB(completedGB))/\(formattedGB(totalGB)) GB"
+	}
+
+	private var downloadTotalGB: Double {
+		if let totalUnitCount = runtime.totalUnitCount, totalUnitCount > 0 {
+			return Double(totalUnitCount) / 1_000_000_000
+		}
+
+		return NSDecimalNumber(decimal: model.sizeInGB).doubleValue
+	}
+
+	private func formattedGB(_ value: Double) -> String {
+		String(format: "%.1f", value)
 	}
 
 	private func startLoading() async {
@@ -244,11 +273,15 @@ struct ModelDownloadView<Runtime: ModelDownloadRuntime>: View {
 
 private final class PreviewModelDownloadRuntime: ModelDownloadRuntime {
 	@Published var progress: Double
+	@Published var completedUnitCount: Int64?
+	@Published var totalUnitCount: Int64?
 	@Published var isLoading: Bool
 	@Published var errorMessage: String?
 
 	init(progress: Double, isLoading: Bool, errorMessage: String? = nil) {
 		self.progress = progress
+		self.completedUnitCount = nil
+		self.totalUnitCount = nil
 		self.isLoading = isLoading
 		self.errorMessage = errorMessage
 	}

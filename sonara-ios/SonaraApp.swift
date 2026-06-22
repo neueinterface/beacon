@@ -9,9 +9,11 @@ import SwiftUI
 
 @main
 struct SonaraApp: App {
-    var body: some Scene {
-        WindowGroup {
-            ContentView()
-        }
-    }
+	@StateObject private var modelRuntime = BeaconModelRuntime()
+
+	var body: some Scene {
+		WindowGroup {
+			ContentView(modelRuntime: modelRuntime)
+		}
+	}
 }
