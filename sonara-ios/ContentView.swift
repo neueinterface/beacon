@@ -11,10 +11,14 @@ struct ContentView: View {
 	@AppStorage("hasCompletedWelcome") private var hasCompletedWelcome = false
 	@AppStorage("selectedModelID") private var selectedModelID = ""
 	@AppStorage("downloadedModelIDs") private var downloadedModelIDs = ""
-	@StateObject private var modelRuntime = BeaconModelRuntime()
+	@ObservedObject private var modelRuntime: BeaconModelRuntime
 	@State private var isChoosingModel = false
 	@State private var downloadingModel: BeaconModel?
 	@State private var downloadAlert: DownloadAlert?
+
+	init(modelRuntime: BeaconModelRuntime) {
+		self.modelRuntime = modelRuntime
+	}
 
 	var body: some View {
 		Group {
@@ -125,5 +129,5 @@ private struct DownloadAlert: Identifiable {
 }
 
 #Preview {
-    ContentView()
+	ContentView(modelRuntime: BeaconModelRuntime())
 }

@@ -26,8 +26,8 @@ struct ChatHistoryDrawerView: View {
 				emptyState
 			}
 			.scrollEdgeEffectStyle(.soft, for: .top)
-			.safeAreaBar(edge: .top, spacing: 0) {
-				header
+			.safeAreaInset(edge: .top, spacing: 0) {
+				headerBar
 			}
 		} else {
 			List {
@@ -57,10 +57,15 @@ struct ChatHistoryDrawerView: View {
 			.listStyle(.plain)
 			.scrollContentBackground(.hidden)
 			.scrollEdgeEffectStyle(.soft, for: .top)
-			.safeAreaBar(edge: .top, spacing: 0) {
-				header
+			.safeAreaInset(edge: .top, spacing: 0) {
+				headerBar
 			}
 		}
+	}
+
+	private var headerBar: some View {
+		header
+			.background(Color(uiColor: .systemBackground))
 	}
 
 	private var header: some View {

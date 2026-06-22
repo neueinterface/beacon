@@ -6,9 +6,6 @@
 //
 
 import SwiftUI
-#if canImport(UIKit)
-import UIKit
-#endif
 
 struct ModelMarketPlaceView: View {
 	let models: [BeaconModel]
@@ -75,7 +72,6 @@ struct ModelMarketPlaceView: View {
 			#if !os(macOS)
 			.navigationBarTitleDisplayMode(.large)
 			#endif
-			.background(ModelMarketplaceNavigationAppearance())
 			.toolbar {
 				#if os(macOS)
 				ToolbarItem(placement: .automatic) {
@@ -99,8 +95,9 @@ struct ModelMarketPlaceView: View {
 		Button(action: onClose) {
 			Image(systemName: "xmark")
 				.font(.system(size: 16, weight: .semibold))
-				.foregroundStyle(.primary)
+				.foregroundStyle(.black)
 				.frame(width: 34, height: 34)
+				.background(Color(uiColor: .secondarySystemBackground), in: Circle())
 		}
 		.buttonStyle(.plain)
 	}
@@ -178,26 +175,6 @@ struct ModelMarketPlaceView: View {
 			.appendingPathComponent("hub")
 	}
 }
-
-#if canImport(UIKit)
-private struct ModelMarketplaceNavigationAppearance: UIViewControllerRepresentable {
-	func makeUIViewController(context: Context) -> UIViewController {
-		UIViewController()
-	}
-
-	func updateUIViewController(_ viewController: UIViewController, context: Context) {
-		guard let navigationBar = viewController.navigationController?.navigationBar else { return }
-		let appearance = navigationBar.standardAppearance.copy()
-		appearance.largeTitleTextAttributes[.font] = UIFont.systemFont(ofSize: 28, weight: .semibold)
-		navigationBar.standardAppearance = appearance
-		navigationBar.scrollEdgeAppearance = appearance
-	}
-}
-#else
-private struct ModelMarketplaceNavigationAppearance: View {
-	var body: some View { Color.clear }
-}
-#endif
 
 private struct ModelMarketPlaceRow: View {
 	let model: BeaconModel
