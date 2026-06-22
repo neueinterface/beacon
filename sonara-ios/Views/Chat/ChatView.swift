@@ -16,6 +16,7 @@ struct ChatView: View {
 	@State private var isShowingModelSwitcher = false
 	@State private var isShowingSettings = false
 	@State private var shouldOpenMarketplaceAfterModelSwitcherDismisses = false
+	@State private var pendingScrollMessageID: ChatMessage.ID?
 	@State private var responseTask: Task<Void, Never>?
 	@StateObject private var safariViewModel = SafariViewModel()
 	private let webSearchService = WebSearchService()
@@ -62,7 +63,8 @@ struct ChatView: View {
 					onOpenSettings: {
 						isShowingSettings = true
 					}
-				) { _ in
+				) { chat in
+					pendingScrollMessageID = historyViewModel.lastUserMessageID(in: chat) ?? historyViewModel.firstMessageID(in: chat)
 					withAnimation(screenSpring) {
 						isShowingHistory = false
 						isShowingModels = false
@@ -89,8 +91,9 @@ struct ChatView: View {
 					)
 					.frame(width: geometry.size.width)
 					.frame(maxHeight: .infinity)
-					.depthLayer(isActive: isShowingModels, edge: .trailing)
 					.opacity(isShowingModels ? 1 : 0)
+					.scaleEffect(isShowingModels ? 1 : 0.985)
+					.animation(.easeOut(duration: 0.22), value: isShowingModels)
 					.allowsHitTesting(isShowingModels)
 					.zIndex(3)
 				}
@@ -140,29 +143,38 @@ struct ChatView: View {
 							.allowsHitTesting(false)
 					}
 
-					ScrollView {
-						LazyVStack(alignment: .leading, spacing: 20) {
-							ForEach(historyViewModel.currentMessages) { message in
-				MessageBubble(
-					text: message.text,
-					thinkingText: message.thinkingText,
-					sources: message.sources,
-					role: message.role,
-					isWaitingForResponse: runtime.isGenerating && message == historyViewModel.currentMessages.last,
-					onOpenSource: { url in
-						safariViewModel.open(url)
-					}
-				)
+					ScrollViewReader { scrollProxy in
+						ScrollView {
+							LazyVStack(alignment: .leading, spacing: 20) {
+								ForEach(historyViewModel.currentMessages) { message in
+									MessageBubble(
+										text: message.text,
+										thinkingText: message.thinkingText,
+										sources: message.sources,
+										role: message.role,
+										isWaitingForResponse: runtime.isGenerating && message == historyViewModel.currentMessages.last,
+										onOpenSource: { url in
+											safariViewModel.open(url)
+										}
+									)
+									.id(message.id)
+								}
 							}
+							.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+							.padding(.horizontal, 18)
+							.padding(.top, 24)
+							.padding(.bottom, 96)
 						}
-						.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-						.padding(.horizontal, 18)
-						.padding(.top, 24)
-						.padding(.bottom, 96)
+						.frame(maxWidth: .infinity, minHeight: proxy.size.height)
+						.scrollDismissesKeyboard(.interactively)
+						.scrollEdgeEffectStyle(.soft, for: [.top, .bottom])
+						.onChange(of: historyViewModel.currentMessages) { _ in
+							scrollToPendingMessage(using: scrollProxy)
+						}
+						.onChange(of: pendingScrollMessageID) { _ in
+							scrollToPendingMessage(using: scrollProxy)
+						}
 					}
-					.frame(maxWidth: .infinity, minHeight: proxy.size.height)
-					.scrollDismissesKeyboard(.interactively)
-					.scrollEdgeEffectStyle(.soft, for: [.top, .bottom])
 				}
 				.safeAreaBar(edge: .top, spacing: 0) {
 					HeaderView {
@@ -219,6 +231,7 @@ struct ChatView: View {
 	}
 
 	private func send(_ text: String) {
+		pendingScrollMessageID = nil
 		dismissKeyboard()
 		#if canImport(UIKit)
 		UIImpactFeedbackGenerator(style: .medium).impactOccurred()
@@ -253,6 +266,16 @@ struct ChatView: View {
 		responseTask?.cancel()
 		responseTask = nil
 		responseHaptics.stop()
+	}
+
+	private func scrollToPendingMessage(using scrollProxy: ScrollViewProxy) {
+		guard let pendingScrollMessageID else { return }
+
+		Task { @MainActor in
+			guard historyViewModel.currentMessages.contains(where: { $0.id == pendingScrollMessageID }) else { return }
+			scrollProxy.scrollTo(pendingScrollMessageID, anchor: .top)
+			self.pendingScrollMessageID = nil
+		}
 	}
 
 	private func promptWithWebResultsIfNeeded(for text: String, responseID: ChatMessage.ID) async throws -> String {

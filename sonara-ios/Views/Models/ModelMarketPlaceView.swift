@@ -18,7 +18,6 @@ struct ModelMarketPlaceView: View {
 	@AppStorage("selectedModelID") private var selectedModelID = ""
 	@AppStorage("downloadedModelIDs") private var downloadedModelIDs = ""
 	@StateObject private var safariViewModel = SafariViewModel()
-	@State private var hasAppeared = false
 	@State private var deletingModelID: String?
 	@State private var deleteErrorMessage: String?
 
@@ -30,7 +29,6 @@ struct ModelMarketPlaceView: View {
 						.font(.system(size: 16, weight: .regular))
 						.foregroundStyle(.secondary)
 						.lineSpacing(3)
-						.modelMarketplaceEntrance(hasAppeared, delay: 0.04)
 
 					if let deleteErrorMessage {
 						Text(deleteErrorMessage)
@@ -39,7 +37,6 @@ struct ModelMarketPlaceView: View {
 							.padding(16)
 							.frame(maxWidth: .infinity, alignment: .leading)
 							.background(Color.red.opacity(0.08), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-							.modelMarketplaceEntrance(hasAppeared, delay: 0.08)
 					}
 
 					VStack(alignment: .leading, spacing: 0) {
@@ -62,12 +59,10 @@ struct ModelMarketPlaceView: View {
 									safariViewModel.open(model.huggingFaceURL)
 								}
 							)
-							.modelMarketplaceEntrance(hasAppeared, delay: 0.12 + Double(index) * 0.06)
 
 							if index < models.count - 1 {
 								Divider()
 									.padding(.vertical, 20)
-									.modelMarketplaceEntrance(hasAppeared, delay: 0.1 + Double(index) * 0.06)
 							}
 						}
 					}
@@ -97,16 +92,6 @@ struct ModelMarketPlaceView: View {
 		.sheet(item: $safariViewModel.page) { page in
 			SafariView(url: page.url)
 				.ignoresSafeArea()
-		}
-		.task {
-			do {
-				try await Task.sleep(for: .milliseconds(120))
-				guard !Task.isCancelled else { return }
-				hasAppeared = true
-			} catch { }
-		}
-		.onDisappear {
-			hasAppeared = false
 		}
 	}
 
@@ -346,24 +331,6 @@ private struct DownloadedModelButton: View {
 		.padding(.horizontal, 14)
 		.frame(minHeight: 34)
 		.background(Color(uiColor: .systemGreen).opacity(0.14), in: Capsule())
-	}
-}
-
-private struct ModelMarketplaceEntranceModifier: ViewModifier {
-	let isVisible: Bool
-	let delay: Double
-
-	func body(content: Content) -> some View {
-		content
-			.opacity(isVisible ? 1 : 0)
-			.offset(y: isVisible ? 0 : 6)
-			.animation(.smooth(duration: 0.28).delay(delay), value: isVisible)
-	}
-}
-
-private extension View {
-	func modelMarketplaceEntrance(_ isVisible: Bool, delay: Double) -> some View {
-		modifier(ModelMarketplaceEntranceModifier(isVisible: isVisible, delay: delay))
 	}
 }
 

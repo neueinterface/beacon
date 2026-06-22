@@ -153,12 +153,6 @@ final class BeaconModelRuntime: ModelDownloadRuntime {
 			LLMRegistry.qwen3_0_6b_4bit
 		case "mlx-community/LFM2-1.2B-4bit":
 			LLMRegistry.lfm2_1_2b_4bit
-		case "mlx-community/Qwen3-1.7B-4bit":
-			LLMRegistry.qwen3_1_7b_4bit
-		case "mlx-community/Qwen3-4B-Instruct-2507-4bit":
-			ModelConfiguration(id: model.repositoryID)
-		case "mlx-community/Qwen3.5-2B-4bit":
-			ModelConfiguration(id: model.repositoryID)
 		default:
 			ModelConfiguration(id: model.repositoryID)
 		}
