@@ -17,6 +17,8 @@ struct ChatView: View {
 	@State private var shouldOpenMarketplaceAfterModelSwitcherDismisses = false
 	@State private var pendingScrollMessageID: ChatMessage.ID?
 	@State private var responseTask: Task<Void, Never>?
+	@State private var switchedModelName: String?
+	@State private var modelSwitchToastTask: Task<Void, Never>?
 	@StateObject private var safariViewModel = SafariViewModel()
 	private let webSearchService = WebSearchService()
 	private let responseHaptics = StreamingResponseHaptics()
@@ -35,47 +37,52 @@ struct ChatView: View {
 		GeometryReader { geometry in
 			ZStack(alignment: .leading) {
 				chatContent
-					.depthLayer(isActive: !isShowingHistory, edge: .trailing)
-					.blur(radius: isShowingHistory ? 10 : 0)
-					.scaleEffect(isShowingHistory ? 0.94 : 1)
-					.opacity(isShowingHistory ? 0.68 : 1)
+					.scaleEffect(isShowingHistory ? 0.98 : 1, anchor: .top)
+					.opacity(isShowingHistory ? 0.76 : 1)
 					.zIndex(0)
 
-				ChatHistoryDrawerView(
-					viewModel: historyViewModel,
-					onClose: {
+				if isShowingHistory {
+					ChatHistoryDrawerView(
+						viewModel: historyViewModel,
+						onClose: {
+							withAnimation(screenSpring) {
+								isShowingHistory = false
+							}
+						},
+						onNewChat: {
+							historyViewModel.startNewChat()
+							withAnimation(screenSpring) {
+								isShowingHistory = false
+							}
+						},
+						onOpenModels: {
+							showMarketplace()
+						},
+						onOpenSettings: {
+							isShowingSettings = true
+						}
+					) { chat in
+						pendingScrollMessageID = historyViewModel.lastUserMessageID(in: chat) ?? historyViewModel.firstMessageID(in: chat)
 						withAnimation(screenSpring) {
 							isShowingHistory = false
 						}
-					},
-					onNewChat: {
-						historyViewModel.startNewChat()
-						withAnimation(screenSpring) {
-							isShowingHistory = false
-						}
-					},
-					onOpenModels: {
-						showMarketplace()
-					},
-					onOpenSettings: {
-						isShowingSettings = true
 					}
-				) { chat in
-					pendingScrollMessageID = historyViewModel.lastUserMessageID(in: chat) ?? historyViewModel.firstMessageID(in: chat)
-					withAnimation(screenSpring) {
-						isShowingHistory = false
-					}
+					.frame(width: geometry.size.width)
+					.frame(maxHeight: .infinity)
+					.transition(.opacity.combined(with: .scale(scale: 0.98, anchor: .top)))
+					.zIndex(2)
 				}
-				.frame(width: geometry.size.width)
-				.frame(maxHeight: .infinity)
-				.depthLayer(isActive: isShowingHistory, edge: .leading)
-				.opacity(isShowingHistory ? 1 : 0)
-				.allowsHitTesting(isShowingHistory)
-				.zIndex(2)
 			}
 			.animation(screenSpring, value: isShowingHistory)
 		}
 		.background(Color(uiColor: .systemBackground))
+		.overlay(alignment: .bottom) {
+			if let switchedModelName {
+				ModelSwitchToast(modelName: switchedModelName)
+					.padding(.bottom, 104)
+					.transition(.opacity.combined(with: .scale(scale: 0.96)))
+			}
+		}
 		.sheet(isPresented: $isShowingModelSwitcher, onDismiss: openMarketplaceAfterModelSwitcherDismissesIfNeeded) {
 			ChatModelSwitcherSheet(
 				models: downloadedModels,
@@ -112,82 +119,120 @@ struct ChatView: View {
 			guard !runtime.isReady(for: selectedModel) else { return }
 			await runtime.load(selectedModel)
 		}
+		.onDisappear {
+			modelSwitchToastTask?.cancel()
+		}
 	}
 
 	private var chatContent: some View {
-		VStack(spacing: 0) {
-			GeometryReader { proxy in
-				ZStack {
-					if historyViewModel.currentMessages.isEmpty {
-						Image("sonara.logo")
-							.resizable()
-							.scaledToFit()
-							.foregroundStyle(Color(uiColor: .systemGray6))
-							.frame(width: 64, height: 64)
-							.frame(maxWidth: .infinity, maxHeight: .infinity)
-							.allowsHitTesting(false)
-					}
+		NavigationStack {
+			VStack(spacing: 0) {
+				GeometryReader { proxy in
+					ZStack {
+						if historyViewModel.currentMessages.isEmpty {
+							Image("sonara.logo")
+								.resizable()
+								.scaledToFit()
+								.foregroundStyle(Color(uiColor: .systemGray6))
+								.frame(width: 64, height: 64)
+								.frame(maxWidth: .infinity, maxHeight: .infinity)
+								.allowsHitTesting(false)
+						}
 
-					ScrollViewReader { scrollProxy in
-						ScrollView {
-							LazyVStack(alignment: .leading, spacing: 20) {
-								ForEach(historyViewModel.currentMessages) { message in
-									MessageBubble(
-										text: message.text,
-										thinkingText: message.thinkingText,
-										sources: message.sources,
-										role: message.role,
-										isWaitingForResponse: runtime.isGenerating && message == historyViewModel.currentMessages.last,
-										onOpenSource: { url in
-											safariViewModel.open(url)
-										}
-									)
-									.id(message.id)
+						ScrollViewReader { scrollProxy in
+							ScrollView {
+								LazyVStack(alignment: .leading, spacing: 20) {
+									ForEach(historyViewModel.currentMessages) { message in
+										MessageBubble(
+											text: message.text,
+											thinkingText: message.thinkingText,
+											sources: message.sources,
+											role: message.role,
+											isWaitingForResponse: runtime.isGenerating && message == historyViewModel.currentMessages.last,
+											onOpenSource: { url in
+												safariViewModel.open(url)
+											}
+										)
+										.id(message.id)
+									}
 								}
+								.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+								.padding(.horizontal, 18)
+								.padding(.top, 24)
+								.padding(.bottom, 96)
 							}
-							.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-							.padding(.horizontal, 18)
-							.padding(.top, 24)
-							.padding(.bottom, 96)
-						}
-						.frame(maxWidth: .infinity, minHeight: proxy.size.height)
-						.scrollDismissesKeyboard(.interactively)
-						.scrollEdgeEffectStyle(.soft, for: [.top, .bottom])
-						.onChange(of: historyViewModel.currentMessages) { _ in
-							scrollToPendingMessage(using: scrollProxy)
-						}
-						.onChange(of: pendingScrollMessageID) { _ in
-							scrollToPendingMessage(using: scrollProxy)
+							.frame(maxWidth: .infinity, minHeight: proxy.size.height)
+							.scrollDismissesKeyboard(.interactively)
+							.scrollEdgeEffectStyle(.soft, for: [.top, .bottom])
+							.onChange(of: historyViewModel.currentMessages) { _ in
+								scrollToPendingMessage(using: scrollProxy)
+							}
+							.onChange(of: pendingScrollMessageID) { _ in
+								scrollToPendingMessage(using: scrollProxy)
+							}
 						}
 					}
 				}
-				.safeAreaInset(edge: .top, spacing: 0) {
-					HeaderView {
+
+				inputBar
+			}
+			.background(Color(uiColor: .systemBackground))
+			.simultaneousGesture(
+				DragGesture(minimumDistance: 16)
+					.onEnded { value in
+						guard value.translation.height > 28 else { return }
+						dismissKeyboard()
+					}
+			)
+			.navigationTitle("")
+			#if !os(macOS)
+			.navigationBarTitleDisplayMode(.inline)
+			.toolbarRole(.navigationStack)
+			.toolbarVisibility(.visible, for: .navigationBar)
+			#endif
+			.toolbar {
+				#if os(macOS)
+				ToolbarItemGroup(placement: .automatic) {
+					chatToolbarButtons
+				}
+				#else
+				ToolbarItemGroup(placement: .topBarLeading) {
+					Button {
+						playHeaderHaptic()
 						dismissKeyboard()
 						withAnimation(screenSpring) {
 							isShowingHistory = true
 						}
-					} onOpenModels: {
+					} label: {
+						Image(systemName: "line.3.horizontal")
+					}
+					.accessibilityLabel("Open chat history")
+
+					Button {
+						playHeaderHaptic()
 						dismissKeyboard()
 						isShowingModelSwitcher = true
-					} onNewChat: {
+					} label: {
+						Image("playground.icon")
+							.renderingMode(.template)
+					}
+					.accessibilityLabel("Switch model")
+				}
+
+				ToolbarItem(placement: .topBarTrailing) {
+					Button {
+						playHeaderHaptic()
 						historyViewModel.startNewChat()
 						dismissKeyboard()
+					} label: {
+						Image("chat.icon")
+							.renderingMode(.template)
 					}
-					.background(Color(uiColor: .systemBackground))
+					.accessibilityLabel("New chat")
 				}
+				#endif
 			}
-
-			inputBar
 		}
-		.background(Color(uiColor: .systemBackground))
-		.simultaneousGesture(
-			DragGesture(minimumDistance: 16)
-				.onEnded { value in
-					guard value.translation.height > 28 else { return }
-					dismissKeyboard()
-				}
-		)
 	}
 
 	private var inputBar: some View {
@@ -354,9 +399,34 @@ struct ChatView: View {
 		#endif
 	}
 
+	private func playHeaderHaptic() {
+		#if canImport(UIKit)
+		UIImpactFeedbackGenerator(style: .light).impactOccurred()
+		#endif
+	}
+
 	private func select(_ model: BeaconModel) {
+		let didChange = selectedModelID != model.id
 		selectedModelID = model.id
 		isShowingModelSwitcher = false
+
+		if didChange {
+			showModelSwitchToast(for: model.name)
+		}
+	}
+
+	private func showModelSwitchToast(for modelName: String) {
+		modelSwitchToastTask?.cancel()
+		withAnimation(.smooth(duration: 0.2)) {
+			switchedModelName = modelName
+		}
+
+		modelSwitchToastTask = Task { @MainActor in
+			try? await Task.sleep(for: .seconds(1.8))
+			withAnimation(.smooth(duration: 0.2)) {
+				switchedModelName = nil
+			}
+		}
 	}
 
 	private func showMarketplace() {
@@ -430,36 +500,9 @@ private struct ChatModelSwitcherSheet: View {
 			.navigationTitle("Switch Model")
 			#if !os(macOS)
 			.navigationBarTitleDisplayMode(.inline)
+			.toolbarVisibility(.visible, for: .navigationBar)
 			#endif
 		}
-	}
-}
-
-private enum ScreenEdge {
-	case leading
-	case trailing
-}
-
-private struct DepthLayerModifier: ViewModifier {
-	let isActive: Bool
-	let edge: ScreenEdge
-
-	func body(content: Content) -> some View {
-		content
-			.blur(radius: isActive ? 0 : 8)
-			.scaleEffect(isActive ? 1 : 0.94)
-			.rotation3DEffect(
-				.degrees(isActive ? 0 : (edge == .leading ? -4 : 4)),
-				axis: (x: 0, y: 1, z: 0),
-				perspective: 0.75
-			)
-			.offset(x: isActive ? 0 : (edge == .leading ? -28 : 28))
-	}
-}
-
-private extension View {
-	func depthLayer(isActive: Bool, edge: ScreenEdge) -> some View {
-		modifier(DepthLayerModifier(isActive: isActive, edge: edge))
 	}
 }
 
