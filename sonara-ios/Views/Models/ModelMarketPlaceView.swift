@@ -11,12 +11,15 @@ struct ModelMarketPlaceView: View {
 	let models: [BeaconModel]
 	var onClose: () -> Void = { }
 	var onDownload: (BeaconModel) -> Void = { _ in }
+	var onSelect: (BeaconModel) -> Void = { _ in }
 
 	@AppStorage("selectedModelID") private var selectedModelID = ""
 	@AppStorage("downloadedModelIDs") private var downloadedModelIDs = ""
 	@StateObject private var safariViewModel = SafariViewModel()
 	@State private var deletingModelID: String?
 	@State private var deleteErrorMessage: String?
+	@State private var switchedModelName: String?
+	@State private var modelSwitchToastTask: Task<Void, Never>?
 
 	var body: some View {
 		NavigationStack {
@@ -48,6 +51,8 @@ struct ModelMarketPlaceView: View {
 								},
 								onSelect: {
 									selectedModelID = model.id
+									onSelect(model)
+									showModelSwitchToast(for: model.name)
 								},
 								onDelete: {
 									delete(model)
@@ -71,6 +76,7 @@ struct ModelMarketPlaceView: View {
 			.navigationTitle("Model Marketplace")
 			#if !os(macOS)
 			.navigationBarTitleDisplayMode(.large)
+			.toolbarVisibility(.visible, for: .navigationBar)
 			#endif
 			.toolbar {
 				#if os(macOS)
@@ -85,9 +91,19 @@ struct ModelMarketPlaceView: View {
 			}
 		}
 		.background(Color(uiColor: .systemBackground))
+		.overlay(alignment: .bottom) {
+			if let switchedModelName {
+				ModelSwitchToast(modelName: switchedModelName)
+					.padding(.bottom, 34)
+					.transition(.opacity.combined(with: .scale(scale: 0.96)))
+			}
+		}
 		.sheet(item: $safariViewModel.page) { page in
 			SafariView(url: page.url)
 				.ignoresSafeArea()
+		}
+		.onDisappear {
+			modelSwitchToastTask?.cancel()
 		}
 	}
 
@@ -97,7 +113,6 @@ struct ModelMarketPlaceView: View {
 				.font(.system(size: 16, weight: .semibold))
 				.foregroundStyle(.black)
 				.frame(width: 34, height: 34)
-				.background(Color(uiColor: .secondarySystemBackground), in: Circle())
 		}
 		.buttonStyle(.plain)
 	}
@@ -146,6 +161,20 @@ struct ModelMarketPlaceView: View {
 			}
 		} catch {
 			deleteErrorMessage = "Could not delete \(model.name): \(error.localizedDescription)"
+		}
+	}
+
+	private func showModelSwitchToast(for modelName: String) {
+		modelSwitchToastTask?.cancel()
+		withAnimation(.smooth(duration: 0.2)) {
+			switchedModelName = modelName
+		}
+
+		modelSwitchToastTask = Task { @MainActor in
+			try? await Task.sleep(for: .seconds(1.8))
+			withAnimation(.smooth(duration: 0.2)) {
+				switchedModelName = nil
+			}
 		}
 	}
 
@@ -238,7 +267,13 @@ private struct ModelMarketPlaceRow: View {
 			VStack(alignment: .leading, spacing: 14) {
 				HStack(spacing: 10) {
 					if isDownloaded {
-						DownloadedModelButton(title: model.isBuiltIn ? "Built in" : "Downloaded")
+						if model.isBuiltIn {
+							DownloadedModelButton(title: "Built in")
+						} else {
+							BeaconButton(isDeleting ? "Deleting" : "Delete", variant: .destructive, size: .small, trailingIcon: "trash", isDisabled: isSelected, isLoading: isDeleting) {
+								onDelete()
+							}
+						}
 					} else {
 						BeaconButton("Download", variant: .secondary, size: .small, trailingAssetIcon: "download.icon", isLoading: isDownloading) {
 							isDownloading = true
@@ -256,12 +291,6 @@ private struct ModelMarketPlaceRow: View {
 				if isDownloaded {
 					VStack(alignment: .leading, spacing: 10) {
 						HStack(spacing: 10) {
-							if !model.isBuiltIn {
-								BeaconButton(isDeleting ? "Deleting" : "Delete", variant: .destructive, size: .small, isDisabled: isSelected, isLoading: isDeleting) {
-									onDelete()
-								}
-							}
-
 							if !isSelected {
 								BeaconButton("Use", variant: .secondary, size: .small) {
 									onSelect()

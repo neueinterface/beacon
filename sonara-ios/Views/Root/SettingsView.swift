@@ -61,6 +61,7 @@ struct SettingsView: View {
 			.navigationTitle("Settings")
 			#if !os(macOS)
 			.navigationBarTitleDisplayMode(.large)
+			.toolbarVisibility(.visible, for: .navigationBar)
 			#endif
 			.toolbar {
 				#if os(macOS)
