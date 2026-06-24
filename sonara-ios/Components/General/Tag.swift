@@ -21,6 +21,25 @@ struct Tag: View {
 	}
 }
 
+struct ModelSwitchToast: View {
+	let modelName: String
+
+	var body: some View {
+		HStack(spacing: 10) {
+			Image(systemName: "checkmark.circle.fill")
+				.font(.system(size: 16, weight: .semibold))
+
+			Text("Switched to '\(modelName)'")
+				.font(.system(size: 14, weight: .semibold))
+		}
+		.foregroundStyle(.primary)
+		.padding(.horizontal, 16)
+		.frame(minHeight: 42)
+		.background(.regularMaterial, in: Capsule())
+		.shadow(color: .black.opacity(0.12), radius: 18, y: 8)
+	}
+}
+
 #Preview {
 	HStack(spacing: 12) {
 		Tag(title: "vision", color: .indigo)

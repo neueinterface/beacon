@@ -1,4 +1,7 @@
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 struct ChatHistoryDrawerView: View {
 	@ObservedObject var viewModel: ChatHistoryViewModel
@@ -9,14 +12,59 @@ struct ChatHistoryDrawerView: View {
 	var onSelect: (ChatConversation) -> Void
 
 	var body: some View {
-		ZStack(alignment: .bottomTrailing) {
-			historyContent
+		NavigationStack {
+			ZStack(alignment: .bottomTrailing) {
+				historyContent
 
-			BeaconButton("New Chat", size: .large, leadingAssetIcon: "chat.icon", action: onNewChat)
-			.padding(.trailing, 20)
-			.padding(.bottom, 24)
+				BeaconButton("New Chat", size: .large, leadingAssetIcon: "chat.icon", action: onNewChat)
+					.padding(.trailing, 20)
+					.padding(.bottom, 24)
+			}
+			.background(Color(uiColor: .systemBackground))
+			.navigationTitle("")
+			#if !os(macOS)
+			.navigationBarTitleDisplayMode(.inline)
+			.toolbarRole(.navigationStack)
+			.toolbarVisibility(.visible, for: .navigationBar)
+			#endif
+			.toolbar {
+				#if os(macOS)
+				ToolbarItemGroup(placement: .automatic) {
+					historyToolbarButtons
+				}
+				#else
+				ToolbarItem(placement: .topBarLeading) {
+					Button {
+						playHeaderHaptic()
+						onOpenModels()
+					} label: {
+						Image("playground.icon")
+							.renderingMode(.template)
+					}
+					.accessibilityLabel("Open models")
+				}
+
+				ToolbarItemGroup(placement: .topBarTrailing) {
+					Button {
+						playHeaderHaptic()
+						onOpenSettings()
+					} label: {
+						Image("settings.icon")
+							.renderingMode(.template)
+					}
+					.accessibilityLabel("Open settings")
+
+					Button {
+						playHeaderHaptic()
+						onClose()
+					} label: {
+						Image(systemName: "arrow.right")
+					}
+					.accessibilityLabel("Close chat history")
+				}
+				#endif
+			}
 		}
-		.background(Color(uiColor: .systemBackground))
 	}
 
 	@ViewBuilder
@@ -26,9 +74,6 @@ struct ChatHistoryDrawerView: View {
 				emptyState
 			}
 			.scrollEdgeEffectStyle(.soft, for: .top)
-			.safeAreaInset(edge: .top, spacing: 0) {
-				headerBar
-			}
 		} else {
 			List {
 				ForEach(Array(viewModel.chats.enumerated()), id: \.element.id) { index, chat in
@@ -57,29 +102,40 @@ struct ChatHistoryDrawerView: View {
 			.listStyle(.plain)
 			.scrollContentBackground(.hidden)
 			.scrollEdgeEffectStyle(.soft, for: .top)
-			.safeAreaInset(edge: .top, spacing: 0) {
-				headerBar
+		}
+	}
+
+	private var historyToolbarButtons: some View {
+		Group {
+			Button {
+				playHeaderHaptic()
+				onOpenModels()
+			} label: {
+				Image("playground.icon")
+					.renderingMode(.template)
+			}
+
+			Button {
+				playHeaderHaptic()
+				onOpenSettings()
+			} label: {
+				Image("settings.icon")
+					.renderingMode(.template)
+			}
+
+			Button {
+				playHeaderHaptic()
+				onClose()
+			} label: {
+				Image(systemName: "arrow.right")
 			}
 		}
 	}
 
-	private var headerBar: some View {
-		header
-			.background(Color(uiColor: .systemBackground))
-	}
-
-	private var header: some View {
-		HStack(spacing: 16) {
-			BeaconButton("Models", variant: .secondary, leadingAssetIcon: "playground.icon", action: onOpenModels)
-
-			Spacer()
-
-			BeaconButton(assetIcon: "settings.icon", variant: .secondary, action: onOpenSettings)
-			BeaconButton(icon: "arrow.right", variant: .secondary, action: onClose)
-		}
-		.padding(.horizontal, 20)
-		.padding(.top, 20)
-		.padding(.bottom, 20)
+	private func playHeaderHaptic() {
+		#if canImport(UIKit)
+		UIImpactFeedbackGenerator(style: .light).impactOccurred()
+		#endif
 	}
 
 	private var emptyState: some View {

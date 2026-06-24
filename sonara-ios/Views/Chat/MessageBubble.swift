@@ -50,10 +50,13 @@ struct MessageBubble: View {
 			} else if !displayText.isEmpty {
 				MarkdownView(displayText)
 					.font(.system(size: 16), for: .body)
-					.font(.system(size: 20, weight: .semibold), for: .h1)
-					.font(.system(size: 18, weight: .semibold), for: .h2)
+					.font(.system(size: 18, weight: .semibold), for: .h1)
+					.font(.system(size: 17, weight: .semibold), for: .h2)
 					.font(.system(size: 16, weight: .semibold), for: .h3)
-					.font(.system(size: 16, design: .monospaced), for: .codeBlock)
+					.font(.system(size: 16, weight: .semibold), for: .h4)
+					.font(.system(size: 16, weight: .semibold), for: .h5)
+					.font(.system(size: 16, weight: .semibold), for: .h6)
+					.font(.system(size: 14, design: .monospaced), for: .codeBlock)
 					.foregroundStyle(.primary)
 					.tint(.secondary, for: .inlineCodeBlock)
 			}
@@ -76,7 +79,7 @@ struct MessageBubble: View {
 			.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
 			.filter { !$0.isEmpty }
 
-		return lines.last ?? "Thinking..."
+		return lines.last ?? "Thinking"
 	}
 
 	private var userBubble: some View {

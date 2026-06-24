@@ -42,9 +42,7 @@ struct ModelDownloadView<Runtime: ModelDownloadRuntime>: View {
 			Spacer()
 
 			VStack(alignment: .leading, spacing: 28) {
-				ProgressView(value: displayedProgress)
-					.progressViewStyle(.linear)
-					.tint(.primary)
+				DownloadProgressBar(progress: displayedProgress, isLoading: isProgressActive)
 
 				VStack(alignment: .leading, spacing: 12) {
 					Text(runtime.isLoading ? "Downloading model" : "Preparing model")
@@ -144,6 +142,10 @@ struct ModelDownloadView<Runtime: ModelDownloadRuntime>: View {
 		return "Keep this screen open while \(model.name) downloads to your device. This only needs to happen once."
 	}
 
+	private var isProgressActive: Bool {
+		runtime.errorMessage == nil && displayedProgress < 1
+	}
+
 	private var downloadSizeText: String {
 		if let completedUnitCount = runtime.completedUnitCount,
 		   let totalUnitCount = runtime.totalUnitCount,
@@ -239,6 +241,77 @@ struct ModelDownloadView<Runtime: ModelDownloadRuntime>: View {
 		withAnimation(.smooth(duration: 0.2)) {
 			displayedProgress = 1
 		}
+	}
+}
+
+private struct DownloadProgressBar: View {
+	let progress: Double
+	let isLoading: Bool
+
+	private let height: CGFloat = 5
+
+	var body: some View {
+		GeometryReader { proxy in
+			let clampedProgress = min(max(progress, 0), 1)
+			let fillWidth = max(proxy.size.width * clampedProgress, clampedProgress > 0 ? height : 0)
+
+			ZStack(alignment: .leading) {
+				Capsule()
+					.fill(Color(uiColor: .secondarySystemBackground))
+
+				DownloadProgressFill(width: fillWidth, isLoading: isLoading)
+			}
+		}
+		.frame(height: height)
+		.animation(.smooth(duration: 0.24), value: progress)
+	}
+}
+
+private struct DownloadProgressFill: View {
+	let width: CGFloat
+	let isLoading: Bool
+
+	@State private var shimmerPhase = false
+
+	private var shimmerWidth: CGFloat {
+		max(width * 0.55, 48)
+	}
+
+	var body: some View {
+		Capsule()
+			.fill(Color.primary)
+			.frame(width: width)
+			.overlay(alignment: .leading) {
+				if isLoading {
+					LinearGradient(
+						colors: [
+							.clear,
+							.white.opacity(0.24),
+							.clear
+						],
+						startPoint: .leading,
+						endPoint: .trailing
+					)
+					.frame(width: shimmerWidth)
+					.offset(x: shimmerPhase ? width : -shimmerWidth)
+					.blendMode(.screen)
+				}
+			}
+			.clipShape(Capsule())
+			.onAppear {
+				guard isLoading else { return }
+				shimmerPhase = false
+				withAnimation(.linear(duration: 1.2).repeatForever(autoreverses: false)) {
+					shimmerPhase = true
+				}
+			}
+			.onChange(of: isLoading) { _, isLoading in
+				shimmerPhase = false
+				guard isLoading else { return }
+				withAnimation(.linear(duration: 1.2).repeatForever(autoreverses: false)) {
+					shimmerPhase = true
+				}
+			}
 	}
 }
 
