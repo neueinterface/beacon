@@ -10,6 +10,7 @@ struct ChatView: View {
 	@AppStorage("selectedModelID") private var selectedModelID = ""
 	@AppStorage("downloadedModelIDs") private var downloadedModelIDs = ""
 	@State private var inputText = ""
+	@State private var isWebSearchTagged = false
 	@State private var isShowingHistory = false
 	@State private var isShowingModelMarketplace = false
 	@State private var isShowingModelSwitcher = false
@@ -126,55 +127,56 @@ struct ChatView: View {
 
 	private var chatContent: some View {
 		NavigationStack {
-			VStack(spacing: 0) {
-				GeometryReader { proxy in
-					ZStack {
-						if historyViewModel.currentMessages.isEmpty {
-							Image("sonara.logo")
-								.resizable()
-								.scaledToFit()
-								.foregroundStyle(Color(uiColor: .systemGray6))
-								.frame(width: 64, height: 64)
-								.frame(maxWidth: .infinity, maxHeight: .infinity)
-								.allowsHitTesting(false)
-						}
+			ZStack {
+				if historyViewModel.currentMessages.isEmpty {
+					Image("sonara.logo")
+						.resizable()
+						.scaledToFit()
+						.foregroundStyle(Color(uiColor: .systemGray6))
+						.frame(width: 64, height: 64)
+						.allowsHitTesting(false)
+				}
 
-						ScrollViewReader { scrollProxy in
-							ScrollView {
-								LazyVStack(alignment: .leading, spacing: 20) {
-									ForEach(historyViewModel.currentMessages) { message in
-										MessageBubble(
-											text: message.text,
-											thinkingText: message.thinkingText,
-											sources: message.sources,
-											role: message.role,
-											isWaitingForResponse: runtime.isGenerating && message == historyViewModel.currentMessages.last,
-											onOpenSource: { url in
-												safariViewModel.open(url)
-											}
-										)
-										.id(message.id)
+				VStack(spacing: 0) {
+					GeometryReader { proxy in
+						ZStack {
+							ScrollViewReader { scrollProxy in
+								ScrollView {
+									LazyVStack(alignment: .leading, spacing: 20) {
+										ForEach(historyViewModel.currentMessages) { message in
+											MessageBubble(
+												text: message.text,
+												thinkingText: message.thinkingText,
+												sources: message.sources,
+												role: message.role,
+												isWaitingForResponse: runtime.isGenerating && message == historyViewModel.currentMessages.last,
+												onOpenSource: { url in
+													safariViewModel.open(url)
+												}
+											)
+											.id(message.id)
+										}
 									}
+									.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+									.padding(.horizontal, 18)
+									.padding(.top, 24)
+									.padding(.bottom, 96)
 								}
-								.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-								.padding(.horizontal, 18)
-								.padding(.top, 24)
-								.padding(.bottom, 96)
-							}
-							.frame(maxWidth: .infinity, minHeight: proxy.size.height)
-							.scrollDismissesKeyboard(.interactively)
-							.scrollEdgeEffectStyle(.soft, for: [.top, .bottom])
-							.onChange(of: historyViewModel.currentMessages) { _ in
-								scrollToPendingMessage(using: scrollProxy)
-							}
-							.onChange(of: pendingScrollMessageID) { _ in
-								scrollToPendingMessage(using: scrollProxy)
+								.frame(maxWidth: .infinity, minHeight: proxy.size.height)
+								.scrollDismissesKeyboard(.interactively)
+								.scrollEdgeEffectStyle(.soft, for: [.top, .bottom])
+								.onChange(of: historyViewModel.currentMessages) { _ in
+									scrollToPendingMessage(using: scrollProxy)
+								}
+								.onChange(of: pendingScrollMessageID) { _ in
+									scrollToPendingMessage(using: scrollProxy)
+								}
 							}
 						}
 					}
-				}
 
-				inputBar
+					inputBar
+				}
 			}
 			.background(Color(uiColor: .systemBackground))
 			.simultaneousGesture(
@@ -236,7 +238,7 @@ struct ChatView: View {
 	}
 
 	private var inputBar: some View {
-		Input(text: $inputText, isGenerating: runtime.isGenerating) {
+		Input(text: $inputText, isWebSearchTagged: $isWebSearchTagged, isGenerating: runtime.isGenerating) {
 			stopGenerating()
 		} onSend: { text in
 			send(text)
@@ -267,12 +269,16 @@ struct ChatView: View {
 		#if canImport(UIKit)
 		UIImpactFeedbackGenerator(style: .medium).impactOccurred()
 		#endif
-		let responseID = historyViewModel.appendUserMessage(text, modelName: selectedModel.name)
+		let usesTaggedWebSearch = isWebSearchTagged || text.localizedCaseInsensitiveContains("@web")
+		let displayText = text.removingWebTagTrigger()
+		isWebSearchTagged = false
+
+		let responseID = historyViewModel.appendUserMessage(displayText, modelName: selectedModel.name)
 		responseHaptics.start()
 
 		responseTask = Task {
 			do {
-				let prompt = try await promptWithWebResultsIfNeeded(for: text, responseID: responseID)
+				let prompt = try await promptWithWebResultsIfNeeded(for: displayText, forceWebSearch: usesTaggedWebSearch, responseID: responseID)
 
 				try await runtime.streamResponse(to: prompt, onThinking: { chunk in
 					historyViewModel.appendAssistantThinking(chunk, to: responseID)
@@ -309,7 +315,7 @@ struct ChatView: View {
 		}
 	}
 
-	private func promptWithWebResultsIfNeeded(for text: String, responseID: ChatMessage.ID) async throws -> String {
+	private func promptWithWebResultsIfNeeded(for text: String, forceWebSearch: Bool = false, responseID: ChatMessage.ID) async throws -> String {
 		let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
 		let lowercased = trimmed.lowercased()
 
@@ -321,7 +327,7 @@ struct ChatView: View {
 			return String(trimmed.dropFirst(7)).trimmingCharacters(in: .whitespacesAndNewlines)
 		}
 
-		guard let query = webSearchQuery(for: text) else { return text }
+		guard let query = webSearchQuery(for: text, forceWebSearch: forceWebSearch) else { return text }
 		guard !query.isEmpty else { return "Ask the user what they want to search for." }
 
 		historyViewModel.appendAssistantThinking("Searching the web for: \(query)\n", to: responseID)
@@ -347,8 +353,8 @@ struct ChatView: View {
 		"""
 	}
 
-	private func webSearchQuery(for text: String) -> String? {
-		let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+	private func webSearchQuery(for text: String, forceWebSearch: Bool = false) -> String? {
+		let trimmed = text.removingWebTagTrigger().trimmingCharacters(in: .whitespacesAndNewlines)
 		let lowercased = trimmed.lowercased()
 
 		if lowercased == "/noweb" {
@@ -365,6 +371,10 @@ struct ChatView: View {
 
 		if lowercased.hasPrefix("/web ") {
 			return String(trimmed.dropFirst(5)).trimmingCharacters(in: .whitespacesAndNewlines)
+		}
+
+		if forceWebSearch {
+			return trimmed
 		}
 
 		guard shouldUseWebSearch(for: lowercased) else { return nil }
