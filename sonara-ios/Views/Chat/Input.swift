@@ -18,6 +18,7 @@ struct Input: View {
 	@State private var textFieldHeight: CGFloat = 0
 	@State private var inputHeight: CGFloat = 52
 	@State private var resetID = UUID()
+	@FocusState private var isTextFieldFocused: Bool
 
 	init(
 		text: Binding<String>,
@@ -40,7 +41,7 @@ struct Input: View {
 	}
 
 	private var showsWebSuggestion: Bool {
-		!isWebSearchTagged && text.localizedCaseInsensitiveContains("@web")
+		!isWebSearchTagged && text.contains("@")
 	}
 
 	private var cornerRadius: CGFloat {
@@ -92,6 +93,7 @@ struct Input: View {
 					withAnimation(.smooth(duration: 0.18)) {
 						isWebSearchTagged = false
 					}
+					isTextFieldFocused = true
 				}
 				.transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .topLeading)))
 			}
@@ -141,6 +143,7 @@ struct Input: View {
 		TextField(placeholder, text: $text, axis: .vertical)
 			.font(.system(size: 16))
 			.id(resetID)
+			.focused($isTextFieldFocused)
 			.frame(maxWidth: .infinity, alignment: .leading)
 			.lineLimit(1 ... 4)
 			#if !os(macOS)
@@ -166,8 +169,12 @@ struct Input: View {
 	private func selectWebSearchTag() {
 		withAnimation(.smooth(duration: 0.18)) {
 			isWebSearchTagged = true
-			text = text.removingWebTagTrigger()
+			text = text.removingWebTagTrigger().removingToolMentionTrigger()
 			resetID = UUID()
+		}
+
+		Task { @MainActor in
+			isTextFieldFocused = true
 		}
 	}
 }
@@ -180,6 +187,12 @@ extension String {
 		}
 
 		return result
+			.replacingOccurrences(of: "  ", with: " ")
+			.trimmingCharacters(in: .whitespacesAndNewlines)
+	}
+
+	func removingToolMentionTrigger() -> String {
+		replacingOccurrences(of: "@", with: "")
 			.replacingOccurrences(of: "  ", with: " ")
 			.trimmingCharacters(in: .whitespacesAndNewlines)
 	}
