@@ -25,7 +25,7 @@ jobs:
       - name: Build app
         run: |
           xcodebuild \
-            -project "sonara-ios.xcodeproj" \
-            -scheme "sonara-ios" \
+            -project "semera-ios.xcodeproj" \
+            -scheme "semera-ios" \
             -destination 'generic/platform=iOS Simulator' \
             build

@@ -1,10 +1,10 @@
-# Sonara
+# Semera
 
-Sonara is a local-first iOS assistant for chatting with private on-device AI models.
+Semera is a local-first iOS assistant for chatting with private on-device AI models.
 
 It lets you choose curated local models, download and manage them, keep private chat history, and optionally use a lightweight Cloudflare-powered web search tool for current information.
 
-![Sonara app screenshot](info.png)
+![Semera app screenshot](info.png)
 
 ## Features
 
@@ -21,7 +21,7 @@ It lets you choose curated local models, download and manage them, keep private 
 
 ## Web Search
 
-Sonara keeps model inference local by default. Web search is only used when a prompt needs current information.
+Semera keeps model inference local by default. Web search is only used when a prompt needs current information.
 
 Supported controls:
 

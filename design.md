@@ -1,6 +1,6 @@
 # Design
 
-Sonara should feel calm, native, and focused. The visual system should stay minimal and rely on restraint rather than decoration.
+Semera should feel calm, native, and focused. The visual system should stay minimal and rely on restraint rather than decoration.
 
 ## Core Colors
 
@@ -37,7 +37,7 @@ This keeps color usage soft, consistent, and readable without making the interfa
 
 Color should clarify, not compete.
 
-Sonara should default to black, white, and gray. Use accent colors only when they add meaning or improve recognition.
+Semera should default to black, white, and gray. Use accent colors only when they add meaning or improve recognition.
 
 ## Typography
 
