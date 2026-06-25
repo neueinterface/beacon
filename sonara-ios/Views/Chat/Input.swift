@@ -9,6 +9,7 @@ import SwiftUI
 
 struct Input: View {
 	@Binding var text: String
+	@Binding private var isWebSearchTagged: Bool
 	var placeholder: String = "Message"
 	var isGenerating = false
 	var onStop: () -> Void = {}
@@ -18,8 +19,28 @@ struct Input: View {
 	@State private var inputHeight: CGFloat = 52
 	@State private var resetID = UUID()
 
+	init(
+		text: Binding<String>,
+		isWebSearchTagged: Binding<Bool> = .constant(false),
+		placeholder: String = "Message",
+		isGenerating: Bool = false,
+		onStop: @escaping () -> Void = {},
+		onSend: @escaping (String) -> Void
+	) {
+		self._text = text
+		self._isWebSearchTagged = isWebSearchTagged
+		self.placeholder = placeholder
+		self.isGenerating = isGenerating
+		self.onStop = onStop
+		self.onSend = onSend
+	}
+
 	private var hasTypedText: Bool {
 		!text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+	}
+
+	private var showsWebSuggestion: Bool {
+		!isWebSearchTagged && text.localizedCaseInsensitiveContains("@web")
 	}
 
 	private var cornerRadius: CGFloat {
@@ -30,44 +51,75 @@ struct Input: View {
 	}
 
 	var body: some View {
-		inputCapsule
-		.frame(maxWidth: .infinity)
-		.animation(.smooth(duration: 0.22), value: cornerRadius)
-		.onChange(of: text) { _, newText in
-			guard newText.isEmpty else { return }
+		VStack(alignment: .leading, spacing: 8) {
+			if showsWebSuggestion {
+				Pill(
+					title: "Search Web",
+					size: .regular,
+					image: "globe.icon",
+					trailingSystemImage: "plus"
+				) {
+					selectWebSearchTag()
+				}
+				.transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .bottomLeading)))
+			}
 
-			withAnimation(.smooth(duration: 0.18)) {
-				textFieldHeight = 22
-				inputHeight = 52
+			inputCapsule
+		}
+		.frame(maxWidth: .infinity, alignment: .leading)
+		.animation(.smooth(duration: 0.22), value: cornerRadius)
+		.animation(.smooth(duration: 0.18), value: showsWebSuggestion)
+		.onChange(of: text) { _, newText in
+			if newText.isEmpty {
+				withAnimation(.smooth(duration: 0.18)) {
+					textFieldHeight = 22
+					inputHeight = 52
+					resetID = UUID()
+				}
+			}
+
+			if isWebSearchTagged && newText.localizedCaseInsensitiveContains("@web") {
+				text = text.removingWebTagTrigger()
 				resetID = UUID()
 			}
 		}
 	}
 
 	private var inputCapsule: some View {
-		HStack(alignment: .bottom, spacing: 8) {
-			messageTextField
-
-			Button {
-				if isGenerating {
-					onStop()
-					return
+		VStack(alignment: .leading, spacing: isWebSearchTagged ? 10 : 0) {
+			if isWebSearchTagged {
+				Pill(title: "Search Web", size: .regular, image: "globe.icon", trailingSystemImage: "xmark") {
+					withAnimation(.smooth(duration: 0.18)) {
+						isWebSearchTagged = false
+					}
 				}
-
-				let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-				guard !trimmed.isEmpty else { return }
-				text = ""
-				onSend(trimmed)
-			} label: {
-				Image(systemName: isGenerating ? "stop.fill" : "arrow.up")
-					.font(.system(size: 16, weight: .bold))
-					.frame(width: 28, height: 28)
-					.foregroundStyle((hasTypedText || isGenerating) ? Color(uiColor: .systemBackground) : .secondary)
-					.background((hasTypedText || isGenerating) ? Color.primary : Color(uiColor: .systemGray4), in: Circle())
+				.transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .topLeading)))
 			}
-			.buttonStyle(.plain)
-			.disabled(!hasTypedText && !isGenerating)
-			.opacity((hasTypedText || isGenerating) ? 1 : 0.9)
+
+			HStack(alignment: .bottom, spacing: 8) {
+				messageTextField
+
+				Button {
+					if isGenerating {
+						onStop()
+						return
+					}
+
+					let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+					guard !trimmed.isEmpty else { return }
+					text = ""
+					onSend(trimmed)
+				} label: {
+					Image(systemName: isGenerating ? "stop.fill" : "arrow.up")
+						.font(.system(size: 16, weight: .bold))
+						.frame(width: 28, height: 28)
+						.foregroundStyle((hasTypedText || isGenerating) ? Color(uiColor: .systemBackground) : .secondary)
+						.background((hasTypedText || isGenerating) ? Color.primary : Color(uiColor: .systemGray4), in: Circle())
+				}
+				.buttonStyle(.plain)
+				.disabled(!hasTypedText && !isGenerating)
+				.opacity((hasTypedText || isGenerating) ? 1 : 0.9)
+			}
 		}
 		.padding(.horizontal, 14)
 		.padding(.vertical, 12)
@@ -109,6 +161,27 @@ struct Input: View {
 						}
 				}
 			}
+	}
+
+	private func selectWebSearchTag() {
+		withAnimation(.smooth(duration: 0.18)) {
+			isWebSearchTagged = true
+			text = text.removingWebTagTrigger()
+			resetID = UUID()
+		}
+	}
+}
+
+extension String {
+	func removingWebTagTrigger() -> String {
+		var result = self
+		while let range = result.range(of: "@web", options: [.caseInsensitive]) {
+			result.removeSubrange(range)
+		}
+
+		return result
+			.replacingOccurrences(of: "  ", with: " ")
+			.trimmingCharacters(in: .whitespacesAndNewlines)
 	}
 }
 
