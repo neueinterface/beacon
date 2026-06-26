@@ -1,0 +1,213 @@
+//
+//  Input.swift
+//  semera-ios
+//
+//  Created by Armond Schneider on 3/7/26.
+//
+
+import SwiftUI
+
+struct Input: View {
+	@Binding var text: String
+	@Binding private var isWebSearchTagged: Bool
+	var placeholder: String = "Message"
+	var isGenerating = false
+	var onStop: () -> Void = {}
+	var onSend: (String) -> Void
+
+	@State private var textFieldHeight: CGFloat = 0
+	@State private var inputHeight: CGFloat = 52
+	@State private var resetID = UUID()
+	@FocusState private var isTextFieldFocused: Bool
+
+	init(
+		text: Binding<String>,
+		isWebSearchTagged: Binding<Bool> = .constant(false),
+		placeholder: String = "Message",
+		isGenerating: Bool = false,
+		onStop: @escaping () -> Void = {},
+		onSend: @escaping (String) -> Void
+	) {
+		self._text = text
+		self._isWebSearchTagged = isWebSearchTagged
+		self.placeholder = placeholder
+		self.isGenerating = isGenerating
+		self.onStop = onStop
+		self.onSend = onSend
+	}
+
+	private var hasTypedText: Bool {
+		!text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+	}
+
+	private var showsWebSuggestion: Bool {
+		!isWebSearchTagged && text.contains("@")
+	}
+
+	private var cornerRadius: CGFloat {
+		let singleLineHeight: CGFloat = 22
+		let multilineAmount = min(max((textFieldHeight - singleLineHeight) / singleLineHeight, 0), 1)
+		let singleLineRadius: CGFloat = 30
+		return singleLineRadius - (multilineAmount * (singleLineRadius - 16))
+	}
+
+	var body: some View {
+		VStack(alignment: .leading, spacing: 8) {
+			if showsWebSuggestion {
+				Pill(
+					title: "Search Web",
+					size: .regular,
+					image: "globe.icon",
+					trailingSystemImage: "plus"
+				) {
+					selectWebSearchTag()
+				}
+				.transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .bottomLeading)))
+			}
+
+			inputCapsule
+		}
+		.frame(maxWidth: .infinity, alignment: .leading)
+		.animation(.smooth(duration: 0.22), value: cornerRadius)
+		.animation(.smooth(duration: 0.18), value: showsWebSuggestion)
+		.onChange(of: text) { _, newText in
+			if newText.isEmpty {
+				withAnimation(.smooth(duration: 0.18)) {
+					textFieldHeight = 22
+					inputHeight = 52
+					resetID = UUID()
+				}
+			}
+
+			if isWebSearchTagged && newText.localizedCaseInsensitiveContains("@web") {
+				text = text.removingWebTagTrigger()
+				resetID = UUID()
+			}
+		}
+	}
+
+	private var inputCapsule: some View {
+		VStack(alignment: .leading, spacing: isWebSearchTagged ? 10 : 0) {
+			if isWebSearchTagged {
+				Pill(title: "Search Web", size: .regular, image: "globe.icon", trailingSystemImage: "xmark") {
+					withAnimation(.smooth(duration: 0.18)) {
+						isWebSearchTagged = false
+					}
+					isTextFieldFocused = true
+				}
+				.transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .topLeading)))
+			}
+
+			HStack(alignment: .bottom, spacing: 8) {
+				messageTextField
+
+				Button {
+					if isGenerating {
+						onStop()
+						return
+					}
+
+					let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+					guard !trimmed.isEmpty else { return }
+					text = ""
+					onSend(trimmed)
+				} label: {
+					Image(systemName: isGenerating ? "stop.fill" : "arrow.up")
+						.font(.system(size: 16, weight: .bold))
+						.frame(width: 28, height: 28)
+						.foregroundStyle((hasTypedText || isGenerating) ? Color(uiColor: .systemBackground) : .secondary)
+						.background((hasTypedText || isGenerating) ? Color.primary : Color(uiColor: .systemGray4), in: Circle())
+				}
+				.buttonStyle(.plain)
+				.disabled(!hasTypedText && !isGenerating)
+				.opacity((hasTypedText || isGenerating) ? 1 : 0.9)
+			}
+		}
+		.padding(.horizontal, 14)
+		.padding(.vertical, 12)
+		.background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+		.background {
+			GeometryReader { proxy in
+				Color.clear
+					.onAppear {
+						inputHeight = proxy.size.height
+					}
+					.onChange(of: proxy.size.height) { _, newHeight in
+						inputHeight = newHeight
+					}
+			}
+		}
+	}
+
+	private var messageTextField: some View {
+		TextField(placeholder, text: $text, axis: .vertical)
+			.font(.system(size: 16))
+			.id(resetID)
+			.focused($isTextFieldFocused)
+			.frame(maxWidth: .infinity, alignment: .leading)
+			.lineLimit(1 ... 4)
+			#if !os(macOS)
+			.textInputAutocapitalization(.sentences)
+			#endif
+			.autocorrectionDisabled(false)
+			.padding(.vertical, 4)
+			.background {
+				GeometryReader { proxy in
+					Color.clear
+						.onAppear {
+							textFieldHeight = proxy.size.height
+						}
+						.onChange(of: proxy.size.height) { _, newHeight in
+							withAnimation(.smooth(duration: 0.22)) {
+								textFieldHeight = newHeight
+							}
+						}
+				}
+			}
+	}
+
+	private func selectWebSearchTag() {
+		withAnimation(.smooth(duration: 0.18)) {
+			isWebSearchTagged = true
+			text = text.removingWebTagTrigger().removingToolMentionTrigger()
+			resetID = UUID()
+		}
+
+		Task { @MainActor in
+			isTextFieldFocused = true
+		}
+	}
+}
+
+extension String {
+	func removingWebTagTrigger() -> String {
+		var result = self
+		while let range = result.range(of: "@web", options: [.caseInsensitive]) {
+			result.removeSubrange(range)
+		}
+
+		return result
+			.replacingOccurrences(of: "  ", with: " ")
+			.trimmingCharacters(in: .whitespacesAndNewlines)
+	}
+
+	func removingToolMentionTrigger() -> String {
+		replacingOccurrences(of: "@", with: "")
+			.replacingOccurrences(of: "  ", with: " ")
+			.trimmingCharacters(in: .whitespacesAndNewlines)
+	}
+}
+
+#Preview {
+	InputPreviewContainer()
+}
+
+private struct InputPreviewContainer: View {
+	@State private var previewText = ""
+
+	var body: some View {
+		Input(text: $previewText) { _ in }
+			.padding()
+			.background(Color(uiColor: .systemBackground))
+	}
+}
