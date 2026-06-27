@@ -270,7 +270,7 @@ private struct ModelMarketPlaceRow: View {
 						if model.isBuiltIn {
 							DownloadedModelButton(title: "Built in")
 						} else {
-							BeaconButton(isDeleting ? "Deleting" : "Delete", variant: .destructive, size: .small, trailingIcon: "trash", isDisabled: isSelected, isLoading: isDeleting) {
+							BeaconButton(isDeleting ? "Deleting" : "Delete", variant: .destructive, size: .small, trailingAssetIcon: "trash.icon", isDisabled: isSelected, isLoading: isDeleting) {
 								onDelete()
 							}
 						}

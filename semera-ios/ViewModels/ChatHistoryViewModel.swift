@@ -61,7 +61,7 @@ final class ChatHistoryViewModel: ObservableObject {
 
 	func appendUserMessage(_ text: String, modelName: String) -> ChatMessage.ID {
 		let userMessage = ChatMessage(text: text, role: .user)
-		let assistantMessage = ChatMessage(text: "", role: .assistant)
+		let assistantMessage = ChatMessage(text: "", modelName: modelName, role: .assistant)
 
 		if let currentConversationID, let index = conversations.firstIndex(where: { $0.id == currentConversationID }) {
 			conversations[index].messages.append(userMessage)

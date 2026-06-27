@@ -12,6 +12,7 @@ struct ContentView: View {
 	@AppStorage("selectedModelID") private var selectedModelID = ""
 	@AppStorage("downloadedModelIDs") private var downloadedModelIDs = ""
 	@ObservedObject private var modelRuntime: BeaconModelRuntime
+	@State private var models = ModelCatalog.availableModels
 	@State private var isChoosingModel = false
 	@State private var downloadingModel: BeaconModel?
 	@State private var downloadAlert: DownloadAlert?
@@ -34,11 +35,11 @@ struct ContentView: View {
 					downloadAlert = .failed(downloadingModel.name, message)
 				})
 			} else if hasCompletedWelcome {
-				ChatView(runtime: modelRuntime) { model in
+				ChatView(runtime: modelRuntime, models: models) { model in
 					prepare(model)
 				}
 			} else if isChoosingModel {
-				WelcomeModelSelectView(models: ModelCatalog.onboardingModels) { model in
+				WelcomeModelSelectView(models: ModelCatalog.onboardingModels(in: models)) { model in
 					prepare(model)
 				}
 			} else {
@@ -54,6 +55,15 @@ struct ContentView: View {
 				dismissButton: .default(Text("OK"))
 			)
 		}
+		.task {
+			ModelIDMigration.migrate()
+			await loadRemoteModels()
+		}
+	}
+
+	private func loadRemoteModels() async {
+		guard let remoteModels = try? await ModelCatalogService().fetchModels(), !remoteModels.isEmpty else { return }
+		models = remoteModels
 	}
 
 	private func recordDownloaded(_ model: BeaconModel) {
