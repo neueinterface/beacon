@@ -5,6 +5,7 @@ import UIKit
 
 struct ChatView: View {
 	@ObservedObject var runtime: BeaconModelRuntime
+	let models: [BeaconModel]
 	var onDownloadModel: (BeaconModel) -> Void = { _ in }
 	@StateObject private var historyViewModel = ChatHistoryViewModel()
 	@AppStorage("selectedModelID") private var selectedModelID = ""
@@ -27,11 +28,11 @@ struct ChatView: View {
 	private let screenSpring = Animation.spring(response: 0.46, dampingFraction: 0.86, blendDuration: 0.12)
 
 	private var selectedModel: BeaconModel {
-		ModelCatalog.model(id: selectedModelID) ?? ModelCatalog.defaultModel
+		ModelCatalog.model(id: selectedModelID, in: models) ?? ModelCatalog.defaultModel(in: models)
 	}
 
 	private var downloadedModels: [BeaconModel] {
-		ModelCatalog.availableModels.filter(isDownloaded)
+		models.filter(isDownloaded)
 	}
 
 	var body: some View {
@@ -104,7 +105,7 @@ struct ChatView: View {
 		}
 		.fullScreenCover(isPresented: $isShowingModelMarketplace) {
 			ModelMarketPlaceView(
-				models: ModelCatalog.availableModels,
+				models: models,
 				onClose: {
 					hideMarketplace()
 				},
@@ -206,7 +207,8 @@ struct ChatView: View {
 							isShowingHistory = true
 						}
 					} label: {
-						Image(systemName: "line.3.horizontal")
+						Image("menu.icon")
+							.renderingMode(.template)
 					}
 					.accessibilityLabel("Open chat history")
 
@@ -344,7 +346,15 @@ struct ChatView: View {
 		}.joined(separator: "\n\n")
 
 		return """
-		Answer the user's question using the web search results below. Do not include source URLs, markdown links, citations, footnotes, or a sources/references section in the answer text. The app shows sources separately in a dropdown. If the results are not enough, say what is missing.
+		Answer the user's question using the web search results below.
+
+		Formatting:
+		- Do not write one long paragraph.
+		- Use short paragraphs, bullets, or numbered steps when helpful.
+		- Start with the direct answer.
+		- Keep the answer concise unless the user asks for detail.
+
+		Do not include source URLs, markdown links, citations, footnotes, or a sources/references section in the answer text. The app shows sources separately in a dropdown. If the results are not enough, say what is missing.
 
 		Question: \(query)
 
@@ -553,5 +563,5 @@ private final class StreamingResponseHaptics {
 }
 
 #Preview {
-	ChatView(runtime: BeaconModelRuntime())
+	ChatView(runtime: BeaconModelRuntime(), models: ModelCatalog.availableModels)
 }

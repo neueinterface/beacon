@@ -1,0 +1,45 @@
+import SwiftUI
+
+struct SettingsFooterView: View {
+	var body: some View {
+		VStack(spacing: 10) {
+			Image("semera.logo")
+				.renderingMode(.template)
+				.resizable()
+				.scaledToFit()
+				.foregroundStyle(.primary)
+				.frame(width: 42, height: 42)
+
+			Text(appVersionText)
+				.font(.system(size: 16, weight: .medium))
+				.foregroundStyle(.secondary)
+
+			Text("semera.co")
+				.font(.system(size: 16, weight: .medium))
+				.foregroundStyle(.secondary)
+		}
+		.frame(maxWidth: .infinity)
+		.padding(.top, 18)
+	}
+
+	private var appVersionText: String {
+		let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.1"
+		return "v\(version)"
+	}
+}
+
+struct SettingsCloseButton: View {
+	let action: () -> Void
+
+	var body: some View {
+		Button(action: action) {
+			Image(systemName: "xmark")
+				.font(.system(size: 17, weight: .medium))
+				.foregroundStyle(.primary)
+				.frame(width: 32, height: 32)
+				.contentShape(Circle())
+		}
+		.buttonStyle(.plain)
+		.accessibilityLabel("Close settings")
+	}
+}

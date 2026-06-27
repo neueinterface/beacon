@@ -1,0 +1,36 @@
+enum SettingsLegalContent {
+	static let privacyPolicy = [
+		"Privacy Policy\nLast updated: June 26, 2026",
+		"This Privacy Policy applies to the Semera mobile application, hereby referred to as the Application. Semera is provided as a local-first AI chat experience intended for use as is.",
+		"What information does the Application obtain and how is it used?\nSemera does not require registration or an account to use local chat. The app stores only what it needs to function on your device.\n- Saved conversations are stored locally so the app can show chat history.\n- Selected model, downloaded model IDs, onboarding state, notification preference, and app settings are stored locally.\n- You can delete saved chats from Settings.",
+		"Local model inference\nSemera is designed to run supported AI models on your device. Prompts and model responses for normal local chat are not sent to Semera servers for inference.",
+		"Web search\nIf you explicitly use web search, or if the app determines that your question requires current information, Semera sends only the search query to the Semera backend search service.\n- The app does not send your full chat history.\n- The app does not send downloaded model lists or conversation IDs.\n- The app does not send local model output, device identifiers, or account identifiers as part of search.",
+		"Downloaded models\nDownloadable models are fetched from third-party model hosting services such as Hugging Face and stored locally on your device. Those third-party services may process network requests according to their own privacy policies and terms.",
+		"Location information\nSemera does not collect precise real-time location information from your device.",
+		"Third-party access\nSemera does not sell your personal information. The Application may rely on third-party services for model downloads and optional web search infrastructure.\n- Hugging Face may receive model download requests.\n- Search infrastructure may receive search queries when web search is used.\n- These services may receive technical request metadata needed to fulfill those requests.",
+		"Opt-out rights\nYou can control or stop use of the Application at any time.\n- Delete saved chats inside Settings.\n- Remove downloaded models from the model marketplace.\n- Disable optional features where available.\n- Uninstall the Application using the standard uninstall process for your device.",
+		"Children\nSemera is not intended to knowingly solicit data from or market to children under the age of 13. If you believe a child has provided personal information through the Application, contact us so appropriate action can be taken.",
+		"Security\nSemera is designed to keep local chats and downloaded models on your device. You are responsible for maintaining the security of your device, passcode, Apple ID, and backups. Jailbreaking or modifying your device may compromise the security and reliability of the Application.",
+		"Changes\nThis Privacy Policy may be updated from time to time. Continued use of the Application after updates means you accept the revised policy.",
+		"Your consent\nBy using Semera, you consent to this Privacy Policy.",
+		"Contact Us\nIf you have questions about privacy while using Semera, contact us at semeraco@gmail.com."
+	]
+
+	static let terms = [
+		"Terms & Conditions\nLast updated: June 26, 2026",
+		"These Terms & Conditions apply to the Semera mobile application, hereby referred to as the Application. By downloading or using the Application, you agree to these terms. Please read them carefully before using Semera.",
+		"License and restrictions\nYou may use the Application for personal use in accordance with these terms. You may not:\n- Copy, modify, or redistribute the Application without permission.\n- Reverse engineer, extract source code, or create derivative versions except where allowed by law.\n- Use Semera branding, trademarks, or interface assets without permission.",
+		"Intellectual property\nThe Application, branding, interface, trademarks, and related intellectual property remain the property of their respective owners. Third-party models, libraries, and services remain governed by their own licenses and terms.",
+		"Local-first AI\nSemera provides local AI chat and model management features. Supported models may run on your device. You are responsible for how you use model outputs and for reviewing important information before relying on it.",
+		"AI accuracy\nAI responses may be inaccurate, incomplete, outdated, or unsuitable for your use case. Do not use Semera as the sole source of truth for:\n- Medical, legal, financial, or safety-critical decisions.\n- Emergency situations.\n- Decisions where incorrect information could cause harm.",
+		"Model downloads and third-party services\nSemera may allow you to download models from third-party services such as Hugging Face. You are responsible for reviewing and complying with the terms that apply to any model you download or use.\n- Models may have their own licenses.\n- Models may have acceptable use policies.\n- Some models may restrict commercial, redistributed, or sensitive use.",
+		"Optional web search\nSome features may require an internet connection, including optional web search and model downloads. Web search sends the search query to Semera backend infrastructure so current information can be retrieved. Semera is not responsible for third-party web content or for decisions you make based on that content.",
+		"Connectivity and charges\nSome functions require Wi-Fi or mobile data. You are responsible for any charges related to use of the Application. This includes:\n- Mobile data usage.\n- Roaming charges.\n- Third-party network or service charges.\nIf you are not the bill payer for the device, you confirm that you have permission from the bill payer to use the Application.",
+		"Device responsibility\nYou are responsible for keeping your device charged, secure, and compatible with the Application. Jailbreaking, rooting, or modifying your device may cause Semera to work incorrectly or not at all.",
+		"Updates and availability\nSemera may be updated, changed, suspended, or discontinued at any time.\n- Updates may be required to continue using the Application.\n- Features may change or be removed.\n- Compatibility with every device or operating system version is not guaranteed.",
+		"Termination\nWe may stop providing the Application or terminate access to features at any time. Upon termination, the rights granted to you under these terms will end, and you must stop using the Application if required.",
+		"Limitation of liability\nTo the fullest extent permitted by law, Semera is provided as is and without warranties of any kind. We are not liable for losses, direct or indirect, arising from your use of the Application, model outputs, downloaded models, web search results, third-party services, or inability to access the Application.",
+		"Changes to these Terms & Conditions\nThese Terms & Conditions may be updated from time to time. You are advised to review them regularly. Continued use of the Application after changes means you accept the updated terms.",
+		"Contact Us\nIf you have questions or suggestions about these Terms & Conditions, contact us at semeraco@gmail.com."
+	]
+}

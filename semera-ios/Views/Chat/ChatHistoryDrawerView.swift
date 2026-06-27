@@ -160,11 +160,20 @@ private struct ChatHistoryRow: View {
 	let timeText: String
 	let showsDivider: Bool
 	var onSelect: () -> Void
+	@State private var showsModels = false
+
+	private var usedModelNames: [String] {
+		chat.usedModelNames
+	}
+
+	private var modelTagTitle: String {
+		guard usedModelNames.count > 1 else { return usedModelNames.first ?? chat.modelName }
+		return "\(usedModelNames.count) models"
+	}
 
 	var body: some View {
-		Button(action: onSelect) {
-			VStack(alignment: .leading, spacing: 0) {
-				VStack(alignment: .leading, spacing: 18) {
+		VStack(alignment: .leading, spacing: 0) {
+			VStack(alignment: .leading, spacing: 18) {
 				HStack(alignment: .firstTextBaseline, spacing: 14) {
 					Text(chat.historyTitle)
 						.font(.system(size: 14, weight: .medium))
@@ -179,21 +188,60 @@ private struct ChatHistoryRow: View {
 						.lineLimit(1)
 				}
 
-				Tag(title: chat.modelName, color: .gray)
-				}
-				.padding(.horizontal, 20)
-				.padding(.vertical, 24)
+				VStack(alignment: .leading, spacing: 8) {
+					Button {
+						guard usedModelNames.count > 1 else { return }
 
-				if showsDivider {
-					Divider()
-						.frame(maxWidth: .infinity)
-						.padding(.horizontal, 20)
+						withAnimation(.smooth(duration: 0.2)) {
+							showsModels.toggle()
+						}
+					} label: {
+						HStack(spacing: 6) {
+							Tag(title: modelTagTitle, color: .gray)
+
+							if usedModelNames.count > 1 {
+								Image(systemName: "chevron.down")
+									.font(.system(size: 10, weight: .bold))
+									.foregroundStyle(.secondary)
+									.rotationEffect(.degrees(showsModels ? 180 : 0))
+							}
+						}
+					}
+					.buttonStyle(.plain)
+					.disabled(usedModelNames.count <= 1)
+
+					if showsModels, usedModelNames.count > 1 {
+						VStack(alignment: .leading, spacing: 7) {
+							ForEach(usedModelNames, id: \.self) { modelName in
+								Text(modelName)
+									.font(.system(size: 12, weight: .medium))
+									.foregroundStyle(.secondary)
+									.lineLimit(1)
+							}
+						}
+						.padding(.horizontal, 12)
+						.padding(.vertical, 10)
+						.background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+						.overlay {
+							RoundedRectangle(cornerRadius: 12, style: .continuous)
+								.stroke(Color(uiColor: .separator).opacity(0.25), lineWidth: 1)
+						}
+						.transition(.move(edge: .top).combined(with: .opacity))
+					}
 				}
+				}
+			.padding(.horizontal, 20)
+			.padding(.vertical, 24)
+
+			if showsDivider {
+				Divider()
+					.frame(maxWidth: .infinity)
+					.padding(.horizontal, 20)
 			}
-			.frame(maxWidth: .infinity, alignment: .leading)
-			.contentShape(Rectangle())
 		}
-		.buttonStyle(.plain)
+		.frame(maxWidth: .infinity, alignment: .leading)
+		.contentShape(Rectangle())
+		.onTapGesture(perform: onSelect)
 	}
 }
 
@@ -221,7 +269,9 @@ private enum ChatHistoryPreviewData {
 			modelName: "minimax-m3",
 			messages: [
 				ChatMessage(text: "How old can bulldogs live till?", role: .user),
-				ChatMessage(text: "Most bulldogs live 8 to 10 years.", role: .assistant)
+				ChatMessage(text: "Most bulldogs live 8 to 10 years.", modelName: "minimax-m3", role: .assistant),
+				ChatMessage(text: "Can you compare with pugs?", role: .user),
+				ChatMessage(text: "Pugs often live slightly longer, around 12 to 15 years.", modelName: "maximus-b4", role: .assistant)
 			],
 			updatedAt: Calendar.current.date(bySettingHour: 18, minute: 12, second: 0, of: .now) ?? .now
 		),
