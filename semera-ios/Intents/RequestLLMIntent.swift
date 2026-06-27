@@ -30,9 +30,11 @@ struct RequestLLMIntent: AppIntent {
 			throw $prompt.requestValue("What do you want to ask Semera?")
 		}
 
+		ModelIDMigration.migrate()
 		let defaults = UserDefaults.standard
 		let selectedModelID = defaults.string(forKey: "selectedModelID") ?? ""
-		let selectedModel = ModelCatalog.model(id: selectedModelID) ?? ModelCatalog.defaultModel
+		let models = (try? await ModelCatalogService().fetchModels()) ?? ModelCatalog.availableModels
+		let selectedModel = ModelCatalog.model(id: selectedModelID, in: models) ?? ModelCatalog.defaultModel(in: models)
 
 		guard selectedModel.isBuiltIn || isDownloaded(selectedModel, defaults: defaults) else {
 			let message = "Open Semera and download \(selectedModel.name) before using it from Shortcuts."

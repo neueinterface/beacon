@@ -55,10 +55,10 @@ struct SourceTag: View {
 		} label: {
 			HStack(spacing: 8) {
 				Text("From \(sources.count) Source\(sources.count == 1 ? "" : "s")")
-					.font(.system(size: 16, weight: .medium))
+					.font(.system(size: 14, weight: .medium))
 
 				Image(systemName: "chevron.down")
-					.font(.system(size: 16, weight: .semibold))
+					.font(.system(size: 14, weight: .medium))
 					.rotationEffect(.degrees(isExpanded ? 180 : 0))
 			}
 			.foregroundStyle(.secondary)

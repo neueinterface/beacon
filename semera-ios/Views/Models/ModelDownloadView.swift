@@ -36,6 +36,7 @@ struct ModelDownloadView<Runtime: ModelDownloadRuntime>: View {
 	@State private var loadingTask: Task<Void, Never>?
 	@State private var progressAnimationTask: Task<Void, Never>?
 	@State private var displayedProgress = 0.02
+	@State private var lastLoadingHapticProgress = 0.0
 
 	var body: some View {
 		VStack(alignment: .leading, spacing: 0) {
@@ -229,13 +230,26 @@ struct ModelDownloadView<Runtime: ModelDownloadRuntime>: View {
 				withAnimation(.smooth(duration: 0.32)) {
 					displayedProgress = nextProgress
 				}
+
+				playLoadingHapticIfNeeded(for: nextProgress)
 			}
 		}
+	}
+
+	private func playLoadingHapticIfNeeded(for progress: Double) {
+		#if canImport(UIKit)
+		guard runtime.isLoading else { return }
+		guard progress - lastLoadingHapticProgress >= 0.12 || progress >= 0.92 && lastLoadingHapticProgress < 0.92 else { return }
+
+		UIImpactFeedbackGenerator(style: .soft).impactOccurred(intensity: 0.28)
+		lastLoadingHapticProgress = progress
+		#endif
 	}
 
 	private func stopProgressAnimation(finished: Bool) {
 		progressAnimationTask?.cancel()
 		progressAnimationTask = nil
+		lastLoadingHapticProgress = 0
 
 		guard finished else { return }
 		withAnimation(.smooth(duration: 0.2)) {
@@ -274,7 +288,7 @@ private struct DownloadProgressFill: View {
 	@State private var shimmerPhase = false
 
 	private var shimmerWidth: CGFloat {
-		max(width * 0.55, 48)
+		max(width * 0.72, 64)
 	}
 
 	var body: some View {
@@ -286,7 +300,9 @@ private struct DownloadProgressFill: View {
 					LinearGradient(
 						colors: [
 							.clear,
-							.white.opacity(0.24),
+							.white.opacity(0.16),
+							.white.opacity(0.48),
+							.white.opacity(0.16),
 							.clear
 						],
 						startPoint: .leading,
@@ -294,21 +310,21 @@ private struct DownloadProgressFill: View {
 					)
 					.frame(width: shimmerWidth)
 					.offset(x: shimmerPhase ? width : -shimmerWidth)
-					.blendMode(.screen)
+					.blendMode(.plusLighter)
 				}
 			}
 			.clipShape(Capsule())
 			.onAppear {
 				guard isLoading else { return }
 				shimmerPhase = false
-				withAnimation(.linear(duration: 1.2).repeatForever(autoreverses: false)) {
+				withAnimation(.linear(duration: 0.9).repeatForever(autoreverses: false)) {
 					shimmerPhase = true
 				}
 			}
 			.onChange(of: isLoading) { _, isLoading in
 				shimmerPhase = false
 				guard isLoading else { return }
-				withAnimation(.linear(duration: 1.2).repeatForever(autoreverses: false)) {
+				withAnimation(.linear(duration: 0.9).repeatForever(autoreverses: false)) {
 					shimmerPhase = true
 				}
 			}
