@@ -29,7 +29,7 @@ Supported controls:
 - `/noweb your question` disables web search for that message
 - Prompts with current-information signals such as `latest`, `today`, `news`, `price`, `weather`, or `2026` can trigger web search automatically
 
-The app calls a Cloudflare Worker at `/search`. The Worker owns the Brave Search API key through a Cloudflare secret named `BRAVE_SEARCH_API_KEY`. The Brave key should never be placed in the iOS app.
+The app calls a Cloudflare Worker at `/search`. The Worker owns the search provider API key. Provider keys should never be placed in the iOS app.
 
 For development, the app can send an `APP_API_KEY` authorization header to the Worker. That key is basic abuse protection only and should not be treated as a production secret because iOS app binaries can be inspected.
 
@@ -46,7 +46,7 @@ For development, the app can send an `APP_API_KEY` authorization header to the W
 Before App Store release:
 
 - Remove any hardcoded development `APP_API_KEY`
-- Keep `BRAVE_SEARCH_API_KEY` only in Cloudflare secrets
+- Keep search provider API keys only in Cloudflare secrets
 - Add Cloudflare rate limits and query length limits
 - Consider App Attest, DeviceCheck, or account-based quotas if abuse becomes a concern
 

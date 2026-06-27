@@ -16,4 +16,19 @@ struct ChatConversation: Identifiable, Hashable, Codable {
 	var historyTitle: String {
 		messages.first { $0.role == .user && !$0.text.isEmpty }?.text ?? "New chat"
 	}
+
+	var usedModelNames: [String] {
+		var names: [String] = []
+
+		if !modelName.isEmpty {
+			names.append(modelName)
+		}
+
+		for message in messages {
+			guard let modelName = message.modelName, !modelName.isEmpty, !names.contains(modelName) else { continue }
+			names.append(modelName)
+		}
+
+		return names
+	}
 }

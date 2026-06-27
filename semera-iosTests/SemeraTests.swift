@@ -17,9 +17,9 @@ struct SemeraAppDataTests {
 
 	@Test("Model lookup returns matching catalog model")
 	func modelLookupReturnsMatchingModel() throws {
-		let model = try #require(ModelCatalog.model(id: "semera-lite"))
+		let model = try #require(ModelCatalog.model(id: "qwen3-0.6b-4bit"))
 
-		#expect(model.id == "semera-lite")
+		#expect(model.id == "qwen3-0.6b-4bit")
 		#expect(model.repositoryID == "mlx-community/Qwen3-0.6B-4bit")
 	}
 
@@ -33,7 +33,7 @@ struct SemeraAppDataTests {
 
 	@Test("Downloadable models show GB size")
 	func downloadableModelsShowGBSize() throws {
-		let model = try #require(ModelCatalog.model(id: "semera-plus"))
+		let model = try #require(ModelCatalog.model(id: "lfm2-1.2b-4bit"))
 
 		#expect(!model.isBuiltIn)
 		#expect(model.formattedSize.hasSuffix("GB"))

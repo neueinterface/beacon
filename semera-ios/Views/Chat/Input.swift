@@ -57,8 +57,7 @@ struct Input: View {
 				Pill(
 					title: "Search Web",
 					size: .regular,
-					image: "globe.icon",
-					trailingSystemImage: "plus"
+					image: "globe.icon"
 				) {
 					selectWebSearchTag()
 				}

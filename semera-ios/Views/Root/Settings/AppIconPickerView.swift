@@ -133,3 +133,9 @@ private struct AppIconOption: Identifiable, CaseIterable {
 		AppIconOption(title: "Icon 6", assetName: "icon6", alternateIconName: "icon6")
 	]
 }
+
+#Preview {
+	NavigationStack {
+		AppIconPickerView()
+	}
+}
