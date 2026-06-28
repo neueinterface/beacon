@@ -12,6 +12,7 @@ struct Input: View {
 	@Binding private var isWebSearchTagged: Bool
 	var placeholder: String = "Message"
 	var isGenerating = false
+	var isWebSearchUnavailable = false
 	var onStop: () -> Void = {}
 	var onSend: (String) -> Void
 
@@ -25,6 +26,7 @@ struct Input: View {
 		isWebSearchTagged: Binding<Bool> = .constant(false),
 		placeholder: String = "Message",
 		isGenerating: Bool = false,
+		isWebSearchUnavailable: Bool = false,
 		onStop: @escaping () -> Void = {},
 		onSend: @escaping (String) -> Void
 	) {
@@ -32,6 +34,7 @@ struct Input: View {
 		self._isWebSearchTagged = isWebSearchTagged
 		self.placeholder = placeholder
 		self.isGenerating = isGenerating
+		self.isWebSearchUnavailable = isWebSearchUnavailable
 		self.onStop = onStop
 		self.onSend = onSend
 	}
@@ -55,12 +58,16 @@ struct Input: View {
 		VStack(alignment: .leading, spacing: 8) {
 			if showsWebSuggestion {
 				Pill(
-					title: "Search Web",
+					title: isWebSearchUnavailable ? "Daily limit reached" : "Search Web",
 					size: .regular,
 					image: "globe.icon"
 				) {
+					guard !isWebSearchUnavailable else { return }
 					selectWebSearchTag()
 				}
+				.disabled(isWebSearchUnavailable)
+				.blur(radius: isWebSearchUnavailable ? 0.6 : 0)
+				.opacity(isWebSearchUnavailable ? 0.55 : 1)
 				.transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .bottomLeading)))
 			}
 
@@ -88,12 +95,14 @@ struct Input: View {
 	private var inputCapsule: some View {
 		VStack(alignment: .leading, spacing: isWebSearchTagged ? 10 : 0) {
 			if isWebSearchTagged {
-				Pill(title: "Search Web", size: .regular, image: "globe.icon", trailingSystemImage: "xmark") {
+				Pill(title: isWebSearchUnavailable ? "Daily limit reached" : "Search Web", size: .regular, image: "globe.icon", trailingSystemImage: "xmark") {
 					withAnimation(.smooth(duration: 0.18)) {
 						isWebSearchTagged = false
 					}
 					isTextFieldFocused = true
 				}
+				.blur(radius: isWebSearchUnavailable ? 0.6 : 0)
+				.opacity(isWebSearchUnavailable ? 0.55 : 1)
 				.transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .topLeading)))
 			}
 
@@ -166,6 +175,8 @@ struct Input: View {
 	}
 
 	private func selectWebSearchTag() {
+		guard !isWebSearchUnavailable else { return }
+
 		withAnimation(.smooth(duration: 0.18)) {
 			isWebSearchTagged = true
 			text = text.removingWebTagTrigger().removingToolMentionTrigger()

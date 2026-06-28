@@ -16,6 +16,8 @@ extension NSColor {
 	static var systemGroupedBackground: NSColor { .windowBackgroundColor }
 	static var secondarySystemGroupedBackground: NSColor { .controlBackgroundColor }
 	static var tertiarySystemGroupedBackground: NSColor { .underPageBackgroundColor }
+	static var systemGray: NSColor { .secondaryLabelColor }
+	static var systemGray2: NSColor { .tertiaryLabelColor }
 	static var systemGray4: NSColor { .quaternaryLabelColor }
 	static var systemGray5: NSColor { .controlBackgroundColor }
 	static var systemGray6: NSColor { .separatorColor.withAlphaComponent(0.18) }
