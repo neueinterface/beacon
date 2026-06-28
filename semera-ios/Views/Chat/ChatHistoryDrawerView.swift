@@ -160,7 +160,6 @@ private struct ChatHistoryRow: View {
 	let timeText: String
 	let showsDivider: Bool
 	var onSelect: () -> Void
-	@State private var showsModels = false
 
 	private var usedModelNames: [String] {
 		chat.usedModelNames
@@ -188,48 +187,24 @@ private struct ChatHistoryRow: View {
 						.lineLimit(1)
 				}
 
-				VStack(alignment: .leading, spacing: 8) {
-					Button {
-						guard usedModelNames.count > 1 else { return }
-
-						withAnimation(.smooth(duration: 0.2)) {
-							showsModels.toggle()
+				if usedModelNames.count > 1 {
+					Menu {
+						ForEach(usedModelNames, id: \.self) { modelName in
+							Button(modelName) {}
 						}
 					} label: {
 						HStack(spacing: 6) {
-							Tag(title: modelTagTitle, color: .gray)
+							Tag(title: modelTagTitle, color: .indigo)
 
-							if usedModelNames.count > 1 {
-								Image(systemName: "chevron.down")
-									.font(.system(size: 10, weight: .bold))
-									.foregroundStyle(.secondary)
-									.rotationEffect(.degrees(showsModels ? 180 : 0))
-							}
+							Image(systemName: "chevron.up.chevron.down")
+								.font(.system(size: 10, weight: .bold))
+								.foregroundStyle(.indigo)
 						}
 					}
-					.buttonStyle(.plain)
-					.disabled(usedModelNames.count <= 1)
-
-					if showsModels, usedModelNames.count > 1 {
-						VStack(alignment: .leading, spacing: 7) {
-							ForEach(usedModelNames, id: \.self) { modelName in
-								Text(modelName)
-									.font(.system(size: 12, weight: .medium))
-									.foregroundStyle(.secondary)
-									.lineLimit(1)
-							}
-						}
-						.padding(.horizontal, 12)
-						.padding(.vertical, 10)
-						.background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-						.overlay {
-							RoundedRectangle(cornerRadius: 12, style: .continuous)
-								.stroke(Color(uiColor: .separator).opacity(0.25), lineWidth: 1)
-						}
-						.transition(.move(edge: .top).combined(with: .opacity))
-					}
+				} else {
+					Tag(title: modelTagTitle, color: .indigo)
 				}
-				}
+			}
 			.padding(.horizontal, 20)
 			.padding(.vertical, 24)
 

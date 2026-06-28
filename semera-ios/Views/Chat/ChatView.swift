@@ -1,9 +1,11 @@
 import SwiftUI
+import UserNotifications
 #if canImport(UIKit)
 import UIKit
 #endif
 
 struct ChatView: View {
+	@Environment(\.scenePhase) private var scenePhase
 	@ObservedObject var runtime: BeaconModelRuntime
 	let models: [BeaconModel]
 	var onDownloadModel: (BeaconModel) -> Void = { _ in }
@@ -21,6 +23,7 @@ struct ChatView: View {
 	@State private var responseTask: Task<Void, Never>?
 	@State private var switchedModelName: String?
 	@State private var modelSwitchToastTask: Task<Void, Never>?
+	@State private var searchQuota: SearchQuota?
 	@StateObject private var safariViewModel = SafariViewModel()
 	private let webSearchService = WebSearchService()
 	private let responseHaptics = StreamingResponseHaptics()
@@ -33,6 +36,10 @@ struct ChatView: View {
 
 	private var downloadedModels: [BeaconModel] {
 		models.filter(isDownloaded)
+	}
+
+	private var isWebSearchUnavailable: Bool {
+		searchQuota?.isExhausted == true
 	}
 
 	var body: some View {
@@ -103,6 +110,19 @@ struct ChatView: View {
 		.sheet(isPresented: $isShowingSettings) {
 			SettingsView(chatHistoryViewModel: historyViewModel)
 		}
+		#if os(macOS)
+		.sheet(isPresented: $isShowingModelMarketplace) {
+			ModelMarketPlaceView(
+				models: models,
+				onClose: {
+					hideMarketplace()
+				},
+				onDownload: { model in
+					onDownloadModel(model)
+				}
+			)
+		}
+		#else
 		.fullScreenCover(isPresented: $isShowingModelMarketplace) {
 			ModelMarketPlaceView(
 				models: models,
@@ -114,12 +134,23 @@ struct ChatView: View {
 				}
 			)
 		}
+		#endif
 		.sheet(item: $safariViewModel.page) { page in
 			SafariView(url: page.url)
 		}
 		.task(id: selectedModelID) {
 			guard !runtime.isReady(for: selectedModel) else { return }
 			await runtime.load(selectedModel)
+		}
+		.task {
+			await refreshSearchQuota()
+		}
+		.onChange(of: scenePhase) { _, phase in
+			guard phase == .active else { return }
+
+			Task {
+				await refreshSearchQuota()
+			}
 		}
 		.onDisappear {
 			modelSwitchToastTask?.cancel()
@@ -239,8 +270,42 @@ struct ChatView: View {
 		}
 	}
 
+	#if os(macOS)
+	@ViewBuilder
+	private var chatToolbarButtons: some View {
+		Button {
+			dismissKeyboard()
+			withAnimation(screenSpring) {
+				isShowingHistory = true
+			}
+		} label: {
+			Image("menu.icon")
+				.renderingMode(.template)
+		}
+		.accessibilityLabel("Open chat history")
+
+		Button {
+			dismissKeyboard()
+			isShowingModelSwitcher = true
+		} label: {
+			Image("playground.icon")
+				.renderingMode(.template)
+		}
+		.accessibilityLabel("Switch model")
+
+		Button {
+			historyViewModel.startNewChat()
+			dismissKeyboard()
+		} label: {
+			Image("chat.icon")
+				.renderingMode(.template)
+		}
+		.accessibilityLabel("New chat")
+	}
+	#endif
+
 	private var inputBar: some View {
-		Input(text: $inputText, isWebSearchTagged: $isWebSearchTagged, isGenerating: runtime.isGenerating) {
+		Input(text: $inputText, isWebSearchTagged: $isWebSearchTagged, isGenerating: runtime.isGenerating, isWebSearchUnavailable: isWebSearchUnavailable) {
 			stopGenerating()
 		} onSend: { text in
 			send(text)
@@ -331,9 +396,22 @@ struct ChatView: View {
 
 		guard let query = webSearchQuery(for: text, forceWebSearch: forceWebSearch) else { return text }
 		guard !query.isEmpty else { return "Ask the user what they want to search for." }
+		if let searchQuota, searchQuota.isExhausted {
+			throw WebSearchService.WebSearchError.dailyLimitExceeded(searchQuota)
+		}
 
 		historyViewModel.appendAssistantThinking("Searching the web for: \(query)\n", to: responseID)
-		let results = try await webSearchService.search(String(query))
+		let results: [WebSearchResult]
+		do {
+			results = try await webSearchService.search(String(query), chatID: historyViewModel.currentChatID)
+		} catch let error as WebSearchService.WebSearchError {
+			if case let .dailyLimitExceeded(quota) = error {
+				updateSearchQuota(quota)
+			}
+			throw error
+		}
+
+		await refreshSearchQuota()
 		historyViewModel.replaceAssistantSources(results.map(Source.init), for: responseID)
 		historyViewModel.appendAssistantThinking("Found \(results.count) web result\(results.count == 1 ? "" : "s").\n", to: responseID)
 
@@ -411,6 +489,50 @@ struct ChatView: View {
 		}
 
 		return lowercasedText.contains("2026")
+	}
+
+	private func refreshSearchQuota() async {
+		guard let quota = try? await webSearchService.quota() else { return }
+		updateSearchQuota(quota)
+	}
+
+	private func updateSearchQuota(_ quota: SearchQuota) {
+		withAnimation(.smooth(duration: 0.2)) {
+			searchQuota = quota
+			if quota.isExhausted {
+				isWebSearchTagged = false
+			}
+		}
+
+		if quota.isExhausted {
+			scheduleSearchResetNotification(at: quota.resetAt)
+		} else {
+			UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [searchResetNotificationID])
+		}
+	}
+
+	private var searchResetNotificationID: String {
+		"web-search-quota-reset"
+	}
+
+	private func scheduleSearchResetNotification(at resetAt: Date) {
+		guard resetAt > Date() else { return }
+
+		UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { granted, _ in
+			guard granted else { return }
+
+			let content = UNMutableNotificationContent()
+			content.title = "Web search is available again"
+			content.body = "Your daily web search limit has reset."
+			content.sound = .default
+
+			let triggerDate = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute, .second], from: resetAt)
+			let trigger = UNCalendarNotificationTrigger(dateMatching: triggerDate, repeats: false)
+			let request = UNNotificationRequest(identifier: searchResetNotificationID, content: content, trigger: trigger)
+
+			UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [searchResetNotificationID])
+			UNUserNotificationCenter.current().add(request)
+		}
 	}
 
 	private func dismissKeyboard() {
