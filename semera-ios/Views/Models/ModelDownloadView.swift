@@ -34,7 +34,6 @@ struct ModelDownloadView<Runtime: ModelDownloadRuntime>: View {
 	@State private var hasStarted = false
 	@State private var isCancelled = false
 	@State private var loadingTask: Task<Void, Never>?
-	@State private var progressAnimationTask: Task<Void, Never>?
 	@State private var displayedProgress = 0.02
 	@State private var lastLoadingHapticProgress = 0.0
 
@@ -110,14 +109,15 @@ struct ModelDownloadView<Runtime: ModelDownloadRuntime>: View {
 			}
 		}
 		.onChange(of: runtime.isLoading) { _, isLoading in
-			if isLoading {
-				startProgressAnimation()
-			} else {
-				stopProgressAnimation(finished: runtime.isReady(for: model))
+			if !isLoading {
+				finishProgress(success: runtime.isReady(for: model))
 			}
 		}
 		.onChange(of: runtime.progress) { _, progress in
 			updateDisplayedProgress(with: progress)
+		}
+		.onChange(of: runtime.completedUnitCount) { _, _ in
+			// Force refresh — downloadSizeText reads this directly
 		}
 		.onChange(of: runtime.errorMessage) { _, errorMessage in
 			guard let errorMessage else { return }
@@ -131,7 +131,6 @@ struct ModelDownloadView<Runtime: ModelDownloadRuntime>: View {
 				isCancelled = true
 			}
 			loadingTask?.cancel()
-			progressAnimationTask?.cancel()
 		}
 	}
 
@@ -158,7 +157,7 @@ struct ModelDownloadView<Runtime: ModelDownloadRuntime>: View {
 		}
 
 		let totalGB = downloadTotalGB
-		let completedGB = min(max(totalGB * displayedProgress, 0), totalGB)
+		let completedGB = min(max(totalGB * runtime.progress, 0), totalGB)
 		return "\(formattedGB(completedGB))/\(formattedGB(totalGB)) GB"
 	}
 
@@ -181,9 +180,8 @@ struct ModelDownloadView<Runtime: ModelDownloadRuntime>: View {
 		#if canImport(UIKit)
 		UIImpactFeedbackGenerator(style: .medium).impactOccurred()
 		#endif
-		startProgressAnimation()
 		await runtime.load(model)
-		stopProgressAnimation(finished: runtime.isReady(for: model))
+		finishProgress(success: runtime.isReady(for: model))
 
 		if !isCancelled && !Task.isCancelled && runtime.isReady(for: model) {
 			#if canImport(UIKit)
@@ -197,8 +195,8 @@ struct ModelDownloadView<Runtime: ModelDownloadRuntime>: View {
 		isCancelled = true
 		loadingTask?.cancel()
 		loadingTask = nil
-		progressAnimationTask?.cancel()
 		displayedProgress = 0.02
+		lastLoadingHapticProgress = 0
 		#if canImport(UIKit)
 		UINotificationFeedbackGenerator().notificationOccurred(.warning)
 		#endif
@@ -212,46 +210,24 @@ struct ModelDownloadView<Runtime: ModelDownloadRuntime>: View {
 		withAnimation(.smooth(duration: 0.24)) {
 			displayedProgress = clampedProgress
 		}
-	}
 
-	private func startProgressAnimation() {
-		guard progressAnimationTask == nil else { return }
-
-		updateDisplayedProgress(with: runtime.progress)
-		progressAnimationTask = Task { @MainActor in
-			while !Task.isCancelled {
-				try? await Task.sleep(for: .milliseconds(350))
-				guard !Task.isCancelled else { return }
-
-				let reportedProgress = min(max(runtime.progress, 0.02), 1)
-				let fallbackProgress = min(displayedProgress + max((0.92 - displayedProgress) * 0.08, 0.006), 0.92)
-				let nextProgress = max(reportedProgress, fallbackProgress)
-
-				withAnimation(.smooth(duration: 0.32)) {
-					displayedProgress = nextProgress
-				}
-
-				playLoadingHapticIfNeeded(for: nextProgress)
-			}
-		}
+		playLoadingHapticIfNeeded(for: clampedProgress)
 	}
 
 	private func playLoadingHapticIfNeeded(for progress: Double) {
 		#if canImport(UIKit)
 		guard runtime.isLoading else { return }
-		guard progress - lastLoadingHapticProgress >= 0.12 || progress >= 0.92 && lastLoadingHapticProgress < 0.92 else { return }
+		guard progress - lastLoadingHapticProgress >= 0.12 || (progress >= 0.92 && lastLoadingHapticProgress < 0.92) else { return }
 
 		UIImpactFeedbackGenerator(style: .soft).impactOccurred(intensity: 0.28)
 		lastLoadingHapticProgress = progress
 		#endif
 	}
 
-	private func stopProgressAnimation(finished: Bool) {
-		progressAnimationTask?.cancel()
-		progressAnimationTask = nil
+	private func finishProgress(success: Bool) {
 		lastLoadingHapticProgress = 0
 
-		guard finished else { return }
+		guard success else { return }
 		withAnimation(.smooth(duration: 0.2)) {
 			displayedProgress = 1
 		}

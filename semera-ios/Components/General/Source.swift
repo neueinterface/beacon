@@ -47,7 +47,9 @@ struct SourceTag: View {
 
 	private var header: some View {
 		Button {
+			#if canImport(UIKit)
 			UIImpactFeedbackGenerator(style: .light).impactOccurred()
+			#endif
 
 			withAnimation(.easeOut(duration: 0.2)) {
 				isExpanded.toggle()
@@ -72,7 +74,9 @@ struct SourceTag: View {
 		VStack(alignment: .leading, spacing: 12) {
 			ForEach(sources) { source in
 				Button {
+					#if canImport(UIKit)
 					UIImpactFeedbackGenerator(style: .light).impactOccurred()
+					#endif
 					onOpen(source.url)
 				} label: {
 					VStack(alignment: .leading, spacing: 3) {
