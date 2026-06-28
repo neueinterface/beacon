@@ -3,12 +3,8 @@ import SwiftUI
 struct SettingsFooterView: View {
 	var body: some View {
 		VStack(spacing: 10) {
-			Image("semera.logo")
-				.renderingMode(.template)
-				.resizable()
-				.scaledToFit()
-				.foregroundStyle(.primary)
-				.frame(width: 42, height: 42)
+			SemeraLogoView(size: 42)
+				.background(Color(uiColor: .systemGroupedBackground))
 
 			Text(appVersionText)
 				.font(.system(size: 16, weight: .medium))

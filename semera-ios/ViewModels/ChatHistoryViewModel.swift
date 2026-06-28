@@ -20,6 +20,10 @@ final class ChatHistoryViewModel: ObservableObject {
 		conversations.sorted { $0.updatedAt > $1.updatedAt }
 	}
 
+	var currentChatID: ChatConversation.ID? {
+		currentConversationID
+	}
+
 	init(conversations: [ChatConversation]? = nil) {
 		self.conversations = Self.sanitized(conversations ?? Self.loadConversations()).sorted { $0.updatedAt > $1.updatedAt }
 		self.currentMessages = []
