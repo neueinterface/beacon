@@ -39,6 +39,7 @@ private extension AppearanceColorScheme {
 
 @main
 struct SemeraApp: App {
+	@Environment(\.scenePhase) private var scenePhase
 	@AppStorage("appearanceColorScheme") private var selectedScheme = AppearanceColorScheme.system.rawValue
 	@StateObject private var modelRuntime = BeaconModelRuntime()
 
@@ -50,6 +51,13 @@ struct SemeraApp: App {
 		WindowGroup {
 			ContentView(modelRuntime: modelRuntime)
 				.background(AppearanceStyleUpdater(scheme: appearanceScheme).frame(width: 0, height: 0))
+				.onChange(of: scenePhase) { _, phase in
+					guard phase == .background else { return }
+					_ = modelRuntime.unloadIfIdle()
+				}
+				.onReceive(NotificationCenter.default.publisher(for: UIApplication.didReceiveMemoryWarningNotification)) { _ in
+					_ = modelRuntime.unloadIfIdle()
+				}
 		}
 	}
 }

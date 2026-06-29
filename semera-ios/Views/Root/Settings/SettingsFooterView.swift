@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct SettingsFooterView: View {
+	var onOpenWebsite: () -> Void = { }
+
 	var body: some View {
 		VStack(spacing: 10) {
 			SemeraLogoView(size: 42)
@@ -10,9 +12,13 @@ struct SettingsFooterView: View {
 				.font(.system(size: 16, weight: .medium))
 				.foregroundStyle(.secondary)
 
-			Text("semera.co")
-				.font(.system(size: 16, weight: .medium))
-				.foregroundStyle(.secondary)
+			Button(action: onOpenWebsite) {
+				Text("semera.co")
+					.font(.system(size: 16, weight: .medium))
+					.underline()
+					.foregroundStyle(.secondary)
+			}
+			.buttonStyle(.plain)
 		}
 		.frame(maxWidth: .infinity)
 		.padding(.top, 18)
