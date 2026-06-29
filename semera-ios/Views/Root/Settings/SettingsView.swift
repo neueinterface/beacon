@@ -1,4 +1,7 @@
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 struct SettingsView: View {
 	@ObservedObject var chatHistoryViewModel: ChatHistoryViewModel
@@ -6,6 +9,50 @@ struct SettingsView: View {
 	@Environment(\.openURL) private var openURL
 	@AppStorage("notificationsEnabled") private var notificationsEnabled = true
 	@State private var isConfirmingDeleteAllChats = false
+	@StateObject private var safariViewModel = SafariViewModel()
+
+	private var appVersion: String {
+		Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.1"
+	}
+
+	private var buildNumber: String {
+		Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "1"
+	}
+
+	private var bugReportURL: URL {
+		var components = URLComponents()
+		components.scheme = "mailto"
+		components.path = "semeraco@gmail.com"
+		components.queryItems = [
+			URLQueryItem(name: "subject", value: "Semera Bug Report - v\(appVersion) (\(buildNumber))"),
+			URLQueryItem(name: "body", value: bugReportBody)
+		]
+
+		return components.url ?? URL(string: "mailto:semeraco@gmail.com")!
+	}
+
+	private var bugReportBody: String {
+		"""
+
+
+
+		---
+		Please write any extra details above this line.
+
+		App: Semera
+		Version: v\(appVersion) (\(buildNumber))
+		Device: \(deviceDescription)
+		"""
+	}
+
+	private var deviceDescription: String {
+		#if canImport(UIKit)
+		let device = UIDevice.current
+		return "\(device.model), \(device.systemName) \(device.systemVersion)"
+		#else
+		return "Unknown"
+		#endif
+	}
 
 	var body: some View {
 		NavigationStack {
@@ -26,12 +73,17 @@ struct SettingsView: View {
 						SettingsListDivider()
 
 						SettingsButtonRow(title: "Report a bug", icon: "bug.icon") {
-							openURL(URL(string: "mailto:semeraco@gmail.com?subject=Semera%20Bug%20Report")!)
+							openURL(bugReportURL)
 						}
 						SettingsListDivider()
 
 						SettingsButtonRow(title: "Leave a review in the App Store", icon: "review.icon") {
 							openURL(URL(string: "https://semera.co")!)
+						}
+						SettingsListDivider()
+
+						SettingsLinkRow(title: "Why Local Models", icon: "flower.icon") {
+							WhyLocalModelsView()
 						}
 					}
 
@@ -64,7 +116,9 @@ struct SettingsView: View {
 						.opacity(chatHistoryViewModel.chats.isEmpty ? 0.55 : 1)
 					}
 
-					SettingsFooterView()
+					SettingsFooterView {
+						safariViewModel.open(URL(string: "https://semera.co")!)
+					}
 				}
 				.padding(.horizontal, 14)
 				.padding(.top, 16)
@@ -98,6 +152,9 @@ struct SettingsView: View {
 			} message: {
 				Text("Are you sure you want to delete all saved chats? This cannot be undone.")
 			}
+			.sheet(item: $safariViewModel.page) { page in
+				SafariView(url: page.url)
+			}
 		}
 	}
 
@@ -111,6 +168,73 @@ struct SettingsView: View {
 			.padding(.vertical, 6)
 			.background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
 		}
+	}
+}
+
+private struct WhyLocalModelsView: View {
+	private let openingParagraphs = [
+		"Artificial intelligence is quickly becoming one of the most powerful technologies of our time, but today much of it depends on cloud infrastructure, subscriptions, and a reliable internet connection. We believe AI should be available wherever people are, not just where powerful servers are.",
+		"Local models run directly on your device. That means they can continue working on a plane, while traveling, in classrooms with unreliable connectivity, or anywhere an internet connection isn’t guaranteed. It also gives people more control over their conversations and reduces the need to send personal information to external services.",
+		"As mobile hardware continues to improve, we’re entering a new era where capable AI can live alongside the apps we use every day. Instead of relying on distant servers for every interaction, our devices are becoming intelligent companions that are faster, more personal, and available the moment we need them."
+	]
+
+	private let closingParagraphs = [
+		"At Semera, we don’t see local AI as a replacement for cloud intelligence. We see it as an important part of a future where people can choose the experience that best fits their needs. Some questions will benefit from the web. Others should stay entirely on your device. Great software should make that choice feel effortless.",
+		"Most importantly, local AI has the potential to make powerful technology more accessible. Students, educators, creators, travelers, healthcare workers, and communities with limited infrastructure shouldn’t be left behind because they lack a constant internet connection or the resources to pay for cloud services. As models become smaller, faster, and more capable, we believe AI can reach more people than ever before.",
+		"Our goal isn’t simply to bring AI onto your device. It’s to explore how on-device intelligence can create experiences that feel more private, more reliable, and ultimately more human."
+	]
+
+	var body: some View {
+		ScrollView {
+			VStack(alignment: .leading, spacing: 20) {
+				header
+
+				ForEach(openingParagraphs, id: \.self) { paragraph in
+					bodyText(paragraph)
+				}
+
+				Image("whylocal")
+					.resizable()
+					.scaledToFill()
+					.frame(maxWidth: .infinity)
+					.frame(height: 220)
+					.clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+					.clipped()
+
+				ForEach(closingParagraphs, id: \.self) { paragraph in
+					bodyText(paragraph)
+				}
+			}
+			.padding(.horizontal, 20)
+			.padding(.top, 18)
+			.padding(.bottom, 42)
+			.frame(maxWidth: .infinity, alignment: .leading)
+		}
+		.background(Color(uiColor: .systemGroupedBackground))
+		.navigationTitle("Why Local AI?")
+		#if !os(macOS)
+		.navigationBarTitleDisplayMode(.inline)
+		#endif
+	}
+
+	private var header: some View {
+		VStack(alignment: .leading, spacing: 10) {
+			Text("Why Local AI?")
+				.font(.system(size: 28, weight: .semibold))
+				.foregroundStyle(.primary)
+
+			Text("A more private, reliable, and accessible direction for intelligent software.")
+				.font(.system(size: 16, weight: .regular))
+				.foregroundStyle(.secondary)
+				.lineSpacing(4)
+		}
+	}
+
+	private func bodyText(_ text: String) -> some View {
+		Text(text)
+			.font(.system(size: 17, weight: .regular))
+			.foregroundStyle(.primary)
+			.lineSpacing(5)
 	}
 }
 

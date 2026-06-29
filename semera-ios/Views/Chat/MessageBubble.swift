@@ -94,15 +94,36 @@ struct MessageBubble: View {
 
 private struct ThinkingStatusText: View {
 	let text: String
+	@State private var rotatingStatusIndex = 0
+
+	private let rotatingStatuses = ["Thinking", "Tokenizing the thought", "Ummm...", "Pulling it together"]
 
 	var body: some View {
-		Text(text)
+		Text(displayText)
 			.font(.system(size: 16))
 			.foregroundStyle(.secondary)
 			.shimmering()
-			.id(text)
+			.id(displayText)
 			.transition(.blurFade)
 			.frame(maxWidth: .infinity, alignment: .leading)
+			.task {
+				while !Task.isCancelled {
+					try? await Task.sleep(for: .seconds(3))
+					guard shouldRotate else { continue }
+
+					withAnimation(.smooth(duration: 0.22)) {
+						rotatingStatusIndex = (rotatingStatusIndex + 1) % rotatingStatuses.count
+					}
+				}
+			}
+	}
+
+	private var displayText: String {
+		shouldRotate ? rotatingStatuses[rotatingStatusIndex] : text
+	}
+
+	private var shouldRotate: Bool {
+		text == "Thinking"
 	}
 }
 
