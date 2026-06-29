@@ -35,7 +35,11 @@ struct ModelSwitchToast: View {
 		.foregroundStyle(.primary)
 		.padding(.horizontal, 16)
 		.frame(minHeight: 42)
-		.background(.regularMaterial, in: Capsule())
+		.background(Color(uiColor: .systemGray6), in: Capsule())
+		.overlay {
+			Capsule()
+				.stroke(Color(uiColor: .separator).opacity(0.35), lineWidth: 1)
+		}
 		.shadow(color: .black.opacity(0.12), radius: 18, y: 8)
 	}
 }

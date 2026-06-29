@@ -130,7 +130,8 @@ private struct AppIconOption: Identifiable, CaseIterable {
 		AppIconOption(title: "Icon 3", assetName: "icon3", alternateIconName: "icon3"),
 		AppIconOption(title: "Icon 4", assetName: "icon4", alternateIconName: "icon4"),
 		AppIconOption(title: "Icon 5", assetName: "icon5", alternateIconName: "icon5"),
-		AppIconOption(title: "Icon 6", assetName: "icon6", alternateIconName: "icon6")
+        AppIconOption(title: "Icon 6", assetName: "icon6", alternateIconName: "icon6"),
+        AppIconOption(title: "Icon 7", assetName: "icon7", alternateIconName: "icon7")
 	]
 }
 

@@ -24,6 +24,7 @@ struct ChatView: View {
 	@State private var switchedModelName: String?
 	@State private var modelSwitchToastTask: Task<Void, Never>?
 	@State private var searchQuota: SearchQuota?
+	@State private var webSearchStatusIndex = 0
 	@StateObject private var safariViewModel = SafariViewModel()
 	private let webSearchService = WebSearchService()
 	private let responseHaptics = StreamingResponseHaptics()
@@ -139,17 +140,22 @@ struct ChatView: View {
 			SafariView(url: page.url)
 		}
 		.task(id: selectedModelID) {
-			guard !runtime.isReady(for: selectedModel) else { return }
-			await runtime.load(selectedModel)
+			await ensureSelectedModelLoaded()
 		}
 		.task {
 			await refreshSearchQuota()
 		}
 		.onChange(of: scenePhase) { _, phase in
-			guard phase == .active else { return }
-
-			Task {
-				await refreshSearchQuota()
+			switch phase {
+			case .active:
+				Task {
+					await ensureSelectedModelLoaded()
+					await refreshSearchQuota()
+				}
+			case .background:
+				_ = runtime.unloadIfIdle()
+			default:
+				break
 			}
 		}
 		.onDisappear {
@@ -345,6 +351,7 @@ struct ChatView: View {
 
 		responseTask = Task {
 			do {
+				await ensureSelectedModelLoaded()
 				let prompt = try await promptWithWebResultsIfNeeded(for: displayText, forceWebSearch: usesTaggedWebSearch, responseID: responseID)
 
 				try await runtime.streamResponse(to: prompt, onThinking: { chunk in
@@ -353,6 +360,8 @@ struct ChatView: View {
 					historyViewModel.appendAssistantChunk(chunk, to: responseID)
 					responseHaptics.tick(for: chunk)
 				}
+
+				responseHaptics.finish()
 			} catch is CancellationError {
 				if historyViewModel.currentMessages.first(where: { $0.id == responseID })?.text.isEmpty == true {
 					historyViewModel.replaceMessage(responseID, with: "Stopped.")
@@ -370,6 +379,12 @@ struct ChatView: View {
 		responseTask?.cancel()
 		responseTask = nil
 		responseHaptics.stop()
+	}
+
+	private func ensureSelectedModelLoaded() async {
+		guard !runtime.isReady(for: selectedModel) else { return }
+
+		await runtime.load(selectedModel)
 	}
 
 	private func scrollToPendingMessage(using scrollProxy: ScrollViewProxy) {
@@ -400,7 +415,7 @@ struct ChatView: View {
 			throw WebSearchService.WebSearchError.dailyLimitExceeded(searchQuota)
 		}
 
-		historyViewModel.appendAssistantThinking("Searching the web for: \(query)\n", to: responseID)
+		historyViewModel.appendAssistantThinking("\(nextWebSearchStatus())\n", to: responseID)
 		let results: [WebSearchResult]
 		do {
 			results = try await webSearchService.search(String(query), chatID: historyViewModel.currentChatID)
@@ -413,7 +428,6 @@ struct ChatView: View {
 
 		await refreshSearchQuota()
 		historyViewModel.replaceAssistantSources(results.map(Source.init), for: responseID)
-		historyViewModel.appendAssistantThinking("Found \(results.count) web result\(results.count == 1 ? "" : "s").\n", to: responseID)
 
 		let context = results.enumerated().map { index, result in
 			"""
@@ -489,6 +503,13 @@ struct ChatView: View {
 		}
 
 		return lowercasedText.contains("2026")
+	}
+
+	private func nextWebSearchStatus() -> String {
+		let statuses = ["Searching the interwebs", "Searching the web", "Web surfing"]
+		let status = statuses[webSearchStatusIndex % statuses.count]
+		webSearchStatusIndex += 1
+		return status
 	}
 
 	private func refreshSearchQuota() async {
@@ -677,6 +698,13 @@ private final class StreamingResponseHaptics {
 		#endif
 		lastImpactTime = now
 		pendingText = ""
+	}
+
+	func finish() {
+		pendingText = ""
+		#if canImport(UIKit)
+		UINotificationFeedbackGenerator().notificationOccurred(.success)
+		#endif
 	}
 
 	func stop() {

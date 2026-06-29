@@ -78,6 +78,10 @@ final class BeaconModelRuntime: ModelDownloadRuntime {
 		progressObservations.removeAll()
 		observedProgresses.removeAll()
 
+		if loadedModelID != nil && loadedModelID != model.id {
+			releaseLoadedModel()
+		}
+
 		do {
 			if model.isBuiltIn {
 				try loadFoundationModel(model)
@@ -118,6 +122,19 @@ final class BeaconModelRuntime: ModelDownloadRuntime {
 
 		progressObservations.removeAll()
 		observedProgresses.removeAll()
+	}
+
+	@discardableResult
+	func unloadIfIdle() -> Bool {
+		guard !isLoading, !isGenerating else { return false }
+		guard loadedModelID != nil || session != nil || foundationSession != nil else { return false }
+
+		releaseLoadedModel()
+		progress = 0
+		completedUnitCount = nil
+		totalUnitCount = nil
+		errorMessage = nil
+		return true
 	}
 
 	func streamResponse(
@@ -162,6 +179,16 @@ final class BeaconModelRuntime: ModelDownloadRuntime {
 		default:
 			ModelConfiguration(id: model.repositoryID)
 		}
+	}
+
+	private func releaseLoadedModel() {
+		progressObservations.removeAll()
+		observedProgresses.removeAll()
+		session = nil
+		foundationSession = nil
+		loadedModelID = nil
+		loadedModelRepositoryID = nil
+		loadedModelType = .regular
 	}
 
 	private func observe(_ downloadProgress: Progress) {
