@@ -8,6 +8,7 @@
 import SwiftUI
 
 struct ContentView: View {
+	@Environment(\.scenePhase) private var scenePhase
 	@AppStorage("hasCompletedWelcome") private var hasCompletedWelcome = false
 	@AppStorage("selectedModelID") private var selectedModelID = ""
 	@AppStorage("downloadedModelIDs") private var downloadedModelIDs = ""
@@ -16,9 +17,12 @@ struct ContentView: View {
 	@State private var isChoosingModel = false
 	@State private var downloadingModel: BeaconModel?
 	@State private var downloadAlert: DownloadAlert?
+	@State private var backendStatus: BackendStatus?
+	@ObservedObject private var notificationRouter: NotificationRouter
 
-	init(modelRuntime: BeaconModelRuntime) {
+	init(modelRuntime: BeaconModelRuntime, notificationRouter: NotificationRouter) {
 		self.modelRuntime = modelRuntime
+		self.notificationRouter = notificationRouter
 	}
 
 	var body: some View {
@@ -35,7 +39,7 @@ struct ContentView: View {
 					downloadAlert = .failed(downloadingModel.name, message)
 				})
 			} else if hasCompletedWelcome {
-				ChatView(runtime: modelRuntime, models: models) { model in
+				ChatView(runtime: modelRuntime, models: models, notificationRouter: notificationRouter) { model in
 					prepare(model)
 				}
 			} else if isChoosingModel {
@@ -57,8 +61,21 @@ struct ContentView: View {
 		}
 		.task {
 			ModelIDMigration.migrate()
-			await loadRemoteModels()
+			await refreshBackendStatusAndRemoteModels()
 		}
+		.onChange(of: scenePhase) { _, phase in
+			guard phase == .active else { return }
+			Task {
+				await refreshBackendStatusAndRemoteModels()
+			}
+		}
+	}
+
+	private func refreshBackendStatusAndRemoteModels() async {
+		guard let status = try? await BackendStatusService().status() else { return }
+		backendStatus = status
+		guard status.allowsRemoteModels else { return }
+		await loadRemoteModels()
 	}
 
 	private func loadRemoteModels() async {
@@ -139,5 +156,5 @@ private struct DownloadAlert: Identifiable {
 }
 
 #Preview {
-	ContentView(modelRuntime: BeaconModelRuntime())
+	ContentView(modelRuntime: BeaconModelRuntime(), notificationRouter: NotificationRouter())
 }

@@ -94,7 +94,7 @@ struct MessageBubble: View {
 
 private struct ThinkingStatusText: View {
 	let text: String
-	@State private var rotatingStatusIndex = 0
+	@State private var rotatingStatus = "Thinking"
 
 	private let rotatingStatuses = ["Thinking", "Tokenizing the thought", "Ummm...", "Pulling it together"]
 
@@ -107,19 +107,22 @@ private struct ThinkingStatusText: View {
 			.transition(.blurFade)
 			.frame(maxWidth: .infinity, alignment: .leading)
 			.task {
+				rotatingStatus = rotatingStatuses.randomElement() ?? "Thinking"
+
 				while !Task.isCancelled {
 					try? await Task.sleep(for: .seconds(3))
 					guard shouldRotate else { continue }
 
 					withAnimation(.smooth(duration: 0.22)) {
-						rotatingStatusIndex = (rotatingStatusIndex + 1) % rotatingStatuses.count
+						let nextStatuses = rotatingStatuses.filter { $0 != rotatingStatus }
+						rotatingStatus = (nextStatuses.randomElement() ?? rotatingStatuses.randomElement()) ?? "Thinking"
 					}
 				}
 			}
 	}
 
 	private var displayText: String {
-		shouldRotate ? rotatingStatuses[rotatingStatusIndex] : text
+		shouldRotate ? rotatingStatus : text
 	}
 
 	private var shouldRotate: Bool {

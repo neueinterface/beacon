@@ -40,6 +40,13 @@ final class ChatHistoryViewModel: ObservableObject {
 		currentMessages = chat.messages
 	}
 
+	@discardableResult
+	func selectChat(id: ChatConversation.ID) -> ChatConversation? {
+		guard let chat = conversations.first(where: { $0.id == id }) else { return nil }
+		select(chat)
+		return chat
+	}
+
 	func startNewChat() {
 		selectedChatID = nil
 		currentConversationID = nil
