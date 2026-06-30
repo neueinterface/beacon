@@ -8,10 +8,12 @@ struct ChatView: View {
 	@Environment(\.scenePhase) private var scenePhase
 	@ObservedObject var runtime: BeaconModelRuntime
 	let models: [BeaconModel]
+	@ObservedObject var notificationRouter = NotificationRouter()
 	var onDownloadModel: (BeaconModel) -> Void = { _ in }
 	@StateObject private var historyViewModel = ChatHistoryViewModel()
 	@AppStorage("selectedModelID") private var selectedModelID = ""
 	@AppStorage("downloadedModelIDs") private var downloadedModelIDs = ""
+	@AppStorage("notificationsEnabled") private var notificationsEnabled = false
 	@State private var inputText = ""
 	@State private var isWebSearchTagged = false
 	@State private var isShowingHistory = false
@@ -21,11 +23,16 @@ struct ChatView: View {
 	@State private var shouldOpenMarketplaceAfterModelSwitcherDismisses = false
 	@State private var pendingScrollMessageID: ChatMessage.ID?
 	@State private var responseTask: Task<Void, Never>?
+	@State private var isPreparingResponse = false
 	@State private var switchedModelName: String?
 	@State private var modelSwitchToastTask: Task<Void, Never>?
+	@State private var backendStatus: BackendStatus?
 	@State private var searchQuota: SearchQuota?
-	@State private var webSearchStatusIndex = 0
+	@State private var isBackendUnavailable = false
+	@State private var isWebSearchDisabledByBackend = false
+	@State private var lastWebSearchStatus = ""
 	@StateObject private var safariViewModel = SafariViewModel()
+	private let backendStatusService = BackendStatusService()
 	private let webSearchService = WebSearchService()
 	private let responseHaptics = StreamingResponseHaptics()
 
@@ -40,7 +47,23 @@ struct ChatView: View {
 	}
 
 	private var isWebSearchUnavailable: Bool {
-		searchQuota?.isExhausted == true
+		isBackendUnavailable || isWebSearchDisabledByBackend || backendStatus?.allowsWebSearch == false || searchQuota?.isExhausted == true
+	}
+
+	private var isAssistantBusy: Bool {
+		isPreparingResponse || runtime.isGenerating || responseTask != nil
+	}
+
+	private var webSearchUnavailableTitle: String {
+		if isBackendUnavailable || backendStatus?.ok == false {
+			return "Backend unavailable"
+		}
+
+		if isWebSearchDisabledByBackend || backendStatus?.features.webSearch == false {
+			return "Web search disabled"
+		}
+
+		return "Daily limit reached"
 	}
 
 	var body: some View {
@@ -143,6 +166,7 @@ struct ChatView: View {
 			await ensureSelectedModelLoaded()
 		}
 		.task {
+			await refreshBackendStatus()
 			await refreshSearchQuota()
 		}
 		.onChange(of: scenePhase) { _, phase in
@@ -150,6 +174,7 @@ struct ChatView: View {
 			case .active:
 				Task {
 					await ensureSelectedModelLoaded()
+					await refreshBackendStatus()
 					await refreshSearchQuota()
 				}
 			case .background:
@@ -160,6 +185,10 @@ struct ChatView: View {
 		}
 		.onDisappear {
 			modelSwitchToastTask?.cancel()
+		}
+		.onChange(of: notificationRouter.chatIDToOpen) { _, chatID in
+			guard let chatID else { return }
+			openChatFromNotification(chatID)
 		}
 	}
 
@@ -186,8 +215,8 @@ struct ChatView: View {
 												text: message.text,
 												thinkingText: message.thinkingText,
 												sources: message.sources,
-												role: message.role,
-												isWaitingForResponse: runtime.isGenerating && message == historyViewModel.currentMessages.last,
+														role: message.role,
+														isWaitingForResponse: isAssistantBusy && message == historyViewModel.currentMessages.last,
 												onOpenSource: { url in
 													safariViewModel.open(url)
 												}
@@ -311,7 +340,7 @@ struct ChatView: View {
 	#endif
 
 	private var inputBar: some View {
-		Input(text: $inputText, isWebSearchTagged: $isWebSearchTagged, isGenerating: runtime.isGenerating, isWebSearchUnavailable: isWebSearchUnavailable) {
+		Input(text: $inputText, isWebSearchTagged: $isWebSearchTagged, isGenerating: isAssistantBusy, isWebSearchUnavailable: isWebSearchUnavailable, webSearchUnavailableTitle: webSearchUnavailableTitle) {
 			stopGenerating()
 		} onSend: { text in
 			send(text)
@@ -347,13 +376,16 @@ struct ChatView: View {
 		isWebSearchTagged = false
 
 		let responseID = historyViewModel.appendUserMessage(displayText, modelName: selectedModel.name)
+		scheduleChatReminder(for: displayText)
 		responseHaptics.start()
+		isPreparingResponse = true
 
 		responseTask = Task {
 			do {
 				await ensureSelectedModelLoaded()
 				let prompt = try await promptWithWebResultsIfNeeded(for: displayText, forceWebSearch: usesTaggedWebSearch, responseID: responseID)
 
+				isPreparingResponse = false
 				try await runtime.streamResponse(to: prompt, onThinking: { chunk in
 					historyViewModel.appendAssistantThinking(chunk, to: responseID)
 				}) { chunk in
@@ -367,9 +399,11 @@ struct ChatView: View {
 					historyViewModel.replaceMessage(responseID, with: "Stopped.")
 				}
 			} catch {
+				isPreparingResponse = false
 				historyViewModel.replaceMessage(responseID, with: error.localizedDescription)
 			}
 
+			isPreparingResponse = false
 			responseHaptics.stop()
 			responseTask = nil
 		}
@@ -378,6 +412,7 @@ struct ChatView: View {
 	private func stopGenerating() {
 		responseTask?.cancel()
 		responseTask = nil
+		isPreparingResponse = false
 		responseHaptics.stop()
 	}
 
@@ -411,25 +446,36 @@ struct ChatView: View {
 
 		guard let query = webSearchQuery(for: text, forceWebSearch: forceWebSearch) else { return text }
 		guard !query.isEmpty else { return "Ask the user what they want to search for." }
+		if isBackendUnavailable || backendStatus?.ok == false {
+			return text
+		}
+
+		if isWebSearchDisabledByBackend || backendStatus?.features.webSearch == false {
+			return text
+		}
+
 		if let searchQuota, searchQuota.isExhausted {
-			throw WebSearchService.WebSearchError.dailyLimitExceeded(searchQuota)
+			return text
 		}
 
 		historyViewModel.appendAssistantThinking("\(nextWebSearchStatus())\n", to: responseID)
-		let results: [WebSearchResult]
+		let response: WebSearchResponse
 		do {
-			results = try await webSearchService.search(String(query), chatID: historyViewModel.currentChatID)
+			response = try await webSearchService.search(String(query), chatID: historyViewModel.currentChatID)
 		} catch let error as WebSearchService.WebSearchError {
-			if case let .dailyLimitExceeded(quota) = error {
-				updateSearchQuota(quota)
-			}
-			throw error
+			handleWebSearchError(error)
+			historyViewModel.appendAssistantThinking("Thinking\n", to: responseID)
+			return text
 		}
 
-		await refreshSearchQuota()
-		historyViewModel.replaceAssistantSources(results.map(Source.init), for: responseID)
+		if let quota = response.quota {
+			updateSearchQuota(quota)
+		} else {
+			await refreshSearchQuota()
+		}
+		historyViewModel.replaceAssistantSources(response.results.map(Source.init), for: responseID)
 
-		let context = results.enumerated().map { index, result in
+		let context = response.results.enumerated().map { index, result in
 			"""
 			[\(index + 1)] \(result.title)
 			URL: \(result.url.absoluteString)
@@ -441,6 +487,7 @@ struct ChatView: View {
 		Answer the user's question using the web search results below.
 
 		Formatting:
+		- Do not start with labels like "Answer:", "Response:", or "Summary:".
 		- Do not write one long paragraph.
 		- Use short paragraphs, bullets, or numbered steps when helpful.
 		- Start with the direct answer.
@@ -507,14 +554,53 @@ struct ChatView: View {
 
 	private func nextWebSearchStatus() -> String {
 		let statuses = ["Searching the interwebs", "Searching the web", "Web surfing"]
-		let status = statuses[webSearchStatusIndex % statuses.count]
-		webSearchStatusIndex += 1
+		let availableStatuses = statuses.filter { $0 != lastWebSearchStatus }
+		let status = (availableStatuses.randomElement() ?? statuses.randomElement()) ?? "Searching the web"
+		lastWebSearchStatus = status
 		return status
 	}
 
 	private func refreshSearchQuota() async {
-		guard let quota = try? await webSearchService.quota() else { return }
-		updateSearchQuota(quota)
+		do {
+			let quota = try await webSearchService.quota(chatID: historyViewModel.currentChatID)
+			isWebSearchDisabledByBackend = false
+			updateSearchQuota(quota)
+		} catch let error as WebSearchService.WebSearchError {
+			handleWebSearchError(error)
+		} catch {
+			return
+		}
+	}
+
+	private func refreshBackendStatus() async {
+		guard let status = try? await backendStatusService.status() else { return }
+		withAnimation(.smooth(duration: 0.2)) {
+			backendStatus = status
+			isBackendUnavailable = !status.ok || !status.features.backend
+			isWebSearchDisabledByBackend = !status.allowsWebSearch
+			if !status.allowsWebSearch {
+				isWebSearchTagged = false
+			}
+		}
+	}
+
+	private func handleWebSearchError(_ error: WebSearchService.WebSearchError) {
+		switch error {
+		case let .dailyLimitExceeded(quota):
+			updateSearchQuota(quota)
+		case .webSearchDisabled:
+			withAnimation(.smooth(duration: 0.2)) {
+				isWebSearchDisabledByBackend = true
+				isWebSearchTagged = false
+			}
+		case .backendDisabled:
+			withAnimation(.smooth(duration: 0.2)) {
+				isBackendUnavailable = true
+				isWebSearchTagged = false
+			}
+		default:
+			break
+		}
 	}
 
 	private func updateSearchQuota(_ quota: SearchQuota) {
@@ -536,11 +622,56 @@ struct ChatView: View {
 		"web-search-quota-reset"
 	}
 
+	private func chatReminderNotificationID(for chatID: ChatConversation.ID) -> String {
+		"chat-reminder-\(chatID.uuidString)"
+	}
+
+	private func scheduleChatReminder(for message: String) {
+		guard notificationsEnabled, let chatID = historyViewModel.currentChatID else { return }
+		let snippet = message.notificationSnippet(maxLength: 120)
+		guard !snippet.isEmpty else { return }
+
+		UNUserNotificationCenter.current().getNotificationSettings { settings in
+			guard settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional else { return }
+
+			let content = UNMutableNotificationContent()
+			content.title = "Don't forget chatting"
+			content.body = "\"\(snippet)\""
+			content.sound = .default
+			content.userInfo = [
+				"type": "chatReminder",
+				"chatId": chatID.uuidString
+			]
+
+			let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 24 * 60 * 60, repeats: false)
+			let identifier = chatReminderNotificationID(for: chatID)
+			let request = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
+
+			UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [identifier])
+			UNUserNotificationCenter.current().add(request)
+		}
+	}
+
+	private func openChatFromNotification(_ chatID: ChatConversation.ID) {
+		guard let chat = historyViewModel.selectChat(id: chatID) else {
+			notificationRouter.consumeChatOpenRequest()
+			return
+		}
+
+		isShowingHistory = false
+		isShowingSettings = false
+		isShowingModelMarketplace = false
+		pendingScrollMessageID = historyViewModel.lastUserMessageID(in: chat) ?? historyViewModel.firstMessageID(in: chat)
+		UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [chatReminderNotificationID(for: chatID)])
+		notificationRouter.consumeChatOpenRequest()
+	}
+
 	private func scheduleSearchResetNotification(at resetAt: Date) {
 		guard resetAt > Date() else { return }
+		guard notificationsEnabled else { return }
 
-		UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { granted, _ in
-			guard granted else { return }
+		UNUserNotificationCenter.current().getNotificationSettings { settings in
+			guard settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional else { return }
 
 			let content = UNMutableNotificationContent()
 			content.title = "Web search is available again"
@@ -709,6 +840,18 @@ private final class StreamingResponseHaptics {
 
 	func stop() {
 		pendingText = ""
+	}
+}
+
+private extension String {
+	func notificationSnippet(maxLength: Int) -> String {
+		let normalized = split(whereSeparator: \.isNewline)
+			.joined(separator: " ")
+			.replacingOccurrences(of: "  ", with: " ")
+			.trimmingCharacters(in: .whitespacesAndNewlines)
+
+		guard normalized.count > maxLength else { return normalized }
+		return String(normalized.prefix(maxLength)).trimmingCharacters(in: .whitespacesAndNewlines) + "..."
 	}
 }
 

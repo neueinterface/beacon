@@ -14,6 +14,40 @@ struct BackendError: Decodable {
 	let message: String
 }
 
+struct BackendStatus: Decodable, Equatable {
+	let ok: Bool
+	let features: BackendFeatures
+
+	var allowsRemoteModels: Bool {
+		ok && features.backend && features.models
+	}
+
+	var allowsWebSearch: Bool {
+		ok && features.backend && features.webSearch
+	}
+}
+
+struct BackendFeatures: Decodable, Equatable {
+	let backend: Bool
+	let models: Bool
+	let webSearch: Bool
+}
+
+struct BackendStatusService {
+	private let decoder = SearchJSONDecoder.make()
+
+	func status() async throws -> BackendStatus {
+		let url = BackendConfig.baseURL.appendingPathComponent("status")
+		let (data, response) = try await URLSession.shared.data(from: url)
+
+		guard let httpResponse = response as? HTTPURLResponse, (200 ..< 300).contains(httpResponse.statusCode) else {
+			throw URLError(.badServerResponse)
+		}
+
+		return try decoder.decode(BackendStatus.self, from: data)
+	}
+}
+
 struct RemoteModelCatalogResponse: Decodable {
 	let models: [RemoteModel]
 }
@@ -104,6 +138,9 @@ extension Source {
 struct WebSearchService {
 	enum WebSearchError: LocalizedError {
 		case invalidResponse
+		case unauthorized
+		case backendDisabled(String?)
+		case webSearchDisabled
 		case requestFailed(Int, String?)
 		case dailyLimitExceeded(SearchQuota)
 
@@ -111,6 +148,12 @@ struct WebSearchService {
 			switch self {
 			case .invalidResponse:
 				"The web search response was invalid."
+			case .unauthorized:
+				"Web search is temporarily unavailable."
+			case .backendDisabled:
+				"Remote features are temporarily unavailable."
+			case .webSearchDisabled:
+				"Web search is temporarily unavailable."
 			case let .requestFailed(statusCode, message):
 				message ?? "Web search failed with status code \(statusCode)."
 			case let .dailyLimitExceeded(quota):
@@ -125,6 +168,12 @@ struct WebSearchService {
 
 	private struct SearchResponse: Decodable {
 		let results: [WebSearchResult]
+		let quota: SearchQuota?
+	}
+
+	private struct QuotaUnavailableResponse: Decodable {
+		let available: Bool
+		let reason: String?
 	}
 
 	private let endpoint = BackendConfig.baseURL.appendingPathComponent("search")
@@ -132,10 +181,19 @@ struct WebSearchService {
 	private let decoder = SearchJSONDecoder.make()
 
 	private var appAPIKey: String {
-		ProcessInfo.processInfo.environment["APP_API_KEY"] ?? ""
+		let key = ProcessInfo.processInfo.environment["APP_API_KEY"]
+			?? Bundle.main.object(forInfoDictionaryKey: "APP_API_KEY") as? String
+			?? ""
+		let trimmedKey = key.trimmingCharacters(in: .whitespacesAndNewlines)
+		guard !trimmedKey.isEmpty, !trimmedKey.contains("$(") else { return "" }
+		return trimmedKey
 	}
 
-	func search(_ query: String, chatID: ChatConversation.ID?) async throws -> [WebSearchResult] {
+	private var hasAppAPIKey: Bool {
+		!appAPIKey.isEmpty
+	}
+
+	func search(_ query: String, chatID: ChatConversation.ID?) async throws -> WebSearchResponse {
 		var request = URLRequest(url: endpoint)
 		request.httpMethod = "POST"
 		request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -156,22 +214,20 @@ struct WebSearchService {
 			throw WebSearchError.invalidResponse
 		}
 
-		guard (200 ..< 300).contains(httpResponse.statusCode) else {
-			if httpResponse.statusCode == 429, let quota = limitExceededQuota(from: data, response: httpResponse) {
-				throw WebSearchError.dailyLimitExceeded(quota)
-			}
+		try validateSearchResponse(data: data, response: httpResponse)
 
-			let message = try? decoder.decode(BackendErrorResponse.self, from: data).error.message
-			throw WebSearchError.requestFailed(httpResponse.statusCode, message)
-		}
-
-		return try decoder.decode(SearchResponse.self, from: data).results
+		let searchResponse = try decoder.decode(SearchResponse.self, from: data)
+		return WebSearchResponse(results: searchResponse.results, quota: searchResponse.quota)
 	}
 
-	func quota() async throws -> SearchQuota {
+	func quota(chatID: ChatConversation.ID?) async throws -> SearchQuota {
 		var request = URLRequest(url: endpoint.appendingPathComponent("quota"))
 		request.httpMethod = "GET"
+		request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 		request.setValue(deviceIDProvider.deviceID(), forHTTPHeaderField: "X-Device-ID")
+		if let chatID {
+			request.setValue(chatID.uuidString, forHTTPHeaderField: "X-Chat-ID")
+		}
 
 		if !appAPIKey.isEmpty {
 			request.setValue("Bearer \(appAPIKey)", forHTTPHeaderField: "Authorization")
@@ -182,12 +238,50 @@ struct WebSearchService {
 			throw WebSearchError.invalidResponse
 		}
 
-		guard (200 ..< 300).contains(httpResponse.statusCode) else {
-			let message = try? decoder.decode(BackendErrorResponse.self, from: data).error.message
-			throw WebSearchError.requestFailed(httpResponse.statusCode, message)
+		try validateSearchResponse(data: data, response: httpResponse)
+
+		if let unavailable = try? decoder.decode(QuotaUnavailableResponse.self, from: data), unavailable.available == false {
+			if unavailable.reason == "web_search_disabled" {
+				throw WebSearchError.webSearchDisabled
+			}
+
+			throw WebSearchError.requestFailed(httpResponse.statusCode, unavailable.reason)
+		}
+
+		if let envelope = try? decoder.decode(SearchQuotaEnvelope.self, from: data) {
+			return envelope.quota
 		}
 
 		return try decoder.decode(SearchQuota.self, from: data)
+	}
+
+	private func validateSearchResponse(data: Data, response: HTTPURLResponse) throws {
+		guard !(200 ..< 300).contains(response.statusCode) else { return }
+
+		let backendError = try? decoder.decode(BackendErrorResponse.self, from: data).error
+		if response.statusCode == 401 {
+			#if DEBUG
+			print("Web search auth failed. APP_API_KEY configured: \(hasAppAPIKey)")
+			#endif
+			throw WebSearchError.unauthorized
+		}
+
+		if response.statusCode == 429, let quota = limitExceededQuota(from: data, response: response) {
+			throw WebSearchError.dailyLimitExceeded(quota)
+		}
+
+		if response.statusCode == 503 {
+			switch backendError?.code {
+			case "web_search_disabled":
+				throw WebSearchError.webSearchDisabled
+			case "backend_disabled":
+				throw WebSearchError.backendDisabled(backendError?.message)
+			default:
+				break
+			}
+		}
+
+		throw WebSearchError.requestFailed(response.statusCode, backendError?.message)
 	}
 
 	private func limitExceededQuota(from data: Data, response: HTTPURLResponse) -> SearchQuota? {
@@ -209,6 +303,11 @@ struct WebSearchService {
 			resetAt: resetAt
 		)
 	}
+}
+
+struct WebSearchResponse: Equatable {
+	let results: [WebSearchResult]
+	let quota: SearchQuota?
 }
 
 struct SearchQuota: Decodable, Equatable {
