@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import UserNotifications
 
 private struct AppearanceStyleUpdater: UIViewRepresentable {
 	let scheme: AppearanceColorScheme
@@ -39,9 +40,13 @@ private extension AppearanceColorScheme {
 
 @main
 struct SemeraApp: App {
+	#if canImport(UIKit)
+	@UIApplicationDelegateAdaptor(AppNotificationDelegate.self) private var appNotificationDelegate
+	#endif
 	@Environment(\.scenePhase) private var scenePhase
 	@AppStorage("appearanceColorScheme") private var selectedScheme = AppearanceColorScheme.system.rawValue
 	@StateObject private var modelRuntime = BeaconModelRuntime()
+	@StateObject private var notificationRouter = NotificationRouter()
 
 	private var appearanceScheme: AppearanceColorScheme {
 		AppearanceColorScheme(rawValue: selectedScheme) ?? .system
@@ -49,8 +54,13 @@ struct SemeraApp: App {
 
 	var body: some Scene {
 		WindowGroup {
-			ContentView(modelRuntime: modelRuntime)
+			ContentView(modelRuntime: modelRuntime, notificationRouter: notificationRouter)
 				.background(AppearanceStyleUpdater(scheme: appearanceScheme).frame(width: 0, height: 0))
+				.onAppear {
+					#if canImport(UIKit)
+					appNotificationDelegate.notificationRouter = notificationRouter
+					#endif
+				}
 				.onChange(of: scenePhase) { _, phase in
 					guard phase == .background else { return }
 					_ = modelRuntime.unloadIfIdle()
