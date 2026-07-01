@@ -1,4 +1,5 @@
 import SwiftUI
+import UserNotifications
 #if canImport(UIKit)
 import UIKit
 #endif
@@ -7,7 +8,7 @@ struct SettingsView: View {
 	@ObservedObject var chatHistoryViewModel: ChatHistoryViewModel
 	@Environment(\.dismiss) private var dismiss
 	@Environment(\.openURL) private var openURL
-	@AppStorage("notificationsEnabled") private var notificationsEnabled = true
+	@AppStorage("notificationsEnabled") private var notificationsEnabled = false
 	@State private var isConfirmingDeleteAllChats = false
 	@StateObject private var safariViewModel = SafariViewModel()
 
@@ -69,7 +70,7 @@ struct SettingsView: View {
 						}
 						SettingsListDivider()
 
-						SettingsToggleRow(title: "Notifications", icon: "bell.icon", isOn: $notificationsEnabled)
+						SettingsToggleRow(title: "Notifications", icon: "bell.icon", isOn: notificationsBinding)
 						SettingsListDivider()
 
 						SettingsButtonRow(title: "Report a bug", icon: "bug.icon") {
@@ -167,6 +168,28 @@ struct SettingsView: View {
 			}
 			.padding(.vertical, 6)
 			.background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+		}
+	}
+
+	private var notificationsBinding: Binding<Bool> {
+		Binding(
+			get: { notificationsEnabled },
+			set: { isEnabled in
+				if isEnabled {
+					requestNotificationPermission()
+				} else {
+					notificationsEnabled = false
+					UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
+				}
+			}
+		)
+	}
+
+	private func requestNotificationPermission() {
+		UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { granted, _ in
+			Task { @MainActor in
+				notificationsEnabled = granted
+			}
 		}
 	}
 }
