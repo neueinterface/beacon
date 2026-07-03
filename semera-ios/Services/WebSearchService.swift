@@ -3,6 +3,24 @@ import Security
 
 enum BackendConfig {
 	static let baseURL = URL(string: Bundle.main.object(forInfoDictionaryKey: "SEARCH_API_BASE_URL") as? String ?? "https://beacon-search.armondschneider.workers.dev")!
+
+	static var appAPIKey: String {
+		let key = ProcessInfo.processInfo.environment["APP_API_KEY"]
+			?? Bundle.main.object(forInfoDictionaryKey: "APP_API_KEY") as? String
+			?? ""
+		let trimmedKey = key.trimmingCharacters(in: .whitespacesAndNewlines)
+		guard !trimmedKey.isEmpty, !trimmedKey.contains("$(") else { return "" }
+		return trimmedKey
+	}
+
+	static var hasAppAPIKey: Bool {
+		!appAPIKey.isEmpty
+	}
+
+	static func authorize(_ request: inout URLRequest) {
+		guard !appAPIKey.isEmpty else { return }
+		request.setValue("Bearer \(appAPIKey)", forHTTPHeaderField: "Authorization")
+	}
 }
 
 struct BackendErrorResponse: Decodable {
@@ -38,7 +56,9 @@ struct BackendStatusService {
 
 	func status() async throws -> BackendStatus {
 		let url = BackendConfig.baseURL.appendingPathComponent("status")
-		let (data, response) = try await URLSession.shared.data(from: url)
+		var request = URLRequest(url: url)
+		BackendConfig.authorize(&request)
+		let (data, response) = try await URLSession.shared.data(for: request)
 
 		guard let httpResponse = response as? HTTPURLResponse, (200 ..< 300).contains(httpResponse.statusCode) else {
 			throw URLError(.badServerResponse)
@@ -68,7 +88,9 @@ struct RemoteModel: Decodable {
 final class ModelCatalogService {
 	func fetchModels() async throws -> [BeaconModel] {
 		let url = BackendConfig.baseURL.appendingPathComponent("models")
-		let (data, response) = try await URLSession.shared.data(from: url)
+		var request = URLRequest(url: url)
+		BackendConfig.authorize(&request)
+		let (data, response) = try await URLSession.shared.data(for: request)
 
 		guard let httpResponse = response as? HTTPURLResponse else {
 			throw URLError(.badServerResponse)
@@ -180,19 +202,6 @@ struct WebSearchService {
 	private let deviceIDProvider = SearchDeviceIDProvider()
 	private let decoder = SearchJSONDecoder.make()
 
-	private var appAPIKey: String {
-		let key = ProcessInfo.processInfo.environment["APP_API_KEY"]
-			?? Bundle.main.object(forInfoDictionaryKey: "APP_API_KEY") as? String
-			?? ""
-		let trimmedKey = key.trimmingCharacters(in: .whitespacesAndNewlines)
-		guard !trimmedKey.isEmpty, !trimmedKey.contains("$(") else { return "" }
-		return trimmedKey
-	}
-
-	private var hasAppAPIKey: Bool {
-		!appAPIKey.isEmpty
-	}
-
 	func search(_ query: String, chatID: ChatConversation.ID?) async throws -> WebSearchResponse {
 		var request = URLRequest(url: endpoint)
 		request.httpMethod = "POST"
@@ -203,9 +212,7 @@ struct WebSearchService {
 			request.setValue(chatID.uuidString, forHTTPHeaderField: "X-Chat-ID")
 		}
 
-		if !appAPIKey.isEmpty {
-			request.setValue("Bearer \(appAPIKey)", forHTTPHeaderField: "Authorization")
-		}
+		BackendConfig.authorize(&request)
 
 		request.httpBody = try JSONEncoder().encode(SearchRequest(query: query))
 
@@ -229,9 +236,7 @@ struct WebSearchService {
 			request.setValue(chatID.uuidString, forHTTPHeaderField: "X-Chat-ID")
 		}
 
-		if !appAPIKey.isEmpty {
-			request.setValue("Bearer \(appAPIKey)", forHTTPHeaderField: "Authorization")
-		}
+		BackendConfig.authorize(&request)
 
 		let (data, response) = try await URLSession.shared.data(for: request)
 		guard let httpResponse = response as? HTTPURLResponse else {
@@ -261,7 +266,7 @@ struct WebSearchService {
 		let backendError = try? decoder.decode(BackendErrorResponse.self, from: data).error
 		if response.statusCode == 401 {
 			#if DEBUG
-			print("Web search auth failed. APP_API_KEY configured: \(hasAppAPIKey)")
+			print("Web search auth failed. APP_API_KEY configured: \(BackendConfig.hasAppAPIKey)")
 			#endif
 			throw WebSearchError.unauthorized
 		}
