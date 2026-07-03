@@ -435,6 +435,7 @@ struct ChatView: View {
 	private func promptWithWebResultsIfNeeded(for text: String, forceWebSearch: Bool = false, responseID: ChatMessage.ID) async throws -> String {
 		let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
 		let lowercased = trimmed.lowercased()
+		let explicitlyRequestedWebSearch = forceWebSearch || lowercased == "/web" || lowercased.hasPrefix("/web ")
 
 		if lowercased == "/noweb" {
 			return "Ask the user what they want to answer without web search."
@@ -464,6 +465,9 @@ struct ChatView: View {
 			response = try await webSearchService.search(String(query), chatID: historyViewModel.currentChatID)
 		} catch let error as WebSearchService.WebSearchError {
 			handleWebSearchError(error)
+			if explicitlyRequestedWebSearch {
+				throw error
+			}
 			historyViewModel.appendAssistantThinking("Thinking\n", to: responseID)
 			return text
 		}
