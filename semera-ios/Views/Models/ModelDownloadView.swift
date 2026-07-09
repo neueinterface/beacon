@@ -34,6 +34,7 @@ struct ModelDownloadView<Runtime: ModelDownloadRuntime>: View {
 	@State private var hasStarted = false
 	@State private var isCancelled = false
 	@State private var loadingTask: Task<Void, Never>?
+	@State private var estimatedProgressTask: Task<Void, Never>?
 	@State private var displayedProgress = 0.02
 	@State private var lastLoadingHapticProgress = 0.0
 
@@ -109,7 +110,10 @@ struct ModelDownloadView<Runtime: ModelDownloadRuntime>: View {
 			}
 		}
 		.onChange(of: runtime.isLoading) { _, isLoading in
-			if !isLoading {
+			if isLoading {
+				startEstimatedProgressIfNeeded()
+			} else {
+				stopEstimatedProgress()
 				finishProgress(success: runtime.isReady(for: model))
 			}
 		}
@@ -131,6 +135,7 @@ struct ModelDownloadView<Runtime: ModelDownloadRuntime>: View {
 				isCancelled = true
 			}
 			loadingTask?.cancel()
+			estimatedProgressTask?.cancel()
 		}
 	}
 
@@ -151,13 +156,15 @@ struct ModelDownloadView<Runtime: ModelDownloadRuntime>: View {
 		   let totalUnitCount = runtime.totalUnitCount,
 		   completedUnitCount >= 0,
 		   totalUnitCount > 0 {
-			let completedGB = min(Double(completedUnitCount), Double(totalUnitCount)) / 1_000_000_000
 			let totalGB = Double(totalUnitCount) / 1_000_000_000
+			let exactCompletedGB = min(Double(completedUnitCount), Double(totalUnitCount)) / 1_000_000_000
+			let estimatedCompletedGB = min(max(totalGB * displayedProgress, 0), totalGB)
+			let completedGB = max(exactCompletedGB, estimatedCompletedGB)
 			return "\(formattedGB(completedGB))/\(formattedGB(totalGB)) GB"
 		}
 
 		let totalGB = downloadTotalGB
-		let completedGB = min(max(totalGB * runtime.progress, 0), totalGB)
+		let completedGB = min(max(totalGB * displayedProgress, 0), totalGB)
 		return "\(formattedGB(completedGB))/\(formattedGB(totalGB)) GB"
 	}
 
@@ -170,7 +177,11 @@ struct ModelDownloadView<Runtime: ModelDownloadRuntime>: View {
 	}
 
 	private func formattedGB(_ value: Double) -> String {
-		String(format: "%.1f", value)
+		if value < 1 {
+			return String(format: "%.2f", value)
+		}
+
+		return String(format: "%.1f", value)
 	}
 
 	private func startLoading() async {
@@ -180,7 +191,9 @@ struct ModelDownloadView<Runtime: ModelDownloadRuntime>: View {
 		#if canImport(UIKit)
 		UIImpactFeedbackGenerator(style: .medium).impactOccurred()
 		#endif
+		startEstimatedProgressIfNeeded()
 		await runtime.load(model)
+		stopEstimatedProgress()
 		finishProgress(success: runtime.isReady(for: model))
 
 		if !isCancelled && !Task.isCancelled && runtime.isReady(for: model) {
@@ -195,6 +208,7 @@ struct ModelDownloadView<Runtime: ModelDownloadRuntime>: View {
 		isCancelled = true
 		loadingTask?.cancel()
 		loadingTask = nil
+		stopEstimatedProgress()
 		displayedProgress = 0.02
 		lastLoadingHapticProgress = 0
 		#if canImport(UIKit)
@@ -212,6 +226,31 @@ struct ModelDownloadView<Runtime: ModelDownloadRuntime>: View {
 		}
 
 		playLoadingHapticIfNeeded(for: clampedProgress)
+	}
+
+	private func startEstimatedProgressIfNeeded() {
+		guard estimatedProgressTask == nil else { return }
+
+		estimatedProgressTask = Task { @MainActor in
+			while !Task.isCancelled {
+				try? await Task.sleep(for: .milliseconds(350))
+				guard !Task.isCancelled, runtime.errorMessage == nil, !runtime.isReady(for: model) else { break }
+
+				let targetProgress = min(displayedProgress + estimatedProgressStep, 0.92)
+				guard targetProgress > displayedProgress else { continue }
+				updateDisplayedProgress(with: targetProgress)
+			}
+		}
+	}
+
+	private func stopEstimatedProgress() {
+		estimatedProgressTask?.cancel()
+		estimatedProgressTask = nil
+	}
+
+	private var estimatedProgressStep: Double {
+		let totalGB = max(downloadTotalGB, 0.2)
+		return min(max(0.006 / totalGB, 0.003), 0.018)
 	}
 
 	private func playLoadingHapticIfNeeded(for progress: Double) {

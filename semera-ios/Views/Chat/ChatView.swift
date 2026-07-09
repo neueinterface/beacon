@@ -14,12 +14,14 @@ struct ChatView: View {
 	@AppStorage("selectedModelID") private var selectedModelID = ""
 	@AppStorage("downloadedModelIDs") private var downloadedModelIDs = ""
 	@AppStorage("notificationsEnabled") private var notificationsEnabled = false
+	@AppStorage("webSearchEnabled") private var webSearchEnabled = false
 	@State private var inputText = ""
 	@State private var isWebSearchTagged = false
 	@State private var isShowingHistory = false
 	@State private var isShowingModelMarketplace = false
 	@State private var isShowingModelSwitcher = false
 	@State private var isShowingSettings = false
+	@State private var isShowingAppIconPicker = false
 	@State private var shouldOpenMarketplaceAfterModelSwitcherDismisses = false
 	@State private var pendingScrollMessageID: ChatMessage.ID?
 	@State private var responseTask: Task<Void, Never>?
@@ -47,7 +49,7 @@ struct ChatView: View {
 	}
 
 	private var isWebSearchUnavailable: Bool {
-		isBackendUnavailable || isWebSearchDisabledByBackend || backendStatus?.allowsWebSearch == false || searchQuota?.isExhausted == true
+		!webSearchEnabled || isBackendUnavailable || isWebSearchDisabledByBackend || backendStatus?.allowsWebSearch == false || searchQuota?.isExhausted == true
 	}
 
 	private var isAssistantBusy: Bool {
@@ -55,6 +57,14 @@ struct ChatView: View {
 	}
 
 	private var webSearchUnavailableTitle: String {
+		if !webSearchEnabled {
+			return "Web search is off"
+		}
+
+		if let searchQuota, searchQuota.isExhausted {
+			return "Resets at \(searchQuota.resetAt.formatted(date: .omitted, time: .shortened))"
+		}
+
 		if isBackendUnavailable || backendStatus?.ok == false {
 			return "Backend unavailable"
 		}
@@ -64,6 +74,11 @@ struct ChatView: View {
 		}
 
 		return "Daily limit reached"
+	}
+
+	private var webSearchPillTitle: String {
+		guard let searchQuota, !searchQuota.isExhausted else { return "Search Web" }
+		return "Search Web (\(searchQuota.remaining) left)"
 	}
 
 	var body: some View {
@@ -132,7 +147,12 @@ struct ChatView: View {
 			.presentationDragIndicator(.visible)
 		}
 		.sheet(isPresented: $isShowingSettings) {
-			SettingsView(chatHistoryViewModel: historyViewModel)
+			SettingsView(chatHistoryViewModel: historyViewModel, models: models, onDownloadModel: onDownloadModel)
+		}
+		.sheet(isPresented: $isShowingAppIconPicker) {
+			NavigationStack {
+				AppIconPickerView()
+			}
 		}
 		#if os(macOS)
 		.sheet(isPresented: $isShowingModelMarketplace) {
@@ -166,6 +186,7 @@ struct ChatView: View {
 			await ensureSelectedModelLoaded()
 		}
 		.task {
+			guard webSearchEnabled else { return }
 			await refreshBackendStatus()
 			await refreshSearchQuota()
 		}
@@ -174,6 +195,7 @@ struct ChatView: View {
 			case .active:
 				Task {
 					await ensureSelectedModelLoaded()
+					guard webSearchEnabled else { return }
 					await refreshBackendStatus()
 					await refreshSearchQuota()
 				}
@@ -189,6 +211,23 @@ struct ChatView: View {
 		.onChange(of: notificationRouter.chatIDToOpen) { _, chatID in
 			guard let chatID else { return }
 			openChatFromNotification(chatID)
+		}
+		.onChange(of: notificationRouter.quickActionToOpen) { _, action in
+			guard let action else { return }
+			handleQuickAction(action)
+		}
+		.onChange(of: webSearchEnabled) { _, isEnabled in
+			if !isEnabled {
+				withAnimation(.smooth(duration: 0.2)) {
+					isWebSearchTagged = false
+				}
+				return
+			}
+
+			Task {
+				await refreshBackendStatus()
+				await refreshSearchQuota()
+			}
 		}
 	}
 
@@ -340,7 +379,7 @@ struct ChatView: View {
 	#endif
 
 	private var inputBar: some View {
-		Input(text: $inputText, isWebSearchTagged: $isWebSearchTagged, isGenerating: isAssistantBusy, isWebSearchUnavailable: isWebSearchUnavailable, webSearchUnavailableTitle: webSearchUnavailableTitle) {
+		Input(text: $inputText, isWebSearchTagged: $isWebSearchTagged, placeholder: "Message", isGenerating: isAssistantBusy, isWebSearchEnabled: webSearchEnabled, webSearchTitle: webSearchPillTitle, isWebSearchUnavailable: isWebSearchUnavailable, webSearchUnavailableTitle: webSearchUnavailableTitle) {
 			stopGenerating()
 		} onSend: { text in
 			send(text)
@@ -444,6 +483,8 @@ struct ChatView: View {
 		if lowercased.hasPrefix("/noweb ") {
 			return String(trimmed.dropFirst(7)).trimmingCharacters(in: .whitespacesAndNewlines)
 		}
+
+		guard webSearchEnabled else { return text }
 
 		guard let query = webSearchQuery(for: text, forceWebSearch: forceWebSearch) else { return text }
 		guard !query.isEmpty else { return "Ask the user what they want to search for." }
@@ -565,6 +606,8 @@ struct ChatView: View {
 	}
 
 	private func refreshSearchQuota() async {
+		guard webSearchEnabled else { return }
+
 		do {
 			let quota = try await webSearchService.quota(chatID: historyViewModel.currentChatID)
 			isWebSearchDisabledByBackend = false
@@ -577,6 +620,8 @@ struct ChatView: View {
 	}
 
 	private func refreshBackendStatus() async {
+		guard webSearchEnabled else { return }
+
 		guard let status = try? await backendStatusService.status() else { return }
 		withAnimation(.smooth(duration: 0.2)) {
 			backendStatus = status
@@ -668,6 +713,31 @@ struct ChatView: View {
 		pendingScrollMessageID = historyViewModel.lastUserMessageID(in: chat) ?? historyViewModel.firstMessageID(in: chat)
 		UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [chatReminderNotificationID(for: chatID)])
 		notificationRouter.consumeChatOpenRequest()
+	}
+
+	private func handleQuickAction(_ action: HomeScreenQuickAction) {
+		dismissKeyboard()
+
+		switch action {
+		case .newChat:
+			isShowingHistory = false
+			isShowingSettings = false
+			isShowingAppIconPicker = false
+			isShowingModelMarketplace = false
+			historyViewModel.startNewChat()
+		case .changeAppIcon:
+			isShowingHistory = false
+			isShowingSettings = false
+			isShowingModelMarketplace = false
+			isShowingAppIconPicker = true
+		case .seeModels:
+			isShowingHistory = false
+			isShowingSettings = false
+			isShowingAppIconPicker = false
+			isShowingModelMarketplace = true
+		}
+
+		notificationRouter.consumeQuickActionRequest()
 	}
 
 	private func scheduleSearchResetNotification(at resetAt: Date) {

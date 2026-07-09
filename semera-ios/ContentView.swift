@@ -72,15 +72,25 @@ struct ContentView: View {
 	}
 
 	private func refreshBackendStatusAndRemoteModels() async {
-		guard let status = try? await BackendStatusService().status() else { return }
+		guard let status = try? await BackendStatusService().status() else {
+			await loadRemoteModels()
+			return
+		}
+
 		backendStatus = status
-		guard status.allowsRemoteModels else { return }
+		guard status.allowsRemoteModels else {
+			await loadRemoteModels()
+			return
+		}
+
 		await loadRemoteModels()
 	}
 
 	private func loadRemoteModels() async {
 		guard let remoteModels = try? await ModelCatalogService().fetchModels(), !remoteModels.isEmpty else { return }
-		models = remoteModels
+		let remoteIDs = Set(remoteModels.map(\.id))
+		let localBuiltIns = ModelCatalog.availableModels.filter { $0.isBuiltIn && !remoteIDs.contains($0.id) }
+		models = localBuiltIns + remoteModels
 	}
 
 	private func recordDownloaded(_ model: BeaconModel) {
@@ -99,6 +109,17 @@ struct ContentView: View {
 		if model.isBuiltIn {
 			select(model)
 		} else {
+			switch ModelStorageLimit.downloadAvailability(for: model, downloadedModelIDs: downloadedModelIDs, in: models) {
+			case .available:
+				break
+			case .appStorageFull:
+				downloadAlert = .failed(model.name, "Delete a downloaded model to free up Semera's 10 GB model storage limit.")
+				return
+			case let .deviceStorageLow(requiredGB, availableGB):
+				downloadAlert = .failed(model.name, "This model needs about \(ModelStorageLimit.formattedGB(requiredGB)) free. You have \(ModelStorageLimit.formattedGB(availableGB)) available.")
+				return
+			}
+
 			downloadingModel = model
 		}
 	}

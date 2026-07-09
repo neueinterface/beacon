@@ -12,19 +12,44 @@ private struct AppearanceStyleUpdater: UIViewRepresentable {
 	let scheme: AppearanceColorScheme
 
 	func makeUIView(context: Context) -> UIView {
-		UIView(frame: .zero)
+		let view = UIView(frame: .zero)
+		Self.applyStyle(scheme.userInterfaceStyle, to: view)
+		return view
 	}
 
 	func updateUIView(_ uiView: UIView, context: Context) {
-		let style = scheme.userInterfaceStyle
+		Self.applyStyle(scheme.userInterfaceStyle, to: uiView)
+	}
 
-		DispatchQueue.main.async {
-			guard let windowScene = uiView.window?.windowScene ?? UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first else { return }
+	/// Sets `overrideUserInterfaceStyle` on every window in every connected scene.
+	/// Applies synchronously when windows are already available, and falls back to
+	/// the next run loop for the `makeUIView` case where the view isn't in the
+	/// hierarchy yet.
+	private static func applyStyle(_ style: UIUserInterfaceStyle, to view: UIView) {
+		let windows = resolvedWindows(for: view)
 
-			for window in windowScene.windows {
-				window.overrideUserInterfaceStyle = style
+		guard !windows.isEmpty else {
+			DispatchQueue.main.async { [weak view] in
+				guard let view else { return }
+				for window in resolvedWindows(for: view) {
+					window.overrideUserInterfaceStyle = style
+				}
 			}
+			return
 		}
+
+		for window in windows {
+			window.overrideUserInterfaceStyle = style
+		}
+	}
+
+	/// Returns every window across all connected scenes so that style changes
+	/// reach sheet windows (which live in their own `UIWindow` on iOS 26+) as
+	/// well as the main window.
+	private static func resolvedWindows(for view: UIView) -> [UIWindow] {
+		UIApplication.shared.connectedScenes
+			.compactMap { $0 as? UIWindowScene }
+			.flatMap { $0.windows }
 	}
 }
 
