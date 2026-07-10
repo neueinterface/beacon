@@ -12,6 +12,8 @@ struct Input: View {
 	@Binding private var isWebSearchTagged: Bool
 	var placeholder: String = "Message"
 	var isGenerating = false
+	var isWebSearchEnabled = true
+	var webSearchTitle = "Search Web"
 	var isWebSearchUnavailable = false
 	var webSearchUnavailableTitle = "Daily limit reached"
 	var onStop: () -> Void = {}
@@ -27,6 +29,8 @@ struct Input: View {
 		isWebSearchTagged: Binding<Bool> = .constant(false),
 		placeholder: String = "Message",
 		isGenerating: Bool = false,
+		isWebSearchEnabled: Bool = true,
+		webSearchTitle: String = "Search Web",
 		isWebSearchUnavailable: Bool = false,
 		webSearchUnavailableTitle: String = "Daily limit reached",
 		onStop: @escaping () -> Void = {},
@@ -36,6 +40,8 @@ struct Input: View {
 		self._isWebSearchTagged = isWebSearchTagged
 		self.placeholder = placeholder
 		self.isGenerating = isGenerating
+		self.isWebSearchEnabled = isWebSearchEnabled
+		self.webSearchTitle = webSearchTitle
 		self.isWebSearchUnavailable = isWebSearchUnavailable
 		self.webSearchUnavailableTitle = webSearchUnavailableTitle
 		self.onStop = onStop
@@ -47,7 +53,7 @@ struct Input: View {
 	}
 
 	private var showsWebSuggestion: Bool {
-		!isWebSearchTagged && text.contains("@")
+		isWebSearchEnabled && !isWebSearchTagged && text.contains("@")
 	}
 
 	private var cornerRadius: CGFloat {
@@ -61,7 +67,7 @@ struct Input: View {
 		VStack(alignment: .leading, spacing: 8) {
 			if showsWebSuggestion {
 				Pill(
-					title: isWebSearchUnavailable ? webSearchUnavailableTitle : "Search Web",
+					title: isWebSearchUnavailable ? webSearchUnavailableTitle : webSearchTitle,
 					size: .regular,
 					image: "globe.icon"
 				) {
@@ -96,9 +102,9 @@ struct Input: View {
 	}
 
 	private var inputCapsule: some View {
-		VStack(alignment: .leading, spacing: isWebSearchTagged ? 10 : 0) {
-			if isWebSearchTagged {
-				Pill(title: isWebSearchUnavailable ? webSearchUnavailableTitle : "Search Web", size: .regular, image: "globe.icon", trailingSystemImage: "xmark") {
+		VStack(alignment: .leading, spacing: isWebSearchEnabled && isWebSearchTagged ? 10 : 0) {
+			if isWebSearchEnabled && isWebSearchTagged {
+				Pill(title: isWebSearchUnavailable ? webSearchUnavailableTitle : webSearchTitle, size: .regular, image: "globe.icon", trailingSystemImage: "xmark") {
 					withAnimation(.smooth(duration: 0.18)) {
 						isWebSearchTagged = false
 					}

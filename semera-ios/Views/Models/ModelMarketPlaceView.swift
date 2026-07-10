@@ -18,13 +18,24 @@ struct ModelMarketPlaceView: View {
 	@StateObject private var safariViewModel = SafariViewModel()
 	@State private var deletingModelID: String?
 	@State private var deleteErrorMessage: String?
+	@State private var selectedDeleteWarningModelName: String?
 	@State private var switchedModelName: String?
 	@State private var modelSwitchToastTask: Task<Void, Never>?
+	@State private var selectedCompany = ModelCompanyFilter.all
+
+	private var companyFilters: [String] {
+		[ModelCompanyFilter.all] + Array(Set(models.map(\.company))).sorted()
+	}
+
+	private var filteredModels: [BeaconModel] {
+		guard selectedCompany != ModelCompanyFilter.all else { return models }
+		return models.filter { $0.company == selectedCompany }
+	}
 
 	var body: some View {
 		NavigationStack {
 			ScrollView {
-				VStack(alignment: .leading, spacing: 40) {
+				VStack(alignment: .leading, spacing: 28) {
 					Text("Download, delete and learn more about the local models you use.")
 						.font(.system(size: 16, weight: .regular))
 						.foregroundStyle(.secondary)
@@ -39,38 +50,32 @@ struct ModelMarketPlaceView: View {
 							.background(Color.red.opacity(0.08), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
 					}
 
-					VStack(alignment: .leading, spacing: 0) {
-						ForEach(Array(models.enumerated()), id: \.element.id) { index, model in
-							ModelMarketPlaceRow(
-								model: model,
-								isDownloaded: isDownloaded(model),
-								isSelected: selectedModelID == model.id,
-								isDeleting: deletingModelID == model.id,
-								onDownload: {
-									onDownload(model)
-								},
-								onSelect: {
-									selectedModelID = model.id
-									onSelect(model)
-									showModelSwitchToast(for: model.name)
-								},
-								onDelete: {
-									delete(model)
-								},
-								onOpenLink: {
-									safariViewModel.open(model.huggingFaceURL)
-								}
-							)
-
-							if index < models.count - 1 {
-								Divider()
-									.padding(.vertical, 20)
+					ModelCompanyFilterTabs(
+						companies: companyFilters,
+						selection: $selectedCompany
+					) {
+						ModelMarketPlaceList(
+							models: filteredModels,
+							allModels: models,
+							downloadedModelIDs: downloadedModelIDs,
+							selectedModelID: selectedModelID,
+							deletingModelID: deletingModelID,
+							isDownloaded: isDownloaded,
+							onDownload: onDownload,
+							onSelect: { model in
+								selectedModelID = model.id
+								onSelect(model)
+								showModelSwitchToast(for: model.name)
+							},
+							onDelete: delete,
+							onOpenLink: { model in
+								safariViewModel.open(model.huggingFaceURL)
 							}
-						}
+						)
 					}
 				}
 				.padding(.horizontal, 20)
-				.padding(.bottom, 60)
+				.padding(.bottom, 96)
 			}
 			.scrollEdgeEffectStyle(.soft, for: .top)
 			.navigationTitle("Model Marketplace")
@@ -102,9 +107,25 @@ struct ModelMarketPlaceView: View {
 			SafariView(url: page.url)
 				.ignoresSafeArea()
 		}
+		.alert("Switch models first", isPresented: selectedDeleteWarningBinding) {
+			Button("OK") { }
+		} message: {
+			Text("\(selectedDeleteWarningModelName ?? "This model") is currently active. Choose another downloaded model before deleting it.")
+		}
 		.onDisappear {
 			modelSwitchToastTask?.cancel()
 		}
+	}
+
+	private var selectedDeleteWarningBinding: Binding<Bool> {
+		Binding(
+			get: { selectedDeleteWarningModelName != nil },
+			set: { isPresented in
+				if !isPresented {
+					selectedDeleteWarningModelName = nil
+				}
+			}
+		)
 	}
 
 	private var closeButton: some View {
@@ -128,6 +149,10 @@ struct ModelMarketPlaceView: View {
 
 	private func delete(_ model: BeaconModel) {
 		guard !model.isBuiltIn else { return }
+		guard selectedModelID != model.id else {
+			selectedDeleteWarningModelName = model.name
+			return
+		}
 
 		deleteErrorMessage = nil
 		deletingModelID = model.id
@@ -205,11 +230,99 @@ struct ModelMarketPlaceView: View {
 	}
 }
 
+private enum ModelCompanyFilter {
+	static let all = "All"
+}
+
+private struct ModelCompanyFilterTabs<Content: View>: View {
+	let companies: [String]
+	@Binding var selection: String
+	@ViewBuilder var content: () -> Content
+
+	var body: some View {
+		Tabs(options: companies, selection: $selection, size: .small) { _ in
+			content()
+		}
+	}
+}
+
+private struct ModelMarketPlaceList: View {
+	let models: [BeaconModel]
+	let allModels: [BeaconModel]
+	let downloadedModelIDs: String
+	let selectedModelID: String
+	let deletingModelID: String?
+	var isDownloaded: (BeaconModel) -> Bool
+	var onDownload: (BeaconModel) -> Void
+	var onSelect: (BeaconModel) -> Void
+	var onDelete: (BeaconModel) -> Void
+	var onOpenLink: (BeaconModel) -> Void
+
+	var body: some View {
+		VStack(alignment: .leading, spacing: 0) {
+			ForEach(Array(models.enumerated()), id: \.element.id) { index, model in
+				let downloadAvailability = ModelStorageLimit.downloadAvailability(for: model, downloadedModelIDs: downloadedModelIDs, in: allModels)
+
+				ModelMarketPlaceRow(
+					model: model,
+					isDownloaded: isDownloaded(model),
+					isSelected: selectedModelID == model.id,
+					isDeleting: deletingModelID == model.id,
+					downloadAvailability: downloadAvailability,
+					onDownload: {
+						onDownload(model)
+					},
+					onSelect: {
+						onSelect(model)
+					},
+					onDelete: {
+						onDelete(model)
+					},
+					onOpenLink: {
+						onOpenLink(model)
+					}
+				)
+
+				if index < models.count - 1 {
+					Divider()
+						.padding(.vertical, 20)
+				}
+			}
+		}
+	}
+}
+
+private extension BeaconModel {
+	var company: String {
+		let searchableText = "\(name) \(repositoryID)".lowercased()
+
+		if searchableText.contains("deepseek") { return "DeepSeek" }
+		if searchableText.contains("apple") { return "Apple" }
+		if searchableText.contains("openelm") { return "Apple" }
+		if searchableText.contains("qwen") { return "Alibaba" }
+		if searchableText.contains("lfm") || searchableText.contains("liquid") { return "Liquid AI" }
+		if searchableText.contains("llama") { return "Meta" }
+		if searchableText.contains("gemma") { return "Google" }
+		if searchableText.contains("phi") { return "Microsoft" }
+		if searchableText.contains("mistral") || searchableText.contains("ministral") { return "Mistral AI" }
+		if searchableText.contains("granite") { return "IBM" }
+		if searchableText.contains("stablelm") { return "Stability AI" }
+		if searchableText.contains("smollm") { return "Hugging Face" }
+		if searchableText.contains("olmo") { return "Allen Institute" }
+		if searchableText.contains("yi-") { return "01.AI" }
+		if searchableText.contains("glm") { return "Zhipu" }
+		if searchableText.contains("minicpm") { return "OpenBMB" }
+
+		return repositoryID.split(separator: "/").first.map(String.init) ?? "Other"
+	}
+}
+
 private struct ModelMarketPlaceRow: View {
 	let model: BeaconModel
 	let isDownloaded: Bool
 	let isSelected: Bool
 	let isDeleting: Bool
+	let downloadAvailability: ModelStorageLimit.DownloadAvailability
 	var showsDownloadInProgress = false
 	var onDownload: () -> Void
 	var onSelect: () -> Void
@@ -223,6 +336,7 @@ private struct ModelMarketPlaceRow: View {
 		isDownloaded: Bool,
 		isSelected: Bool,
 		isDeleting: Bool,
+		downloadAvailability: ModelStorageLimit.DownloadAvailability = .available,
 		showsDownloadInProgress: Bool = false,
 		onDownload: @escaping () -> Void,
 		onSelect: @escaping () -> Void = { },
@@ -233,6 +347,7 @@ private struct ModelMarketPlaceRow: View {
 		self.isDownloaded = isDownloaded
 		self.isSelected = isSelected
 		self.isDeleting = isDeleting
+		self.downloadAvailability = downloadAvailability
 		self.showsDownloadInProgress = showsDownloadInProgress
 		self.onDownload = onDownload
 		self.onSelect = onSelect
@@ -262,6 +377,16 @@ private struct ModelMarketPlaceRow: View {
 				} else {
 					Tag(title: "chat", color: .gray)
 				}
+
+				if deviceCompatibility.showsTag {
+					Tag(title: deviceCompatibility.tagTitle, color: deviceCompatibility.tint)
+				}
+			}
+
+			if let compatibilityMessage = deviceCompatibility.message {
+				Label(compatibilityMessage, systemImage: deviceCompatibility.systemImage)
+					.font(.system(size: 13, weight: .regular))
+					.foregroundStyle(deviceCompatibility.tint)
 			}
 
 			VStack(alignment: .leading, spacing: 14) {
@@ -270,12 +395,12 @@ private struct ModelMarketPlaceRow: View {
 						if model.isBuiltIn {
 							DownloadedModelButton(title: "Built in")
 						} else {
-							BeaconButton(isDeleting ? "Deleting" : "Delete", variant: .destructive, size: .small, trailingAssetIcon: "trash.icon", isDisabled: isSelected, isLoading: isDeleting) {
+							BeaconButton(isDeleting ? "Deleting" : "Delete", variant: .destructive, size: .small, trailingAssetIcon: "trash.icon", isLoading: isDeleting) {
 								onDelete()
 							}
 						}
 					} else {
-						BeaconButton("Download", variant: .secondary, size: .small, trailingAssetIcon: "download.icon", isLoading: isDownloading) {
+						BeaconButton(downloadButtonTitle, variant: .secondary, size: .small, trailingAssetIcon: "download.icon", isDisabled: !downloadAvailability.canDownload, isLoading: isDownloading) {
 							isDownloading = true
 							onDownload()
 						}
@@ -298,12 +423,13 @@ private struct ModelMarketPlaceRow: View {
 							}
 						}
 
-						if isSelected && !model.isBuiltIn {
-							Text("Switch to another model before deleting this one.")
-								.font(.system(size: 14, weight: .regular))
-								.foregroundStyle(.secondary)
-						}
 					}
+				}
+
+				if !isDownloaded, let unavailableMessage = downloadUnavailableMessage {
+					Text(unavailableMessage)
+						.font(.system(size: 14, weight: .regular))
+						.foregroundStyle(.secondary)
 				}
 			}
 		}
@@ -319,6 +445,149 @@ private struct ModelMarketPlaceRow: View {
 		}
 
 		return "\(trimmedDescription). \(recommendation)"
+	}
+
+	private var downloadButtonTitle: String {
+		switch downloadAvailability {
+		case .available:
+			"Download"
+		case .appStorageFull:
+			"Storage Full"
+		case .deviceStorageLow:
+			"Not Enough Space"
+		}
+	}
+
+	private var downloadUnavailableMessage: String? {
+		switch downloadAvailability {
+		case .available:
+			nil
+		case .appStorageFull:
+			"Delete a downloaded model to free up Semera's 10 GB model storage limit."
+		case let .deviceStorageLow(requiredGB, availableGB):
+			"Requires about \(ModelStorageLimit.formattedGB(requiredGB)) free. You have \(ModelStorageLimit.formattedGB(availableGB)) available."
+		}
+	}
+
+	private var deviceCompatibility: ModelDeviceCompatibility {
+		ModelDeviceCompatibility(recommendedDevice: model.recommendedDevice)
+	}
+}
+
+private struct ModelDeviceCompatibility {
+	let recommendedDevice: String
+
+	var showsTag: Bool {
+		status != .compatible
+	}
+
+	var tagTitle: String {
+		switch status {
+		case .compatible:
+			"compatible"
+		case .belowRecommended:
+			"may run slowly"
+		case .likelyIncompatible:
+			"high-end"
+		}
+	}
+
+	var message: String? {
+		switch status {
+		case .compatible:
+			nil
+		case .belowRecommended:
+			"Optimized for \(recommendedDevice) - may run slowly on this device."
+		case .likelyIncompatible:
+			"Requires \(recommendedDevice) for best results."
+		}
+	}
+
+	var tint: Color {
+		switch status {
+		case .compatible:
+			.green
+		case .belowRecommended:
+			.orange
+		case .likelyIncompatible:
+			.gray
+		}
+	}
+
+	var systemImage: String {
+		switch status {
+		case .compatible:
+			"checkmark.circle.fill"
+		case .belowRecommended:
+			"exclamationmark.triangle.fill"
+		case .likelyIncompatible:
+			"iphone.slash"
+		}
+	}
+
+	private var status: Status {
+		let recommendedTier = DeviceTier(recommendedDevice: recommendedDevice)
+		let currentTier = DeviceTier.current
+		if currentTier.rawValue >= recommendedTier.rawValue { return .compatible }
+		if recommendedTier.rawValue - currentTier.rawValue <= 1 { return .belowRecommended }
+		return .likelyIncompatible
+	}
+
+	private enum Status {
+		case compatible
+		case belowRecommended
+		case likelyIncompatible
+	}
+}
+
+private enum DeviceTier: Int {
+	case appleIntelligence = 0
+	case iPhone13 = 1
+	case iPhone14 = 2
+	case iPhone14Pro = 3
+	case iPhone15Pro = 4
+	case iPhone16Pro = 5
+
+	init(recommendedDevice: String) {
+		if recommendedDevice.contains("16 Pro") {
+			self = .iPhone16Pro
+		} else if recommendedDevice.contains("15 Pro") || recommendedDevice.contains("15 Pro Max") {
+			self = .iPhone15Pro
+		} else if recommendedDevice.contains("14 Pro") {
+			self = .iPhone14Pro
+		} else if recommendedDevice.contains("14") {
+			self = .iPhone14
+		} else if recommendedDevice.contains("13") {
+			self = .iPhone13
+		} else {
+			self = .appleIntelligence
+		}
+	}
+
+	static var current: DeviceTier {
+		#if targetEnvironment(simulator)
+		return .iPhone16Pro
+		#else
+		#if canImport(UIKit)
+		let identifier = currentDeviceIdentifier
+		if identifier.hasPrefix("iPhone17,") { return .iPhone16Pro }
+		if identifier == "iPhone16,1" || identifier == "iPhone16,2" { return .iPhone15Pro }
+		if identifier == "iPhone15,2" || identifier == "iPhone15,3" { return .iPhone14Pro }
+		if identifier.hasPrefix("iPhone15,") { return .iPhone14 }
+		if identifier.hasPrefix("iPhone14,") { return .iPhone13 }
+		#endif
+		return .iPhone13
+		#endif
+	}
+
+	private static var currentDeviceIdentifier: String {
+		var systemInfo = utsname()
+		uname(&systemInfo)
+		let mirror = Mirror(reflecting: systemInfo.machine)
+		return mirror.children.reduce(into: "") { identifier, element in
+			guard let value = element.value as? Int8, value != 0 else { return }
+			identifier.append(Character(UnicodeScalar(UInt8(value))))
+		}
 	}
 }
 

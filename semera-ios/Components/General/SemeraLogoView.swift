@@ -7,174 +7,131 @@
 
 import SwiftUI
 
-/// Animated Semera logo composed of four capsule petals.
-/// Tapping triggers a subtle sequential scale-down-and-spring-back
-/// across each petal, accompanied by a light haptic impact.
 struct SemeraLogoView: View {
 	var size: CGFloat = 42
+	var playsShimmerOnAppear: Bool = false
 
-	@State private var scales: [CGFloat] = [1, 1, 1, 1]
 	@State private var isAnimating = false
-
-	/// Clockwise sweep order: top-left → top-right → bottom-right → bottom-left.
-	private let animationOrder = [2, 3, 1, 0]
+	@State private var isShimmering = false
+	@State private var shimmerOffset = 0.0
+	@State private var logoScale = 1.0
 
 	var body: some View {
 		ZStack {
-			ForEach(0..<4, id: \.self) { i in
-				PetalShape(sourcePath: SemeraLogoPaths.petals[i])
-					.fill(.primary)
-					.scaleEffect(scales[i], anchor: .center)
+			Image("semera.logo")
+				.renderingMode(.template)
+				.resizable()
+				.scaledToFit()
+				.foregroundStyle(.primary)
+
+			if isShimmering {
+				LogoShimmerMask(offset: shimmerOffset)
+					.transition(.opacity)
 			}
 		}
 		.frame(width: size, height: size)
+		.scaleEffect(logoScale)
 		.contentShape(Rectangle())
 		.onTapGesture {
-			guard !isAnimating else { return }
-			animate()
+			animateShimmer()
+		}
+		.onAppear {
+			if playsShimmerOnAppear {
+				DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+					animateShimmer()
+				}
+			}
 		}
 		.accessibilityLabel("Semera logo")
 	}
 
-	private func animate() {
+	/// Plays a left-to-right rainbow shimmer sweep across the logo.
+	/// The gradient starts off-screen to the left, sweeps through the rainbow
+	/// (indigo → purple → pink → orange → yellow), and exits to the right.
+	private func animateShimmer() {
+		guard !isAnimating else { return }
+
 		isAnimating = true
 
-		let stagger: Double = 0.06
-		let retractDuration: Double = 0.22
-		let restoreDuration: Double = 0.30
-
 		#if canImport(UIKit)
-		let haptic = UIImpactFeedbackGenerator(style: .light)
-		haptic.prepare()
+		UIImpactFeedbackGenerator(style: .light).impactOccurred(intensity: 0.45)
 		#endif
 
-		for (step, petalIndex) in animationOrder.enumerated() {
-			let retractDelay = Double(step) * stagger
-			let restoreDelay = retractDelay + retractDuration
+		// Scale bounce
+		withAnimation(.spring(response: 0.24, dampingFraction: 0.52)) {
+			logoScale = 1.12
+		}
 
-			DispatchQueue.main.asyncAfter(deadline: .now() + retractDelay) {
-				#if canImport(UIKit)
-				haptic.impactOccurred(intensity: 0.35)
-				#endif
-				withAnimation(.easeInOut(duration: retractDuration)) {
-					scales[petalIndex] = 0.88
-				}
-			}
-			DispatchQueue.main.asyncAfter(deadline: .now() + restoreDelay) {
-				withAnimation(.spring(duration: restoreDuration, bounce: 0.25)) {
-					scales[petalIndex] = 1.0
-				}
+		DispatchQueue.main.asyncAfter(deadline: .now() + 0.14) {
+			withAnimation(.spring(response: 0.32, dampingFraction: 0.64)) {
+				logoScale = 1.0
 			}
 		}
 
-		let total = Double(animationOrder.count - 1) * stagger + retractDuration + restoreDuration
-		DispatchQueue.main.asyncAfter(deadline: .now() + total + 0.05) {
+		// Place gradient off-screen to the left, then reveal the shimmer layer
+		shimmerOffset = -3
+		isShimmering = true
+
+		// Animate the sweep on the next run loop so SwiftUI registers the
+		// offset change as an animated transition (not a jump)
+		DispatchQueue.main.async {
+			withAnimation(.linear(duration: 0.42)) {
+				shimmerOffset = 0
+			}
+		}
+
+		// Fade out the shimmer layer after the sweep completes
+		DispatchQueue.main.asyncAfter(deadline: .now() + 0.42) {
+			withAnimation(.smooth(duration: 0.08)) {
+				isShimmering = false
+			}
+		}
+
+		DispatchQueue.main.asyncAfter(deadline: .now() + 0.52) {
 			isAnimating = false
 		}
 	}
 }
 
-// MARK: - Petal Shape
+// MARK: - Shimmer Layer
 
-private struct PetalShape: Shape {
-	let sourcePath: Path
+private struct LogoShimmerMask: View {
+	let offset: Double
 
-	func path(in rect: CGRect) -> Path {
-		let scale = min(rect.width, rect.height) / 94
-		return sourcePath.applying(CGAffineTransform(scaleX: scale, y: scale))
+	var body: some View {
+		GeometryReader { proxy in
+			LinearGradient(
+				colors: [
+					Color.primary.opacity(0.25),
+					Color.primary.opacity(0.25),
+					Color.indigo,
+					Color.purple,
+					Color.pink,
+					Color.orange,
+					Color.yellow,
+					Color.primary.opacity(0.25),
+					Color.primary.opacity(0.25)
+				],
+				startPoint: .leading,
+				endPoint: .trailing
+			)
+			.frame(width: proxy.size.width * 4, height: proxy.size.height)
+			.offset(x: proxy.size.width * offset)
+		}
+		.mask {
+			Image("semera.logo")
+				.renderingMode(.template)
+				.resizable()
+				.scaledToFit()
+		}
+		.allowsHitTesting(false)
 	}
-}
-
-// MARK: - SVG Path Data (viewBox 0 0 94 94)
-
-private enum SemeraLogoPaths {
-	static let petals: [Path] = [petal0, petal1, petal2, petal3]
-
-	/// Bottom-left petal.
-	private static let petal0: Path = {
-		var p = Path()
-		p.move(to: CGPoint(x: 2.83665, y: 51.3792))
-		p.addCurve(to: CGPoint(x: 33.7155, y: 60.2845),
-		           control1: CGPoint(x: 8.90448, y: 45.3114),
-		           control2: CGPoint(x: 22.7294, y: 49.2984))
-		p.addCurve(to: CGPoint(x: 42.6209, y: 91.1634),
-		           control1: CGPoint(x: 44.7016, y: 71.2706),
-		           control2: CGPoint(x: 48.6887, y: 85.0956))
-		p.addCurve(to: CGPoint(x: 11.7419, y: 82.258),
-		           control1: CGPoint(x: 36.5531, y: 97.2312),
-		           control2: CGPoint(x: 22.728, y: 93.2441))
-		p.addCurve(to: CGPoint(x: 2.83665, y: 51.3792),
-		           control1: CGPoint(x: 0.755792, y: 71.2719),
-		           control2: CGPoint(x: -3.23116, y: 57.447))
-		p.closeSubpath()
-		return p
-	}()
-
-	/// Bottom-right petal.
-	private static let petal1: Path = {
-		var p = Path()
-		p.move(to: CGPoint(x: 60.2845, y: 60.2845))
-		p.addCurve(to: CGPoint(x: 91.1634, y: 51.3792),
-		           control1: CGPoint(x: 71.2707, y: 49.2984),
-		           control2: CGPoint(x: 85.0956, y: 45.3113))
-		p.addCurve(to: CGPoint(x: 82.258, y: 82.258),
-		           control1: CGPoint(x: 97.2312, y: 57.447),
-		           control2: CGPoint(x: 93.2441, y: 71.2719))
-		p.addCurve(to: CGPoint(x: 51.3792, y: 91.1634),
-		           control1: CGPoint(x: 71.2719, y: 93.2441),
-		           control2: CGPoint(x: 57.447, y: 97.2312))
-		p.addCurve(to: CGPoint(x: 60.2845, y: 60.2845),
-		           control1: CGPoint(x: 45.3113, y: 85.0956),
-		           control2: CGPoint(x: 49.2984, y: 71.2707))
-		p.closeSubpath()
-		return p
-	}()
-
-	/// Top-left petal.
-	private static let petal2: Path = {
-		var p = Path()
-		p.move(to: CGPoint(x: 11.7419, y: 11.7419))
-		p.addCurve(to: CGPoint(x: 42.6209, y: 2.83665),
-		           control1: CGPoint(x: 22.728, y: 0.75577),
-		           control2: CGPoint(x: 36.5531, y: -3.23116))
-		p.addCurve(to: CGPoint(x: 33.7155, y: 33.7155),
-		           control1: CGPoint(x: 48.6886, y: 8.9045),
-		           control2: CGPoint(x: 44.7016, y: 22.7294))
-		p.addCurve(to: CGPoint(x: 2.83665, y: 42.6209),
-		           control1: CGPoint(x: 22.7294, y: 44.7016),
-		           control2: CGPoint(x: 8.9045, y: 48.6886))
-		p.addCurve(to: CGPoint(x: 11.7419, y: 11.7419),
-		           control1: CGPoint(x: -3.23116, y: 36.5531),
-		           control2: CGPoint(x: 0.75577, y: 22.728))
-		p.closeSubpath()
-		return p
-	}()
-
-	/// Top-right petal.
-	private static let petal3: Path = {
-		var p = Path()
-		p.move(to: CGPoint(x: 51.3792, y: 2.83665))
-		p.addCurve(to: CGPoint(x: 82.258, y: 11.7419),
-		           control1: CGPoint(x: 57.447, y: -3.23116),
-		           control2: CGPoint(x: 71.2719, y: 0.755792))
-		p.addCurve(to: CGPoint(x: 91.1634, y: 42.6209),
-		           control1: CGPoint(x: 93.2441, y: 22.728),
-		           control2: CGPoint(x: 97.2312, y: 36.5531))
-		p.addCurve(to: CGPoint(x: 60.2845, y: 33.7155),
-		           control1: CGPoint(x: 85.0956, y: 48.6887),
-		           control2: CGPoint(x: 71.2706, y: 44.7016))
-		p.addCurve(to: CGPoint(x: 51.3792, y: 2.83665),
-		           control1: CGPoint(x: 49.2984, y: 22.7294),
-		           control2: CGPoint(x: 45.3114, y: 8.90448))
-		p.closeSubpath()
-		return p
-	}()
 }
 
 #Preview {
 	VStack(spacing: 40) {
 		SemeraLogoView(size: 42)
-		SemeraLogoView(size: 80)
+		SemeraLogoView(size: 80, playsShimmerOnAppear: true)
 	}
 	.padding()
 }

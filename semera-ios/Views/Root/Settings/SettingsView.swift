@@ -1,4 +1,6 @@
+
 import SwiftUI
+import StoreKit
 import UserNotifications
 #if canImport(UIKit)
 import UIKit
@@ -6,10 +8,17 @@ import UIKit
 
 struct SettingsView: View {
 	@ObservedObject var chatHistoryViewModel: ChatHistoryViewModel
+	var models = ModelCatalog.availableModels
+	var onDownloadModel: (BeaconModel) -> Void = { _ in }
 	@Environment(\.dismiss) private var dismiss
 	@Environment(\.openURL) private var openURL
+	@AppStorage("downloadedModelIDs") private var downloadedModelIDs = ""
 	@AppStorage("notificationsEnabled") private var notificationsEnabled = false
+	@AppStorage("webSearchEnabled") private var webSearchEnabled = false
+	@AppStorage("hasSeenWebSearchInfo") private var hasSeenWebSearchInfo = false
 	@State private var isConfirmingDeleteAllChats = false
+	@State private var isShowingWebSearchInfo = false
+	@State private var isShowingModelBrowser = false
 	@StateObject private var safariViewModel = SafariViewModel()
 
 	private var appVersion: String {
@@ -55,6 +64,10 @@ struct SettingsView: View {
 		#endif
 	}
 
+	private var downloadedStorageGB: Decimal {
+		ModelStorageLimit.downloadedSizeGB(downloadedModelIDs: downloadedModelIDs, in: models)
+	}
+
 	var body: some View {
 		NavigationStack {
 			ScrollView {
@@ -73,13 +86,16 @@ struct SettingsView: View {
 						SettingsToggleRow(title: "Notifications", icon: "bell.icon", isOn: notificationsBinding)
 						SettingsListDivider()
 
+						SettingsToggleRow(title: "Web Search", icon: "globe.icon", subtitle: "Daily search limits apply", isOn: webSearchBinding)
+						SettingsListDivider()
+
 						SettingsButtonRow(title: "Report a bug", icon: "bug.icon") {
 							openURL(bugReportURL)
 						}
 						SettingsListDivider()
 
 						SettingsButtonRow(title: "Leave a review in the App Store", icon: "review.icon") {
-							openURL(URL(string: "https://semera.co")!)
+							requestAppReview()
 						}
 						SettingsListDivider()
 
@@ -101,6 +117,28 @@ struct SettingsView: View {
 
 					VStack(alignment: .leading, spacing: 16) {
 						SettingsSectionTitle("Chat")
+
+						ModelStorageUsagePill(usedGB: downloadedStorageGB, maxGB: ModelStorageLimit.maxGB)
+
+						Button {
+							isShowingModelBrowser = true
+						} label: {
+							HStack(spacing: 12) {
+								Text("Model Browser")
+									.font(.system(size: 16, weight: .medium))
+									.foregroundStyle(.primary)
+
+								Spacer(minLength: 12)
+
+								Image(systemName: "chevron.right")
+									.font(.system(size: 14, weight: .semibold))
+									.foregroundStyle(.secondary)
+							}
+							.padding(.horizontal, 18)
+							.frame(height: 54)
+							.background(Color(uiColor: .secondarySystemGroupedBackground), in: Capsule())
+						}
+						.buttonStyle(.plain)
 
 						Button {
 							isConfirmingDeleteAllChats = true
@@ -153,8 +191,26 @@ struct SettingsView: View {
 			} message: {
 				Text("Are you sure you want to delete all saved chats? This cannot be undone.")
 			}
+			.alert("Web Search", isPresented: $isShowingWebSearchInfo) {
+				Button("Continue") { }
+			} message: {
+				Text("Web Search can send your search query to Semera to retrieve current results. Daily search limits apply.")
+			}
 			.sheet(item: $safariViewModel.page) { page in
 				SafariView(url: page.url)
+			}
+			.fullScreenCover(isPresented: $isShowingModelBrowser) {
+				ModelMarketPlaceView(
+					models: models,
+					onClose: {
+						isShowingModelBrowser = false
+					},
+					onDownload: { model in
+						isShowingModelBrowser = false
+						dismiss()
+						onDownloadModel(model)
+					}
+				)
 			}
 		}
 	}
@@ -185,12 +241,82 @@ struct SettingsView: View {
 		)
 	}
 
+	private var webSearchBinding: Binding<Bool> {
+		Binding(
+			get: { webSearchEnabled },
+			set: { isEnabled in
+				webSearchEnabled = isEnabled
+				if isEnabled && !hasSeenWebSearchInfo {
+					hasSeenWebSearchInfo = true
+					isShowingWebSearchInfo = true
+				}
+			}
+		)
+	}
+
 	private func requestNotificationPermission() {
 		UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { granted, _ in
 			Task { @MainActor in
 				notificationsEnabled = granted
 			}
 		}
+	}
+
+	private func requestAppReview() {
+		#if canImport(UIKit)
+		guard let scene = UIApplication.shared.connectedScenes
+			.first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene else { return }
+
+		SKStoreReviewController.requestReview(in: scene)
+		#endif
+	}
+}
+
+private struct ModelStorageUsagePill: View {
+	let usedGB: Decimal
+	let maxGB: Decimal
+
+	private var progress: Double {
+		let used = NSDecimalNumber(decimal: usedGB).doubleValue
+		let maxValue = NSDecimalNumber(decimal: maxGB).doubleValue
+		guard maxValue > 0 else { return 0 }
+		return min(max(used / maxValue, 0), 1)
+	}
+
+	var body: some View {
+		VStack(alignment: .leading, spacing: 12) {
+			HStack(alignment: .firstTextBaseline) {
+				VStack(alignment: .leading, spacing: 4) {
+					Text("Model Storage")
+						.font(.system(size: 16, weight: .semibold))
+						.foregroundStyle(.primary)
+
+					Text("Downloads are capped to protect device storage.")
+						.font(.system(size: 13, weight: .regular))
+						.foregroundStyle(.secondary)
+				}
+
+				Spacer(minLength: 12)
+
+				Text("\(ModelStorageLimit.formattedGB(usedGB)) / \(ModelStorageLimit.formattedGB(maxGB))")
+					.font(.system(size: 14, weight: .semibold))
+					.foregroundStyle(Color(uiColor: .systemBlue))
+			}
+
+			GeometryReader { proxy in
+				ZStack(alignment: .leading) {
+					Capsule()
+						.fill(Color(uiColor: .systemGray5))
+
+					Capsule()
+						.fill(Color(uiColor: .systemBlue))
+						.frame(width: proxy.size.width * progress)
+				}
+			}
+			.frame(height: 8)
+		}
+		.padding(16)
+		.background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
 	}
 }
 

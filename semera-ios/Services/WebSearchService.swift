@@ -83,6 +83,42 @@ struct RemoteModel: Decodable {
 	let isAvailableDuringOnboarding: Bool
 	let isBuiltIn: Bool
 	let huggingFaceUrl: URL?
+
+	private enum CodingKeys: String, CodingKey {
+		case id
+		case name
+		case description
+		case repositoryId
+		case repositoryID
+		case repository_id
+		case sizeInGb
+		case sizeInGB
+		case size_in_gb
+		case type
+		case recommendedDevice
+		case recommended_device
+		case isAvailableDuringOnboarding
+		case is_available_during_onboarding
+		case isBuiltIn
+		case is_built_in
+		case huggingFaceUrl
+		case huggingFaceURL
+		case hugging_face_url
+	}
+
+	init(from decoder: Decoder) throws {
+		let container = try decoder.container(keyedBy: CodingKeys.self)
+		id = try container.decode(String.self, forKey: .id)
+		name = try container.decode(String.self, forKey: .name)
+		description = try container.decode(String.self, forKey: .description)
+		repositoryId = try container.decodeFirst(String.self, for: [.repositoryId, .repositoryID, .repository_id])
+		sizeInGb = try container.decodeFirstDecimal(for: [.sizeInGb, .sizeInGB, .size_in_gb])
+		type = (try? container.decode(String.self, forKey: .type)) ?? "regular"
+		recommendedDevice = (try? container.decodeFirst(String.self, for: [.recommendedDevice, .recommended_device])) ?? "iPhone 15 Pro+"
+		isAvailableDuringOnboarding = (try? container.decodeFirst(Bool.self, for: [.isAvailableDuringOnboarding, .is_available_during_onboarding])) ?? false
+		isBuiltIn = (try? container.decodeFirst(Bool.self, for: [.isBuiltIn, .is_built_in])) ?? false
+		huggingFaceUrl = try? container.decodeFirst(URL.self, for: [.huggingFaceUrl, .huggingFaceURL, .hugging_face_url])
+	}
 }
 
 final class ModelCatalogService {
@@ -104,8 +140,47 @@ final class ModelCatalogService {
 			throw URLError(.badServerResponse)
 		}
 
-		let catalog = try JSONDecoder().decode(RemoteModelCatalogResponse.self, from: data)
-		return catalog.models.map(\.beaconModel)
+		if let catalog = try? JSONDecoder().decode(RemoteModelCatalogResponse.self, from: data) {
+			return catalog.models.map(\.beaconModel)
+		}
+
+		return try JSONDecoder().decode([RemoteModel].self, from: data).map(\.beaconModel)
+	}
+}
+
+private extension KeyedDecodingContainer {
+	func decodeFirst<T: Decodable>(_ type: T.Type, for keys: [Key]) throws -> T {
+		for key in keys {
+			if let value = try? decode(T.self, forKey: key) {
+				return value
+			}
+		}
+
+		throw DecodingError.keyNotFound(
+			keys[0],
+			DecodingError.Context(codingPath: codingPath, debugDescription: "None of the expected keys were found: \(keys.map(\.stringValue).joined(separator: ", "))")
+		)
+	}
+
+	func decodeFirstDecimal(for keys: [Key]) throws -> Decimal {
+		for key in keys {
+			if let value = try? decode(Decimal.self, forKey: key) {
+				return value
+			}
+
+			if let value = try? decode(Double.self, forKey: key) {
+				return Decimal(value)
+			}
+
+			if let value = try? decode(String.self, forKey: key), let decimal = Decimal(string: value) {
+				return decimal
+			}
+		}
+
+		throw DecodingError.keyNotFound(
+			keys[0],
+			DecodingError.Context(codingPath: codingPath, debugDescription: "None of the expected decimal keys were found: \(keys.map(\.stringValue).joined(separator: ", "))")
+		)
 	}
 }
 
@@ -163,6 +238,8 @@ struct WebSearchService {
 		case unauthorized
 		case backendDisabled(String?)
 		case webSearchDisabled
+		case searchProviderUnavailable
+		case rateLimited(String?)
 		case requestFailed(Int, String?)
 		case dailyLimitExceeded(SearchQuota)
 
@@ -176,6 +253,10 @@ struct WebSearchService {
 				"Remote features are temporarily unavailable."
 			case .webSearchDisabled:
 				"Web search is temporarily unavailable."
+			case .searchProviderUnavailable:
+				"Web search provider is temporarily unavailable. Try again later."
+			case let .rateLimited(message):
+				message ?? "Web search is briefly rate limited. Please slow down and try again."
 			case let .requestFailed(statusCode, message):
 				message ?? "Web search failed with status code \(statusCode)."
 			case let .dailyLimitExceeded(quota):
@@ -224,7 +305,7 @@ struct WebSearchService {
 		try validateSearchResponse(data: data, response: httpResponse)
 
 		let searchResponse = try decoder.decode(SearchResponse.self, from: data)
-		return WebSearchResponse(results: searchResponse.results, quota: searchResponse.quota)
+		return WebSearchResponse(results: searchResponse.results, quota: searchResponse.quota ?? quota(from: httpResponse))
 	}
 
 	func quota(chatID: ChatConversation.ID?) async throws -> SearchQuota {
@@ -271,8 +352,16 @@ struct WebSearchService {
 			throw WebSearchError.unauthorized
 		}
 
-		if response.statusCode == 429, let quota = limitExceededQuota(from: data, response: response) {
+		if [429, 507].contains(response.statusCode), let quota = limitExceededQuota(from: data, response: response) {
 			throw WebSearchError.dailyLimitExceeded(quota)
+		}
+
+		if response.statusCode == 429 {
+			throw WebSearchError.rateLimited(backendError?.message)
+		}
+
+		if response.statusCode == 502, backendError?.code.hasPrefix("search_provider_") == true {
+			throw WebSearchError.searchProviderUnavailable
 		}
 
 		if response.statusCode == 503 {
@@ -291,7 +380,7 @@ struct WebSearchService {
 
 	private func limitExceededQuota(from data: Data, response: HTTPURLResponse) -> SearchQuota? {
 		let backendError = try? decoder.decode(BackendErrorResponse.self, from: data).error
-		guard backendError?.code == "daily_search_limit_exceeded" else { return nil }
+		guard backendError?.code == "daily_search_limit_exceeded" || backendError?.code == "search_daily_limit_exceeded" else { return nil }
 
 		if let quota = try? decoder.decode(SearchQuota.self, from: data) {
 			return quota
@@ -303,9 +392,19 @@ struct WebSearchService {
 
 		let resetAt = response.searchQuotaResetAt ?? Date().addingTimeInterval(24 * 60 * 60)
 		return SearchQuota(
-			limit: response.searchQuotaLimit ?? 5,
+			limit: response.searchQuotaLimit ?? 0,
 			remaining: response.searchQuotaRemaining ?? 0,
 			resetAt: resetAt
+		)
+	}
+
+	private func quota(from response: HTTPURLResponse) -> SearchQuota? {
+		guard let remaining = response.searchQuotaRemaining else { return nil }
+
+		return SearchQuota(
+			limit: response.searchQuotaLimit ?? max(remaining, 0),
+			remaining: remaining,
+			resetAt: response.searchQuotaResetAt ?? Date().addingTimeInterval(24 * 60 * 60)
 		)
 	}
 }

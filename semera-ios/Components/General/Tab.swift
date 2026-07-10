@@ -7,9 +7,78 @@
 
 import SwiftUI
 
-struct BeaconTabs<Selection: Hashable, Content: View>: View {
+struct Tabs<Selection: Hashable, Content: View>: View {
+	enum Size {
+		case regular
+		case small
+
+		var font: Font {
+			switch self {
+			case .regular:
+				.system(size: 17, weight: .medium)
+			case .small:
+				.system(size: 13, weight: .semibold)
+			}
+		}
+
+		var horizontalPadding: CGFloat {
+			switch self {
+			case .regular:
+				22
+			case .small:
+				14
+			}
+		}
+
+		var verticalPadding: CGFloat {
+			switch self {
+			case .regular:
+				16
+			case .small:
+				9
+			}
+		}
+
+		var spacing: CGFloat {
+			switch self {
+			case .regular:
+				16
+			case .small:
+				8
+			}
+		}
+
+		var contentSpacing: CGFloat {
+			switch self {
+			case .regular:
+				18
+			case .small:
+				14
+			}
+		}
+
+		var animation: Animation {
+			switch self {
+			case .regular:
+				.smooth(duration: 0.14)
+			case .small:
+				.easeOut(duration: 0.08)
+			}
+		}
+
+		var contentTransition: AnyTransition {
+			switch self {
+			case .regular:
+				.opacity.combined(with: .move(edge: .bottom))
+			case .small:
+				.identity
+			}
+		}
+	}
+
 	let options: [Selection]
 	@Binding var selection: Selection
+	var size: Size = .regular
 	var title: (Selection) -> String
 	@ViewBuilder var content: (Selection) -> Content
 
@@ -18,19 +87,21 @@ struct BeaconTabs<Selection: Hashable, Content: View>: View {
 	init(
 		options: [Selection],
 		selection: Binding<Selection>,
+		size: Size = .regular,
 		title: @escaping (Selection) -> String,
 		@ViewBuilder content: @escaping (Selection) -> Content
 	) {
 		self.options = options
 		self._selection = selection
+		self.size = size
 		self.title = title
 		self.content = content
 	}
 
 	var body: some View {
-		VStack(alignment: .leading, spacing: 18) {
+		VStack(alignment: .leading, spacing: size.contentSpacing) {
 			ScrollView(.horizontal) {
-				HStack(spacing: 16) {
+				HStack(spacing: size.spacing) {
 					ForEach(options, id: \.self) { option in
 						tabButton(for: option)
 					}
@@ -38,13 +109,12 @@ struct BeaconTabs<Selection: Hashable, Content: View>: View {
 				.fixedSize(horizontal: true, vertical: false)
 			}
 			.scrollIndicators(.hidden)
-			.scrollClipDisabled()
 			.frame(maxWidth: .infinity, alignment: .leading)
 
 			content(selection)
 				.frame(maxWidth: .infinity, alignment: .leading)
 				.id(selection)
-				.transition(.opacity.combined(with: .move(edge: .bottom)))
+				.transition(size.contentTransition)
 		}
 	}
 
@@ -52,20 +122,21 @@ struct BeaconTabs<Selection: Hashable, Content: View>: View {
 		let isSelected = selection == option
 
 		return Button {
-			withAnimation(.smooth(duration: 0.24)) {
+			withAnimation(size.animation) {
 				selection = option
 			}
 		} label: {
 			Text(title(option))
-				.font(.system(size: 17, weight: .medium))
-				.foregroundStyle(.primary)
-				.padding(.horizontal, 22)
-				.padding(.vertical, 16)
+				.font(size.font)
+				.foregroundStyle(foregroundStyle(isSelected: isSelected))
+				.padding(.horizontal, size.horizontalPadding)
+				.padding(.vertical, size.verticalPadding)
 				.background {
 					if isSelected {
 						Capsule(style: .continuous)
-							.fill(Color(uiColor: .systemGray6))
+							.fill(selectedBackground)
 							.matchedGeometryEffect(id: "selected-tab", in: selectionNamespace)
+							.shadow(color: selectedShadowColor, radius: 10, y: 4)
 					}
 				}
 				.contentShape(Capsule(style: .continuous))
@@ -73,17 +144,42 @@ struct BeaconTabs<Selection: Hashable, Content: View>: View {
 		.buttonStyle(.plain)
 		.accessibilityAddTraits(isSelected ? .isSelected : [])
 	}
+
+	private var selectedBackground: Color {
+		switch size {
+		case .regular:
+			Color(uiColor: .systemGray6)
+		case .small:
+			Color(uiColor: .systemGray6)
+		}
+	}
+
+	private var selectedShadowColor: Color {
+		switch size {
+		case .regular:
+			.clear
+		case .small:
+			.clear
+		}
+	}
+
+	private func foregroundStyle(isSelected: Bool) -> Color {
+		guard size == .small else { return .primary }
+		return isSelected ? .primary : .secondary
+	}
 }
 
-extension BeaconTabs where Selection == String {
+extension Tabs where Selection == String {
 	init(
 		options: [String],
 		selection: Binding<String>,
+		size: Size = .regular,
 		@ViewBuilder content: @escaping (String) -> Content
 	) {
 		self.init(
 			options: options,
 			selection: selection,
+			size: size,
 			title: { $0 },
 			content: content
 		)
@@ -93,7 +189,7 @@ extension BeaconTabs where Selection == String {
 #Preview {
 	@Previewable @State var selection = "Option 2"
 
-	BeaconTabs(
+	Tabs(
 		options: ["Option", "Option 2", "Option 3", "Option 4"],
 		selection: $selection
 	) { option in
