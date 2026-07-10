@@ -55,13 +55,14 @@ struct SettingsButtonRow: View {
 struct SettingsToggleRow: View {
 	let title: String
 	let icon: String
+	var subtitle: String? = nil
 	@Binding var isOn: Bool
 
 	var body: some View {
-		SettingsRowLabel(title: title, icon: icon) {
+		SettingsRowLabel(title: title, icon: icon, subtitle: subtitle) {
 			Toggle("", isOn: $isOn)
 				.labelsHidden()
-				.tint(Color(uiColor: .systemGreen))
+				.tint(Color(uiColor: .systemBlue))
 		}
 	}
 }
@@ -87,16 +88,18 @@ private struct SettingsChevron: View {
 private struct SettingsRowLabel<Trailing: View>: View {
 	let title: String
 	let icon: String
+	var subtitle: String? = nil
 	let trailing: Trailing
 
-	init(title: String, icon: String, @ViewBuilder trailing: () -> Trailing) {
+	init(title: String, icon: String, subtitle: String? = nil, @ViewBuilder trailing: () -> Trailing) {
 		self.title = title
 		self.icon = icon
+		self.subtitle = subtitle
 		self.trailing = trailing()
 	}
 
 	var body: some View {
-		HStack(spacing: 14) {
+		HStack(alignment: .center, spacing: 14) {
 			Image(icon)
 				.renderingMode(.template)
 				.resizable()
@@ -104,16 +107,25 @@ private struct SettingsRowLabel<Trailing: View>: View {
 				.foregroundStyle(.primary)
 				.frame(width: 22, height: 22)
 
-			Text(title)
-				.font(.system(size: 16, weight: .medium))
-				.foregroundStyle(.primary)
+			VStack(alignment: .leading, spacing: 2) {
+				Text(title)
+					.font(.system(size: 16, weight: .medium))
+					.foregroundStyle(.primary)
+
+				if let subtitle {
+					Text(subtitle)
+						.font(.system(size: 13, weight: .regular))
+						.foregroundStyle(.secondary)
+						.lineSpacing(2)
+				}
+			}
 
 			Spacer(minLength: 12)
 
 			trailing
 		}
 		.padding(.horizontal, 18)
-		.frame(height: 48)
+		.frame(minHeight: 48)
 		.contentShape(Rectangle())
 	}
 }

@@ -62,6 +62,9 @@ struct AppIconPickerView: View {
 
 		guard selectedIconName != option.alternateIconName else { return }
 
+		#if targetEnvironment(simulator)
+		errorMessage = "Alternate app icons can't be changed in the iOS Simulator. Build and run on a real device to test icon switching."
+		#else
 		UIApplication.shared.setAlternateIconName(option.alternateIconName) { error in
 			Task { @MainActor in
 				if let error {
@@ -73,6 +76,7 @@ struct AppIconPickerView: View {
 				}
 			}
 		}
+		#endif
 		#else
 		errorMessage = "Alternate app icons are only available on iOS."
 		#endif
@@ -125,13 +129,17 @@ private struct AppIconOption: Identifiable, CaseIterable {
 	var id: String { alternateIconName ?? "AppIcon" }
 
 	static let allCases: [AppIconOption] = [
-		AppIconOption(title: "Default", assetName: "icon", alternateIconName: nil),
-		AppIconOption(title: "Icon 2", assetName: "icon2", alternateIconName: "icon2"),
-		AppIconOption(title: "Icon 3", assetName: "icon3", alternateIconName: "icon3"),
-		AppIconOption(title: "Icon 4", assetName: "icon4", alternateIconName: "icon4"),
-		AppIconOption(title: "Icon 5", assetName: "icon5", alternateIconName: "icon5"),
-        AppIconOption(title: "Icon 6", assetName: "icon6", alternateIconName: "icon6"),
-        AppIconOption(title: "Icon 7", assetName: "icon7", alternateIconName: "icon7")
+		AppIconOption(title: "Default", assetName: "AppIcons/icon", alternateIconName: nil),
+		AppIconOption(title: "Icon 2", assetName: "AppIcons/icon2", alternateIconName: "icon2"),
+		AppIconOption(title: "Icon 3", assetName: "AppIcons/icon3", alternateIconName: "icon3"),
+		AppIconOption(title: "Icon 4", assetName: "AppIcons/icon4", alternateIconName: "icon4"),
+		AppIconOption(title: "Icon 5", assetName: "AppIcons/icon5", alternateIconName: "icon5"),
+		AppIconOption(title: "Icon 6", assetName: "AppIcons/icon6", alternateIconName: "icon6"),
+		AppIconOption(title: "Icon 7", assetName: "AppIcons/icon7", alternateIconName: "icon7"),
+		AppIconOption(title: "Icon 8", assetName: "AppIcons/icon8", alternateIconName: "icon8"),
+		AppIconOption(title: "Icon 9", assetName: "AppIcons/icon9", alternateIconName: "icon9"),
+		AppIconOption(title: "Icon 10", assetName: "AppIcons/icon10", alternateIconName: "icon10"),
+		AppIconOption(title: "Icon 11", assetName: "AppIcons/icon11", alternateIconName: "icon11")
 	]
 }
 

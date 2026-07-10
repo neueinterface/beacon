@@ -197,18 +197,25 @@ final class BeaconModelRuntime: ModelDownloadRuntime {
 		guard !observedProgresses.contains(where: { $0 === downloadProgress }) else { return }
 		observedProgresses.append(downloadProgress)
 
-		let observation = downloadProgress.observe(\.fractionCompleted, options: [.new]) { [weak self] progress, _ in
+		let fractionObservation = downloadProgress.observe(\.fractionCompleted, options: [.new]) { [weak self] progress, _ in
 			Task { @MainActor in
 				self?.updateProgress(from: progress)
 			}
 		}
-		progressObservations.append(observation)
+		let completedObservation = downloadProgress.observe(\.completedUnitCount, options: [.new]) { [weak self] progress, _ in
+			Task { @MainActor in
+				self?.updateProgress(from: progress)
+			}
+		}
+		let totalObservation = downloadProgress.observe(\.totalUnitCount, options: [.new]) { [weak self] progress, _ in
+			Task { @MainActor in
+				self?.updateProgress(from: progress)
+			}
+		}
+		progressObservations.append(contentsOf: [fractionObservation, completedObservation, totalObservation])
 	}
 
 	private func updateProgress(from downloadProgress: Progress) {
-		let fractionCompleted = downloadProgress.fractionCompleted
-		guard fractionCompleted.isFinite else { return }
-
 		if downloadProgress.completedUnitCount >= 0 {
 			completedUnitCount = downloadProgress.completedUnitCount
 		}
@@ -217,6 +224,14 @@ final class BeaconModelRuntime: ModelDownloadRuntime {
 			totalUnitCount = downloadProgress.totalUnitCount
 		}
 
+		let fractionCompleted: Double
+		if downloadProgress.totalUnitCount > 0, downloadProgress.completedUnitCount >= 0 {
+			fractionCompleted = Double(downloadProgress.completedUnitCount) / Double(downloadProgress.totalUnitCount)
+		} else {
+			fractionCompleted = downloadProgress.fractionCompleted
+		}
+
+		guard fractionCompleted.isFinite else { return }
 		progress = min(max(0.02, fractionCompleted), 1)
 	}
 

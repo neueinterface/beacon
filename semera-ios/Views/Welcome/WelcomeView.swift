@@ -13,10 +13,10 @@ import UIKit
 struct WelcomeView: View {
 	@State private var isShowingFAQ = false
 	@State private var hasAppeared = false
-	@State private var logoAccentColor: Color?
-	@State private var logoColorIndex = 0
 	@State private var logoScale = 1.0
 	@State private var isAnimatingLogo = false
+	@State private var isLogoShimmering = false
+	@State private var logoShimmerOffset = -3.0
 
 	var onGetStarted: () -> Void = { }
 	var onReadFAQ: () -> Void = { }
@@ -48,29 +48,53 @@ struct WelcomeView: View {
 		}
 		.onAppear {
 			hasAppeared = true
+			playInitialLogoShimmer()
 		}
 	}
 
 
 	private var logo: some View {
-		Image("semera.logo")
-			.renderingMode(.template)
-			.resizable()
-			.scaledToFit()
-			.frame(width: 50, height: 50)
-			.foregroundStyle(logoAccentColor ?? .primary)
-			.scaleEffect(logoScale)
-			.contentShape(Rectangle())
-			.onTapGesture {
-				animateLogo()
+		ZStack {
+			Image("semera.logo")
+				.renderingMode(.template)
+				.resizable()
+				.scaledToFit()
+				.foregroundStyle(.primary)
+
+			if isLogoShimmering {
+				LogoShimmerMask(offset: logoShimmerOffset)
+					.transition(.opacity)
 			}
+		}
+		.frame(width: 50, height: 50)
+		.scaleEffect(logoScale)
+		.contentShape(Rectangle())
+		.onTapGesture {
+			animateLogo()
+		}
+	}
+
+	private func playInitialLogoShimmer() {
+		Task { @MainActor in
+			try? await Task.sleep(for: .seconds(0.58))
+			logoShimmerOffset = -3
+			isLogoShimmering = true
+
+			withAnimation(.linear(duration: 0.32)) {
+				logoShimmerOffset = 0
+			}
+
+			try? await Task.sleep(for: .seconds(0.32))
+			withAnimation(.smooth(duration: 0.08)) {
+				isLogoShimmering = false
+			}
+		}
 	}
 
 	private func animateLogo() {
 		guard !isAnimatingLogo else { return }
 
 		isAnimatingLogo = true
-		logoAccentColor = nextLogoColor()
 		playLogoHapticDance()
 
 		withAnimation(.spring(response: 0.24, dampingFraction: 0.52)) {
@@ -83,16 +107,22 @@ struct WelcomeView: View {
 			}
 		}
 
+		logoShimmerOffset = -3
+		isLogoShimmering = true
+
+		withAnimation(.linear(duration: 0.42)) {
+			logoShimmerOffset = 0
+		}
+
 		DispatchQueue.main.asyncAfter(deadline: .now() + 0.42) {
+			withAnimation(.smooth(duration: 0.08)) {
+				isLogoShimmering = false
+			}
+		}
+
+		DispatchQueue.main.asyncAfter(deadline: .now() + 0.52) {
 			isAnimatingLogo = false
 		}
-	}
-
-	private func nextLogoColor() -> Color {
-		let colors: [Color] = [.blue, .indigo, .purple, .pink, .red, .orange, .yellow, .green, .mint, .teal, .cyan]
-		let color = colors[logoColorIndex % colors.count]
-		logoColorIndex += 1
-		return color
 	}
 
 	private func playLogoHapticDance() {
@@ -155,6 +185,39 @@ struct WelcomeView: View {
 				isShowingFAQ = true
 			}
 		}
+	}
+}
+
+private struct LogoShimmerMask: View {
+	let offset: Double
+
+	var body: some View {
+		GeometryReader { proxy in
+			LinearGradient(
+				colors: [
+					Color.primary.opacity(0.25),
+					Color.primary.opacity(0.25),
+					Color.indigo,
+					Color.purple,
+					Color.pink,
+					Color.orange,
+					Color.yellow,
+					Color.primary.opacity(0.25),
+					Color.primary.opacity(0.25)
+				],
+				startPoint: .leading,
+				endPoint: .trailing
+			)
+			.frame(width: proxy.size.width * 4, height: proxy.size.height)
+			.offset(x: proxy.size.width * offset)
+		}
+		.mask {
+			Image("semera.logo")
+				.renderingMode(.template)
+				.resizable()
+				.scaledToFit()
+		}
+		.allowsHitTesting(false)
 	}
 }
 
