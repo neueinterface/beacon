@@ -2,7 +2,7 @@
 
 Semera is a local-first iOS assistant for chatting with private on-device AI models.
 
-It lets you choose curated local models, download and manage them, keep private chat history, and optionally use a lightweight Cloudflare-powered web search tool for current information.
+It lets you choose curated local models, download and manage them, and keep private chat history.
 
 ![Semera app screenshot](info.png)
 
@@ -15,10 +15,13 @@ It lets you choose curated local models, download and manage them, keep private 
 - Markdown assistant responses
 - Streaming responses with a stop button
 - Reasoning/thinking stream shown separately from the final answer
+<!-- Web search and source dropdowns are not currently available.
 - Optional web search through a Cloudflare Worker
 - Source dropdowns that open links in in-app Safari
+-->
 - Shortcuts/App Intents support for asking the selected model
 
+<!-- Web search is not currently available.
 ## Web Search
 
 Semera keeps model inference local by default. Web search is only used when a prompt needs current information.
@@ -32,12 +35,13 @@ Supported controls:
 The app calls a Cloudflare Worker at `/search`. The Worker owns the search provider API key. Provider keys should never be placed in the iOS app.
 
 For development, the app can send an `APP_API_KEY` authorization header to the Worker. That key is basic abuse protection only and should not be treated as a production secret because iOS app binaries can be inspected.
+-->
 
 ## Architecture
 
 - `BeaconModelRuntime` loads and streams local models
-- `WebSearchService` calls the Cloudflare Worker search endpoint
-- `SourceTag` renders source dropdowns for web-backed answers
+<!-- `WebSearchService` calls the Cloudflare Worker search endpoint
+- `SourceTag` renders source dropdowns for web-backed answers -->
 - `SafariView` opens source links inside the app
 - `RequestLLMIntent` exposes a Shortcuts action for asking the selected model
 
@@ -45,10 +49,12 @@ For development, the app can send an `APP_API_KEY` authorization header to the W
 
 Before App Store release:
 
+<!-- Web search release tasks are not currently applicable.
 - Remove any hardcoded development `APP_API_KEY`
 - Keep search provider API keys only in Cloudflare secrets
 - Add Cloudflare rate limits and query length limits
 - Consider App Attest, DeviceCheck, or account-based quotas if abuse becomes a concern
+-->
 
 ## Requirements
 

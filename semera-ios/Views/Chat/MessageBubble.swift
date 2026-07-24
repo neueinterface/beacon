@@ -9,10 +9,14 @@ import AppKit
 struct MessageBubble: View {
 	let text: String
 	var thinkingText = ""
+	#if false // Web search sources are not currently shown.
 	var sources: [Source] = []
+	#endif
 	let role: ChatMessage.Role
 	var isWaitingForResponse = false
+	#if false // Web search sources are not currently shown.
 	var onOpenSource: (URL) -> Void = { _ in }
+	#endif
 
 	var body: some View {
 		HStack {
@@ -61,17 +65,23 @@ struct MessageBubble: View {
 					.tint(.secondary, for: .inlineCodeBlock)
 			}
 
+			#if false // Web search sources are not currently shown.
 			if !isWaitingForResponse {
 				SourceTag(sources: sources, onOpen: onOpenSource)
 			}
+			#endif
 		}
 		.frame(maxWidth: .infinity, alignment: .leading)
 	}
 
+	#if false // Web search source cleanup is not currently needed.
 	private var displayText: String {
 		guard role == .assistant, !sources.isEmpty else { return text }
 		return text.removingRenderedSourceSection()
 	}
+	#else
+	private var displayText: String { text }
+	#endif
 
 	private var thinkingStatusText: String {
 		let lines = thinkingText

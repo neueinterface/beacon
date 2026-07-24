@@ -431,7 +431,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_APP_API_KEY = "OliverCodi1998!";
 				INFOPLIST_KEY_CFBundleDisplayName = Semera;
-				INFOPLIST_KEY_SEARCH_API_BASE_URL = "https://beacon-search.armondschneider.workers.dev";
+				/* INFOPLIST_KEY_SEARCH_API_BASE_URL = "https://beacon-search.armondschneider.workers.dev"; Web search is not currently available. */
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -481,7 +481,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_APP_API_KEY = "OliverCodi1998!";
 				INFOPLIST_KEY_CFBundleDisplayName = Semera;
-				INFOPLIST_KEY_SEARCH_API_BASE_URL = "https://beacon-search.armondschneider.workers.dev";
+				/* INFOPLIST_KEY_SEARCH_API_BASE_URL = "https://beacon-search.armondschneider.workers.dev"; Web search is not currently available. */
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;

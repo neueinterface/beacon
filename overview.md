@@ -102,11 +102,14 @@ Semera currently supports:
 - Apple Foundation Model support when available
 - A curated model catalog with regular and reasoning models
 - Thinking streams separated from final assistant answers
+<!-- Web search routing and source dropdowns are not currently available.
 - Automatic and explicit web search routing
 - Source dropdowns with in-app Safari links
+-->
 - Chat history persistence
 - Shortcuts/App Intents for asking the selected model
 
+<!-- Web search is not currently available.
 ## Web-Aware Assistance
 
 The app should decide carefully when to use web search.
@@ -114,6 +117,7 @@ The app should decide carefully when to use web search.
 Web search is appropriate for current events, prices, weather, sports scores, release dates, recent changes, source requests, and prompts where stale knowledge would likely hurt the answer. The user can force search with `/web` or opt out with `/noweb`.
 
 When the web is used, the answer should cite sources by number and show a source dropdown above the response. The source control should remain visually calm: anchored at the top of the answer, secondary in color, and revealed with a soft downward transition.
+-->
 
 ## Long-Term Direction
 

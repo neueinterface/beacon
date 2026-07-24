@@ -14,10 +14,14 @@ struct SettingsView: View {
 	@Environment(\.openURL) private var openURL
 	@AppStorage("downloadedModelIDs") private var downloadedModelIDs = ""
 	@AppStorage("notificationsEnabled") private var notificationsEnabled = false
+	#if false // Web search is not currently available.
 	@AppStorage("webSearchEnabled") private var webSearchEnabled = false
 	@AppStorage("hasSeenWebSearchInfo") private var hasSeenWebSearchInfo = false
+	#endif
 	@State private var isConfirmingDeleteAllChats = false
+	#if false // Web search is not currently available.
 	@State private var isShowingWebSearchInfo = false
+	#endif
 	@State private var isShowingModelBrowser = false
 	@StateObject private var safariViewModel = SafariViewModel()
 
@@ -86,8 +90,10 @@ struct SettingsView: View {
 						SettingsToggleRow(title: "Notifications", icon: "bell.icon", isOn: notificationsBinding)
 						SettingsListDivider()
 
+						#if false // Web search is not currently available.
 						SettingsToggleRow(title: "Web Search", icon: "globe.icon", subtitle: "Daily search limits apply", isOn: webSearchBinding)
 						SettingsListDivider()
+						#endif
 
 						SettingsButtonRow(title: "Report a bug", icon: "bug.icon") {
 							openURL(bugReportURL)
@@ -191,11 +197,13 @@ struct SettingsView: View {
 			} message: {
 				Text("Are you sure you want to delete all saved chats? This cannot be undone.")
 			}
+			#if false // Web search is not currently available.
 			.alert("Web Search", isPresented: $isShowingWebSearchInfo) {
 				Button("Continue") { }
 			} message: {
 				Text("Web Search can send your search query to Semera to retrieve current results. Daily search limits apply.")
 			}
+			#endif
 			.sheet(item: $safariViewModel.page) { page in
 				SafariView(url: page.url)
 			}
@@ -241,6 +249,7 @@ struct SettingsView: View {
 		)
 	}
 
+	#if false // Web search is not currently available.
 	private var webSearchBinding: Binding<Bool> {
 		Binding(
 			get: { webSearchEnabled },
@@ -253,6 +262,7 @@ struct SettingsView: View {
 			}
 		)
 	}
+	#endif
 
 	private func requestNotificationPermission() {
 		UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { granted, _ in

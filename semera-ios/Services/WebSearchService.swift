@@ -40,15 +40,17 @@ struct BackendStatus: Decodable, Equatable {
 		ok && features.backend && features.models
 	}
 
+	#if false // Web search is not currently available.
 	var allowsWebSearch: Bool {
 		ok && features.backend && features.webSearch
 	}
+	#endif
 }
 
 struct BackendFeatures: Decodable, Equatable {
 	let backend: Bool
 	let models: Bool
-	let webSearch: Bool
+	// The backend may return a webSearch flag, which the app intentionally ignores for now.
 }
 
 struct BackendStatusService {
@@ -220,6 +222,7 @@ private extension RemoteModel {
 	}
 }
 
+#if false // Web search transport is not currently available.
 struct WebSearchResult: Decodable, Hashable {
 	let title: String
 	let url: URL
@@ -495,7 +498,9 @@ private extension HTTPURLResponse {
 		return nil
 	}
 }
+#endif
 
+#if false // Web search device identification is not currently available.
 private struct SearchDeviceIDProvider {
 	private let service = "me.armond.semera-ios.search"
 	private let account = "device-id"
@@ -547,3 +552,4 @@ private struct SearchDeviceIDProvider {
 		SecItemAdd(addQuery as CFDictionary, nil)
 	}
 }
+#endif

@@ -152,7 +152,6 @@ private struct AppearanceChatPreview: View {
 
 				Input(
 					text: $previewText,
-					isWebSearchTagged: .constant(false),
 					placeholder: "Message"
 				) { _ in }
 				.allowsHitTesting(false)

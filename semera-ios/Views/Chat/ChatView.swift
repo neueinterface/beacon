@@ -14,9 +14,13 @@ struct ChatView: View {
 	@AppStorage("selectedModelID") private var selectedModelID = ""
 	@AppStorage("downloadedModelIDs") private var downloadedModelIDs = ""
 	@AppStorage("notificationsEnabled") private var notificationsEnabled = false
+	#if false // Web search is not currently available.
 	@AppStorage("webSearchEnabled") private var webSearchEnabled = false
+	#endif
 	@State private var inputText = ""
+	#if false // Web search is not currently available.
 	@State private var isWebSearchTagged = false
+	#endif
 	@State private var isShowingHistory = false
 	@State private var isShowingModelMarketplace = false
 	@State private var isShowingModelSwitcher = false
@@ -28,14 +32,20 @@ struct ChatView: View {
 	@State private var isPreparingResponse = false
 	@State private var switchedModelName: String?
 	@State private var modelSwitchToastTask: Task<Void, Never>?
+	#if false // Web search is not currently available.
 	@State private var backendStatus: BackendStatus?
 	@State private var searchQuota: SearchQuota?
 	@State private var isBackendUnavailable = false
 	@State private var isWebSearchDisabledByBackend = false
 	@State private var lastWebSearchStatus = ""
+	#endif
+	#if false // Web search source links are not currently available.
 	@StateObject private var safariViewModel = SafariViewModel()
+	#endif
+	#if false // Web search is not currently available.
 	private let backendStatusService = BackendStatusService()
 	private let webSearchService = WebSearchService()
+	#endif
 	private let responseHaptics = StreamingResponseHaptics()
 
 	private let screenSpring = Animation.spring(response: 0.46, dampingFraction: 0.86, blendDuration: 0.12)
@@ -48,6 +58,7 @@ struct ChatView: View {
 		models.filter(isDownloaded)
 	}
 
+	#if false // Web search is not currently available.
 	private var isWebSearchUnavailable: Bool {
 		!webSearchEnabled || isBackendUnavailable || isWebSearchDisabledByBackend || backendStatus?.allowsWebSearch == false || searchQuota?.isExhausted == true
 	}
@@ -80,6 +91,7 @@ struct ChatView: View {
 		guard let searchQuota, !searchQuota.isExhausted else { return "Search Web" }
 		return "Search Web (\(searchQuota.remaining) left)"
 	}
+	#endif
 
 	var body: some View {
 		GeometryReader { geometry in
@@ -179,12 +191,15 @@ struct ChatView: View {
 			)
 		}
 		#endif
+		#if false // Web search source links are not currently available.
 		.sheet(item: $safariViewModel.page) { page in
 			SafariView(url: page.url)
 		}
+		#endif
 		.task(id: selectedModelID) {
 			await ensureSelectedModelLoaded()
 		}
+		#if false // Web search is not currently available.
 		.task {
 			guard webSearchEnabled else { return }
 			await refreshBackendStatus()
@@ -229,6 +244,7 @@ struct ChatView: View {
 				await refreshSearchQuota()
 			}
 		}
+		#endif
 	}
 
 	private var chatContent: some View {
@@ -253,12 +269,8 @@ struct ChatView: View {
 											MessageBubble(
 												text: message.text,
 												thinkingText: message.thinkingText,
-												sources: message.sources,
-														role: message.role,
-														isWaitingForResponse: isAssistantBusy && message == historyViewModel.currentMessages.last,
-												onOpenSource: { url in
-													safariViewModel.open(url)
-												}
+												role: message.role,
+												isWaitingForResponse: isAssistantBusy && message == historyViewModel.currentMessages.last
 											)
 											.id(message.id)
 										}
@@ -379,7 +391,7 @@ struct ChatView: View {
 	#endif
 
 	private var inputBar: some View {
-		Input(text: $inputText, isWebSearchTagged: $isWebSearchTagged, placeholder: "Message", isGenerating: isAssistantBusy, isWebSearchEnabled: webSearchEnabled, webSearchTitle: webSearchPillTitle, isWebSearchUnavailable: isWebSearchUnavailable, webSearchUnavailableTitle: webSearchUnavailableTitle) {
+		Input(text: $inputText, placeholder: "Message", isGenerating: isAssistantBusy) {
 			stopGenerating()
 		} onSend: { text in
 			send(text)
@@ -410,9 +422,7 @@ struct ChatView: View {
 		#if canImport(UIKit)
 		UIImpactFeedbackGenerator(style: .medium).impactOccurred()
 		#endif
-		let usesTaggedWebSearch = isWebSearchTagged || text.localizedCaseInsensitiveContains("@web")
-		let displayText = text.removingWebTagTrigger()
-		isWebSearchTagged = false
+		let displayText = text
 
 		let responseID = historyViewModel.appendUserMessage(displayText, modelName: selectedModel.name)
 		scheduleChatReminder(for: displayText)
@@ -422,7 +432,7 @@ struct ChatView: View {
 		responseTask = Task {
 			do {
 				await ensureSelectedModelLoaded()
-				let prompt = try await promptWithWebResultsIfNeeded(for: displayText, forceWebSearch: usesTaggedWebSearch, responseID: responseID)
+				let prompt = displayText
 
 				isPreparingResponse = false
 				try await runtime.streamResponse(to: prompt, onThinking: { chunk in
@@ -471,6 +481,7 @@ struct ChatView: View {
 		}
 	}
 
+	#if false // Web search is not currently available.
 	private func promptWithWebResultsIfNeeded(for text: String, forceWebSearch: Bool = false, responseID: ChatMessage.ID) async throws -> String {
 		let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
 		let lowercased = trimmed.lowercased()
@@ -666,10 +677,13 @@ struct ChatView: View {
 			UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [searchResetNotificationID])
 		}
 	}
+	#endif
 
+	#if false // Web search quota notifications are not currently available.
 	private var searchResetNotificationID: String {
 		"web-search-quota-reset"
 	}
+	#endif
 
 	private func chatReminderNotificationID(for chatID: ChatConversation.ID) -> String {
 		"chat-reminder-\(chatID.uuidString)"
@@ -740,6 +754,7 @@ struct ChatView: View {
 		notificationRouter.consumeQuickActionRequest()
 	}
 
+	#if false // Web search is not currently available.
 	private func scheduleSearchResetNotification(at resetAt: Date) {
 		guard resetAt > Date() else { return }
 		guard notificationsEnabled else { return }
@@ -760,6 +775,7 @@ struct ChatView: View {
 			UNUserNotificationCenter.current().add(request)
 		}
 	}
+	#endif
 
 	private func dismissKeyboard() {
 		#if canImport(UIKit)
