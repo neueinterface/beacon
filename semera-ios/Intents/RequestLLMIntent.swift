@@ -51,7 +51,7 @@ struct RequestLLMIntent: AppIntent {
 
 		var output = ""
 		let prompt = promptForShortcut(trimmedPrompt, continuous: continuous)
-		try await runtime.streamResponse(to: prompt) { chunk in
+		try await runtime.streamResponse(to: prompt, memories: UserMemoryStore().memories) { chunk in
 			output += chunk
 		}
 

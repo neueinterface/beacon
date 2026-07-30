@@ -8,7 +8,11 @@ import AppKit
 
 struct MessageBubble: View {
 	let text: String
+	var imageData: Data?
 	var thinkingText = ""
+	var didStoreMemory = false
+	var requiresVisionModel = false
+	var onDownloadVisionModel: () -> Void = {}
 	#if false // Web search sources are not currently shown.
 	var sources: [Source] = []
 	#endif
@@ -70,6 +74,15 @@ struct MessageBubble: View {
 				SourceTag(sources: sources, onOpen: onOpenSource)
 			}
 			#endif
+
+			if didStoreMemory, !isWaitingForResponse {
+				MemoryStoredTag()
+			}
+
+			if requiresVisionModel, !isWaitingForResponse {
+				Button("Download vision model", action: onDownloadVisionModel)
+					.buttonStyle(.bordered)
+			}
 		}
 		.frame(maxWidth: .infinity, alignment: .leading)
 	}
@@ -93,13 +106,70 @@ struct MessageBubble: View {
 	}
 
 	private var userBubble: some View {
-		Text(text)
-			.font(.system(size: 16))
-            .foregroundStyle(.primary)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 14)
-			.background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+		VStack(alignment: .trailing, spacing: 16) {
+			if let imageData {
+				ChatAttachedImage(data: imageData)
+			}
+
+			if !text.isEmpty {
+				Text(text)
+					.font(.system(size: 16))
+					.foregroundStyle(.primary)
+					.padding(.horizontal, 14)
+					.padding(.vertical, 14)
+					.background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+			}
+		}
+		.frame(maxWidth: .infinity, alignment: .trailing)
 	}
+}
+
+private struct ChatAttachedImage: View {
+	let data: Data
+
+	var body: some View {
+		#if canImport(UIKit)
+		if let image = UIImage(data: data) {
+			Image(uiImage: image)
+				.resizable()
+				.scaledToFit()
+				.frame(maxWidth: 220, maxHeight: 320)
+				.clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+		}
+		#elseif canImport(AppKit)
+		if let image = NSImage(data: data) {
+			Image(nsImage: image)
+				.resizable()
+				.scaledToFit()
+				.frame(maxWidth: 320, maxHeight: 400)
+				.clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+		}
+		#endif
+	}
+}
+
+// memory stored tag
+
+private struct MemoryStoredTag: View {
+	var body: some View {
+		HStack(spacing: 6) {
+			Image("memory.icon")
+				.resizable()
+				.scaledToFit()
+				.frame(width: 16, height: 16)
+
+			Text("Memory stored")
+		}
+        .font(.system(size: 14, weight: .medium))
+		.foregroundStyle(.secondary)
+        .padding(10)
+	}
+}
+
+#Preview("Memory Stored Tag") {
+	MemoryStoredTag()
+		.padding()
+		.background(Color(uiColor: .systemBackground))
 }
 
 private struct ThinkingStatusText: View {
@@ -217,6 +287,7 @@ private extension String {
 			- Handles markdown lists cleanly
 			""", role: .assistant)
 		MessageBubble(text: "Great, can you explain local inference in simple terms?", role: .user)
+		MessageBubble(text: "I'll keep that in mind.", didStoreMemory: true, role: .assistant)
 	}
     .padding()
 	.background(Color(uiColor: .systemBackground))

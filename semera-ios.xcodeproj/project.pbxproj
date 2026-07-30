@@ -13,6 +13,7 @@
 		99BCFF912FDE2A8F00E1AF28 /* MLXLMCommon in Frameworks */ = {isa = PBXBuildFile; productRef = 99BCFF902FDE2A8F00E1AF28 /* MLXLMCommon */; };
 		99BCFF932FDE3F4F00E1AF28 /* HuggingFace in Frameworks */ = {isa = PBXBuildFile; productRef = 99BCFF922FDE3F4F00E1AF28 /* HuggingFace */; };
 		99BCFF952FDE3F4F00E1AF28 /* Tokenizers in Frameworks */ = {isa = PBXBuildFile; productRef = 99BCFF942FDE3F4F00E1AF28 /* Tokenizers */; };
+		99BCFFA02FDE2A8F00E1AF28 /* MLXVLM in Frameworks */ = {isa = PBXBuildFile; productRef = 99BCFFA12FDE2A8F00E1AF28 /* MLXVLM */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -67,6 +68,7 @@
 				99BCFF932FDE3F4F00E1AF28 /* HuggingFace in Frameworks */,
 				99BCFF952FDE3F4F00E1AF28 /* Tokenizers in Frameworks */,
 				99BCFF8D2FDE2A8F00E1AF28 /* MLXHuggingFace in Frameworks */,
+				99BCFFA02FDE2A8F00E1AF28 /* MLXVLM in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -128,6 +130,7 @@
 			name = "semera-ios";
 			packageProductDependencies = (
 				99BCFF8C2FDE2A8F00E1AF28 /* MLXHuggingFace */,
+				99BCFFA12FDE2A8F00E1AF28 /* MLXVLM */,
 				99BCFF8E2FDE2A8F00E1AF28 /* MLXLLM */,
 				99BCFF902FDE2A8F00E1AF28 /* MLXLMCommon */,
 				99BCFF922FDE3F4F00E1AF28 /* HuggingFace */,
@@ -429,9 +432,9 @@
 				ENABLE_USER_SELECTED_FILES = readonly;
 				"EXCLUDED_SOURCE_FILE_NAMES[sdk=macosx*]" = LaunchScreen.storyboard;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_APP_API_KEY = "OliverCodi1998!";
 				INFOPLIST_KEY_CFBundleDisplayName = Semera;
-				/* INFOPLIST_KEY_SEARCH_API_BASE_URL = "https://beacon-search.armondschneider.workers.dev"; Web search is not currently available. */
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Semera uses your selected photos so its on-device vision model can answer questions about them.";
+				INFOPLIST_KEY_SEARCH_API_BASE_URL = "https://beacon-search.armondschneider.workers.dev";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -453,6 +456,7 @@
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -479,9 +483,9 @@
 				ENABLE_USER_SELECTED_FILES = readonly;
 				"EXCLUDED_SOURCE_FILE_NAMES[sdk=macosx*]" = LaunchScreen.storyboard;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_APP_API_KEY = "OliverCodi1998!";
 				INFOPLIST_KEY_CFBundleDisplayName = Semera;
-				/* INFOPLIST_KEY_SEARCH_API_BASE_URL = "https://beacon-search.armondschneider.workers.dev"; Web search is not currently available. */
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Semera uses your selected photos so its on-device vision model can answer questions about them.";
+				INFOPLIST_KEY_SEARCH_API_BASE_URL = "https://beacon-search.armondschneider.workers.dev";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -503,6 +507,7 @@
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -729,6 +734,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 99BCFF972FDE3F4F00E1AF28 /* XCRemoteSwiftPackageReference "swift-transformers" */;
 			productName = Tokenizers;
+		};
+		99BCFFA12FDE2A8F00E1AF28 /* MLXVLM */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 99BCFF8B2FDE2A8F00E1AF28 /* XCRemoteSwiftPackageReference "mlx-swift-lm" */;
+			productName = MLXVLM;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

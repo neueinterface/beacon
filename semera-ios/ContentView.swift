@@ -6,18 +6,25 @@
 //
 
 import SwiftUI
+import OSLog
 
 struct ContentView: View {
+	private static let modelCatalogLogger = Logger(
+		subsystem: Bundle.main.bundleIdentifier ?? "me.armond.semera-ios",
+		category: "ModelCatalog"
+	)
+
 	@Environment(\.scenePhase) private var scenePhase
 	@AppStorage("hasCompletedWelcome") private var hasCompletedWelcome = false
 	@AppStorage("selectedModelID") private var selectedModelID = ""
 	@AppStorage("downloadedModelIDs") private var downloadedModelIDs = ""
+	@AppStorage("lastSeenWhatsNewRelease") private var lastSeenWhatsNewRelease = ""
 	@ObservedObject private var modelRuntime: BeaconModelRuntime
 	@State private var models = ModelCatalog.availableModels
 	@State private var isChoosingModel = false
 	@State private var downloadingModel: BeaconModel?
 	@State private var downloadAlert: DownloadAlert?
-	@State private var backendStatus: BackendStatus?
+	@State private var isShowingWhatsNew = false
 	@ObservedObject private var notificationRouter: NotificationRouter
 
 	init(modelRuntime: BeaconModelRuntime, notificationRouter: NotificationRouter) {
@@ -59,38 +66,52 @@ struct ContentView: View {
 				dismissButton: .default(Text("OK"))
 			)
 		}
+		.sheet(isPresented: $isShowingWhatsNew, onDismiss: markWhatsNewReleaseSeen) {
+			if let release = WhatsNewRelease.current {
+				WhatsNewView(release: release, onClose: {
+					isShowingWhatsNew = false
+				})
+			}
+		}
 		.task {
 			ModelIDMigration.migrate()
-			await refreshBackendStatusAndRemoteModels()
+			await loadRemoteModels()
+			presentWhatsNewIfNeeded()
 		}
 		.onChange(of: scenePhase) { _, phase in
 			guard phase == .active else { return }
 			Task {
-				await refreshBackendStatusAndRemoteModels()
+				await loadRemoteModels()
 			}
 		}
 	}
 
-	private func refreshBackendStatusAndRemoteModels() async {
-		guard let status = try? await BackendStatusService().status() else {
-			await loadRemoteModels()
-			return
-		}
+	private func loadRemoteModels() async {
+		do {
+			let remoteModels = try await ModelCatalogService().fetchModels()
+			guard !remoteModels.isEmpty else {
+				Self.modelCatalogLogger.error("The remote model catalog was empty.")
+				return
+			}
 
-		backendStatus = status
-		guard status.allowsRemoteModels else {
-			await loadRemoteModels()
-			return
+			let remoteIDs = Set(remoteModels.map(\.id))
+			let localRequiredModels = ModelCatalog.availableModels.filter {
+				($0.isBuiltIn || $0.supportsImages) && !remoteIDs.contains($0.id)
+			}
+			models = localRequiredModels + remoteModels
+		} catch {
+			Self.modelCatalogLogger.error("Could not load the remote model catalog from \(BackendConfig.baseURL.absoluteString, privacy: .public): \(error.localizedDescription, privacy: .public)")
 		}
-
-		await loadRemoteModels()
 	}
 
-	private func loadRemoteModels() async {
-		guard let remoteModels = try? await ModelCatalogService().fetchModels(), !remoteModels.isEmpty else { return }
-		let remoteIDs = Set(remoteModels.map(\.id))
-		let localBuiltIns = ModelCatalog.availableModels.filter { $0.isBuiltIn && !remoteIDs.contains($0.id) }
-		models = localBuiltIns + remoteModels
+	private func presentWhatsNewIfNeeded() {
+		guard let release = WhatsNewRelease.current, lastSeenWhatsNewRelease != release.id else { return }
+		isShowingWhatsNew = true
+	}
+
+	private func markWhatsNewReleaseSeen() {
+		guard let release = WhatsNewRelease.current else { return }
+		lastSeenWhatsNewRelease = release.id
 	}
 
 	private func recordDownloaded(_ model: BeaconModel) {

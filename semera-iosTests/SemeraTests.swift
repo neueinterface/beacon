@@ -42,6 +42,27 @@ struct SemeraAppDataTests {
 		#expect(!model.isBuiltIn)
 		#expect(model.formattedSize.hasSuffix("GB"))
 	}
+
+	@Test("Vision model accepts image attachments")
+	func visionModelSupportsImages() throws {
+		let model = try #require(ModelCatalog.model(id: "qwen2-vl-2b-instruct-4bit"))
+
+		#expect(model.supportsImages)
+		#expect(!model.isBuiltIn)
+	}
+}
+
+@Suite("User memories")
+struct UserMemoryTests {
+	@Test("Stores durable family details")
+	func storesFamilyOccupation() {
+		#expect(UserMemoryStore.memoryText(from: "My wife is a special education teacher") == "User's wife is a special education teacher")
+	}
+
+	@Test("Does not store preferences")
+	func ignoresPreferences() {
+		#expect(UserMemoryStore.memoryText(from: "I love cooking lasagna") == nil)
+	}
 }
 
 @Suite("Web search settings")
@@ -89,6 +110,89 @@ struct WebSearchSettingsTests {
 		)
 
 		#expect(row.subtitle == nil)
+	}
+}
+
+@Suite("Model storage limits")
+struct ModelStorageLimitTests {
+	private func makeModel(id: String, sizeInGB: Decimal, isBuiltIn: Bool = false) -> BeaconModel {
+		BeaconModel(
+			id: id,
+			name: id,
+			description: "Test model",
+			repositoryID: "test/\(id)",
+			sizeInGB: sizeInGB,
+			type: .regular,
+			recommendedDevice: "iPhone 15 Pro+",
+			isAvailableDuringOnboarding: false,
+			isBuiltIn: isBuiltIn
+		)
+	}
+
+	@Test("Built-in model is downloadable regardless of device storage")
+	func builtInModelSkipsStorageCheck() {
+		let model = makeModel(id: "built-in", sizeInGB: 0, isBuiltIn: true)
+
+		#expect(ModelStorageLimit.downloadAvailability(for: model, downloadedModelIDs: "", in: [model], availableGB: 0) == .available)
+	}
+
+	@Test("Already downloaded model is available regardless of device storage")
+	func downloadedModelSkipsStorageCheck() {
+		let model = makeModel(id: "downloaded", sizeInGB: 4)
+
+		#expect(ModelStorageLimit.downloadAvailability(for: model, downloadedModelIDs: "downloaded", in: [model], availableGB: 0.01) == .available)
+	}
+
+	@Test("Download exceeding the 10 GB app storage limit is blocked")
+	func appStorageFullBlocksDownload() {
+		let big = makeModel(id: "big", sizeInGB: 8)
+		let small = makeModel(id: "small", sizeInGB: 2.5)
+
+		#expect(ModelStorageLimit.downloadAvailability(for: small, downloadedModelIDs: "big", in: [big, small], availableGB: 100) == .appStorageFull)
+	}
+
+	@Test("Download within the 10 GB app storage limit is allowed")
+	func appStorageWithinLimitAllowsDownload() {
+		let first = makeModel(id: "first", sizeInGB: 4)
+		let second = makeModel(id: "second", sizeInGB: 5)
+
+		#expect(ModelStorageLimit.downloadAvailability(for: second, downloadedModelIDs: "first", in: [first, second], availableGB: 100) == .available)
+	}
+
+	@Test("Downloaded size only counts downloaded, non-built-in models")
+	func downloadedSizeAccounting() {
+		let downloaded = makeModel(id: "downloaded", sizeInGB: 2)
+		let alsoDownloaded = makeModel(id: "also-downloaded", sizeInGB: 3)
+		let builtIn = makeModel(id: "built-in", sizeInGB: 0, isBuiltIn: true)
+		let notDownloaded = makeModel(id: "not-downloaded", sizeInGB: 9)
+
+		let size = ModelStorageLimit.downloadedSizeGB(
+			downloadedModelIDs: "downloaded,also-downloaded,built-in",
+			in: [downloaded, alsoDownloaded, builtIn, notDownloaded]
+		)
+
+		#expect(size == 5)
+	}
+
+	@Test("Device storage below the required 110% of model size is blocked")
+	func deviceStorageLowBlocksDownload() {
+		let model = makeModel(id: "model", sizeInGB: 1) // requires 1.1 GB
+
+		#expect(ModelStorageLimit.downloadAvailability(for: model, downloadedModelIDs: "", in: [model], availableGB: 1.0) == .deviceStorageLow(requiredGB: 1.1, availableGB: 1.0))
+	}
+
+	@Test("Device storage exactly at the required threshold is allowed")
+	func deviceStorageAtThresholdAllowsDownload() {
+		let model = makeModel(id: "model", sizeInGB: 1) // requires 1.1 GB
+
+		#expect(ModelStorageLimit.downloadAvailability(for: model, downloadedModelIDs: "", in: [model], availableGB: 1.1) == .available)
+	}
+
+	@Test("Failed storage measurement is treated as low storage")
+	func failedStorageMeasurementIsConservative() {
+		let model = makeModel(id: "model", sizeInGB: 1)
+
+		#expect(ModelStorageLimit.downloadAvailability(for: model, downloadedModelIDs: "", in: [model], availableGB: nil) == .deviceStorageLow(requiredGB: 1.1, availableGB: 0))
 	}
 }
 

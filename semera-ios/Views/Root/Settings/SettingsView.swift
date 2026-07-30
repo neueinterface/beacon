@@ -8,6 +8,7 @@ import UIKit
 
 struct SettingsView: View {
 	@ObservedObject var chatHistoryViewModel: ChatHistoryViewModel
+	@ObservedObject var memoryStore: UserMemoryStore
 	var models = ModelCatalog.availableModels
 	var onDownloadModel: (BeaconModel) -> Void = { _ in }
 	@Environment(\.dismiss) private var dismiss
@@ -90,9 +91,16 @@ struct SettingsView: View {
 						SettingsToggleRow(title: "Notifications", icon: "bell.icon", isOn: notificationsBinding)
 						SettingsListDivider()
 
+						SettingsLinkRow(title: "Memories", icon: "memory.icon") {
+							MemoriesView(memoryStore: memoryStore)
+						}
+						SettingsListDivider()
+
 						#if false // Web search is not currently available.
+						#if false // Web search is not part of the current release.
 						SettingsToggleRow(title: "Web Search", icon: "globe.icon", subtitle: "Daily search limits apply", isOn: webSearchBinding)
 						SettingsListDivider()
+						#endif
 						#endif
 
 						SettingsButtonRow(title: "Report a bug", icon: "bug.icon") {
@@ -398,5 +406,5 @@ private struct WhyLocalModelsView: View {
 }
 
 #Preview {
-	SettingsView(chatHistoryViewModel: ChatHistoryViewModel(conversations: []))
+SettingsView(chatHistoryViewModel: ChatHistoryViewModel(conversations: []), memoryStore: UserMemoryStore(memories: []))
 }

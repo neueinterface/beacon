@@ -8,11 +8,13 @@
 import Combine
 import Foundation
 import FoundationModels
+import CoreImage
 import MLX
 import HuggingFace
 import MLXHuggingFace
 import MLXLLM
 import MLXLMCommon
+import MLXVLM
 import Tokenizers
 
 @MainActor
@@ -20,6 +22,8 @@ final class BeaconModelRuntime: ModelDownloadRuntime {
 	enum RuntimeError: LocalizedError {
 		case modelNotLoaded
 		case alreadyGenerating
+		case imageModelRequired
+		case invalidImage
 		case foundationModelUnavailable(SystemLanguageModel.Availability.UnavailableReason)
 
 		var errorDescription: String? {
@@ -28,6 +32,10 @@ final class BeaconModelRuntime: ModelDownloadRuntime {
 				"Model is not loaded yet."
 			case .alreadyGenerating:
 				"Semera is already generating a response."
+			case .imageModelRequired:
+				"Select a downloaded vision model before sending an image."
+			case .invalidImage:
+				"This image could not be prepared for the selected model."
 			case let .foundationModelUnavailable(reason):
 				switch reason {
 				case .deviceNotEligible:
@@ -53,6 +61,7 @@ final class BeaconModelRuntime: ModelDownloadRuntime {
 	private var loadedModelID: String?
 	private var loadedModelRepositoryID: String?
 	private var loadedModelType: BeaconModel.ModelType = .regular
+	private var loadedModelSupportsImages = false
 	private var session: ChatSession?
 	private var foundationSession: LanguageModelSession?
 	private var progressObservations: [NSKeyValueObservation] = []
@@ -105,6 +114,7 @@ final class BeaconModelRuntime: ModelDownloadRuntime {
 			loadedModelID = model.id
 			loadedModelRepositoryID = model.repositoryID
 			loadedModelType = model.type
+			loadedModelSupportsImages = model.supportsImages
 			foundationSession = nil
 			progress = 1
 			print("SemeraModelRuntime: loaded \(model.repositoryID)")
@@ -139,24 +149,32 @@ final class BeaconModelRuntime: ModelDownloadRuntime {
 
 	func streamResponse(
 		to prompt: String,
+		imageData: Data? = nil,
+		memories: [UserMemory] = [],
 		onThinking: (@MainActor (String) -> Void)? = nil,
 		onChunk: @escaping @MainActor (String) -> Void
 	) async throws {
 		guard !isGenerating else { throw RuntimeError.alreadyGenerating }
 		guard session != nil || foundationSession != nil else { throw RuntimeError.modelNotLoaded }
+		guard imageData == nil || loadedModelSupportsImages else { throw RuntimeError.imageModelRequired }
 
 		isGenerating = true
 		defer { isGenerating = false }
 
+		let promptWithMemory = imageData == nil ? promptWithMemories(prompt, memories: memories) : prompt
+
 		if let foundationSession {
-			try await streamFoundationResponse(to: prompt, using: foundationSession, onChunk: onChunk)
+			try await streamFoundationResponse(to: promptWithMemory, using: foundationSession, onChunk: onChunk)
 			return
 		}
 
-		var filter = ThinkingOutputFilter()
-		let prompt = promptForLoadedModel(prompt)
+		let image = imageData.flatMap(CIImage.init(data:)).map(UserInput.Image.ciImage)
+		guard imageData == nil || image != nil else { throw RuntimeError.invalidImage }
 
-		for try await chunk in session!.streamResponse(to: prompt) {
+		var filter = ThinkingOutputFilter()
+		let modelPrompt = promptForLoadedModel(promptWithMemory)
+
+		for try await chunk in session!.streamResponse(to: modelPrompt, image: image) {
 			try Task.checkCancellation()
 
 			let output = filter.append(chunk)
@@ -176,6 +194,8 @@ final class BeaconModelRuntime: ModelDownloadRuntime {
 			LLMRegistry.qwen3_0_6b_4bit
 		case "mlx-community/LFM2-1.2B-4bit":
 			LLMRegistry.lfm2_1_2b_4bit
+		case "mlx-community/Qwen2-VL-2B-Instruct-4bit":
+			VLMRegistry.qwen2VL2BInstruct4Bit
 		default:
 			ModelConfiguration(id: model.repositoryID)
 		}
@@ -189,6 +209,7 @@ final class BeaconModelRuntime: ModelDownloadRuntime {
 		loadedModelID = nil
 		loadedModelRepositoryID = nil
 		loadedModelType = .regular
+		loadedModelSupportsImages = false
 	}
 
 	private func observe(_ downloadProgress: Progress) {
@@ -240,6 +261,19 @@ final class BeaconModelRuntime: ModelDownloadRuntime {
 		return "\(prompt) /no_think"
 	}
 
+	private func promptWithMemories(_ prompt: String, memories: [UserMemory]) -> String {
+		guard !memories.isEmpty else { return prompt }
+		let facts = memories.map { "- \($0.text)" }.joined(separator: "\n")
+		return """
+		Known user details from earlier conversations:
+		\(facts)
+
+		Use these details only when relevant. Do not mention this memory list or claim the user just told you these details.
+
+		User message: \(prompt)
+		"""
+	}
+
 	private func loadFoundationModel(_ model: BeaconModel) throws {
 		let foundationModel = SystemLanguageModel.default
 
@@ -250,6 +284,7 @@ final class BeaconModelRuntime: ModelDownloadRuntime {
 			loadedModelID = model.id
 			loadedModelRepositoryID = model.repositoryID
 			loadedModelType = model.type
+			loadedModelSupportsImages = false
 			progress = 1
 			completedUnitCount = nil
 			totalUnitCount = nil

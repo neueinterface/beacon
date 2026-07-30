@@ -2,6 +2,7 @@
 *.xcuserstate
 xcuserdata/
 *.xcuserdatad/
+*.xcscmblueprint
 
 # Build products
 build/
@@ -9,11 +10,12 @@ DerivedData/
 *.ipa
 *.dSYM.zip
 *.dSYM
+*.xcarchive
+*.xcresult
 
 # Swift Package Manager
 .build/
 .swiftpm/
-Package.resolved
 
 # CocoaPods / Carthage
 Pods/
@@ -27,6 +29,17 @@ Carthage/Build/
 .env.*
 !.env.example
 *.env
+Config.xcconfig
+Secrets.xcconfig
+*.mobileprovision
+*.p12
+*.cer
+*.pem
+*.key
+
+# Local tooling
+.idea/
+.vscode/
 
 # Fastlane
 fastlane/report.xml

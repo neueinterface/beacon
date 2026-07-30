@@ -70,8 +70,8 @@ final class ChatHistoryViewModel: ObservableObject {
 		currentMessages = []
 	}
 
-	func appendUserMessage(_ text: String, modelName: String) -> ChatMessage.ID {
-		let userMessage = ChatMessage(text: text, role: .user)
+	func appendUserMessage(_ text: String, imageData: Data? = nil, modelName: String) -> ChatMessage.ID {
+		let userMessage = ChatMessage(text: text, imageData: imageData, role: .user)
 		let assistantMessage = ChatMessage(text: "", modelName: modelName, role: .assistant)
 
 		if let currentConversationID, let index = conversations.firstIndex(where: { $0.id == currentConversationID }) {
@@ -108,6 +108,18 @@ final class ChatHistoryViewModel: ObservableObject {
 	func replaceAssistantSources(_ sources: [Source], for messageID: ChatMessage.ID) {
 		updateMessage(messageID) { message in
 			message.sources = sources
+		}
+	}
+
+	func markMemoryStored(for messageID: ChatMessage.ID) {
+		updateMessage(messageID) { message in
+			message.didStoreMemory = true
+		}
+	}
+
+	func requireVisionModel(for messageID: ChatMessage.ID) {
+		updateMessage(messageID) { message in
+			message.requiresVisionModel = true
 		}
 	}
 

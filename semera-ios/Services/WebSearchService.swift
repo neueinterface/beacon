@@ -2,7 +2,20 @@ import Foundation
 import Security
 
 enum BackendConfig {
-	static let baseURL = URL(string: Bundle.main.object(forInfoDictionaryKey: "SEARCH_API_BASE_URL") as? String ?? "https://beacon-search.armondschneider.workers.dev")!
+	// Use the production catalog when a build configuration does not provide a URL.
+	static let baseURL: URL = {
+		let configuredURL = (Bundle.main.object(forInfoDictionaryKey: "SEARCH_API_BASE_URL") as? String ?? "")
+			.trimmingCharacters(in: .whitespacesAndNewlines)
+
+		guard !configuredURL.isEmpty,
+			!configuredURL.contains("$("),
+			let url = URL(string: configuredURL),
+			url.scheme == "https" else {
+			return URL(string: "https://beacon-search.armondschneider.workers.dev")!
+		}
+
+		return url
+	}()
 
 	static var appAPIKey: String {
 		let key = ProcessInfo.processInfo.environment["APP_API_KEY"]
@@ -54,13 +67,19 @@ struct BackendFeatures: Decodable, Equatable {
 }
 
 struct BackendStatusService {
-	private let decoder = SearchJSONDecoder.make()
+	private let decoder = JSONDecoder()
+	private let session: URLSession = {
+		let configuration = URLSessionConfiguration.default
+		configuration.timeoutIntervalForRequest = 10
+		configuration.timeoutIntervalForResource = 20
+		return URLSession(configuration: configuration)
+	}()
 
 	func status() async throws -> BackendStatus {
 		let url = BackendConfig.baseURL.appendingPathComponent("status")
 		var request = URLRequest(url: url)
 		BackendConfig.authorize(&request)
-		let (data, response) = try await URLSession.shared.data(for: request)
+		let (data, response) = try await session.data(for: request)
 
 		guard let httpResponse = response as? HTTPURLResponse, (200 ..< 300).contains(httpResponse.statusCode) else {
 			throw URLError(.badServerResponse)
@@ -84,6 +103,7 @@ struct RemoteModel: Decodable {
 	let recommendedDevice: String
 	let isAvailableDuringOnboarding: Bool
 	let isBuiltIn: Bool
+	let supportsImages: Bool
 	let huggingFaceUrl: URL?
 
 	private enum CodingKeys: String, CodingKey {
@@ -103,6 +123,8 @@ struct RemoteModel: Decodable {
 		case is_available_during_onboarding
 		case isBuiltIn
 		case is_built_in
+		case supportsImages
+		case supports_images
 		case huggingFaceUrl
 		case huggingFaceURL
 		case hugging_face_url
@@ -119,16 +141,24 @@ struct RemoteModel: Decodable {
 		recommendedDevice = (try? container.decodeFirst(String.self, for: [.recommendedDevice, .recommended_device])) ?? "iPhone 15 Pro+"
 		isAvailableDuringOnboarding = (try? container.decodeFirst(Bool.self, for: [.isAvailableDuringOnboarding, .is_available_during_onboarding])) ?? false
 		isBuiltIn = (try? container.decodeFirst(Bool.self, for: [.isBuiltIn, .is_built_in])) ?? false
+		supportsImages = (try? container.decodeFirst(Bool.self, for: [.supportsImages, .supports_images])) ?? false
 		huggingFaceUrl = try? container.decodeFirst(URL.self, for: [.huggingFaceUrl, .huggingFaceURL, .hugging_face_url])
 	}
 }
 
 final class ModelCatalogService {
+	private let session: URLSession = {
+		let configuration = URLSessionConfiguration.default
+		configuration.timeoutIntervalForRequest = 10
+		configuration.timeoutIntervalForResource = 20
+		return URLSession(configuration: configuration)
+	}()
+
 	func fetchModels() async throws -> [BeaconModel] {
 		let url = BackendConfig.baseURL.appendingPathComponent("models")
 		var request = URLRequest(url: url)
 		BackendConfig.authorize(&request)
-		let (data, response) = try await URLSession.shared.data(for: request)
+		let (data, response) = try await session.data(for: request)
 
 		guard let httpResponse = response as? HTTPURLResponse else {
 			throw URLError(.badServerResponse)
@@ -208,7 +238,8 @@ private extension RemoteModel {
 			type: modelType,
 			recommendedDevice: recommendedDevice,
 			isAvailableDuringOnboarding: isAvailableDuringOnboarding,
-			isBuiltIn: isBuiltIn
+			isBuiltIn: isBuiltIn,
+			supportsImages: supportsImages
 		)
 	}
 

@@ -15,6 +15,7 @@ It lets you choose curated local models, download and manage them, and keep priv
 - Markdown assistant responses
 - Streaming responses with a stop button
 - Reasoning/thinking stream shown separately from the final answer
+- Attach and analyze images with the downloadable Qwen2-VL vision model
 <!-- Web search and source dropdowns are not currently available.
 - Optional web search through a Cloudflare Worker
 - Source dropdowns that open links in in-app Safari
@@ -60,3 +61,31 @@ Before App Store release:
 
 - iOS Simulator or device supported by the project
 - Xcode
+
+## Development
+
+Open `semera-ios.xcodeproj` in Xcode, select your signing team and bundle identifier, then build the `semera-ios` scheme.
+
+Semera runs local models by default. A fork can opt into backend integrations by setting the `SEARCH_API_BASE_URL` build setting in Xcode or archive CI. The project passes that value to the generated Info.plist without committing a service URL. Never embed API keys, signing credentials, or provider secrets in the app.
+
+### Run On Your iPhone
+
+1. Clone the repository:
+
+   ```sh
+   git clone https://github.com/semeraco/semera-ios-public.git
+   cd semera-ios-public
+   ```
+
+2. Open `semera-ios.xcodeproj` in Xcode and wait for Swift Package dependencies to resolve.
+3. In the target's **Signing & Capabilities** settings, select your Apple Developer team and choose a unique bundle identifier.
+4. Connect and unlock your iPhone, select it as the run destination, then press Run.
+5. Download a text model from the marketplace. To attach images, download and select **Qwen2-VL 2B 4-bit (Image)**.
+
+## Security
+
+Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
+
+## License
+
+Semera is available under the [MIT License](LICENSE).

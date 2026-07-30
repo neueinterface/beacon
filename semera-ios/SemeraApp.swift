@@ -53,7 +53,7 @@ private struct AppearanceStyleUpdater: UIViewRepresentable {
 	}
 }
 
-private extension AppearanceColorScheme {
+extension AppearanceColorScheme {
 	var userInterfaceStyle: UIUserInterfaceStyle {
 		switch self {
 		case .system: .unspecified

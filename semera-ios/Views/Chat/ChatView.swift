@@ -1,5 +1,9 @@
 import SwiftUI
+import PhotosUI
+import Photos
 import UserNotifications
+import ImageIO
+import UniformTypeIdentifiers
 #if canImport(UIKit)
 import UIKit
 #endif
@@ -11,13 +15,19 @@ struct ChatView: View {
 	@ObservedObject var notificationRouter = NotificationRouter()
 	var onDownloadModel: (BeaconModel) -> Void = { _ in }
 	@StateObject private var historyViewModel = ChatHistoryViewModel()
+	@StateObject private var memoryStore = UserMemoryStore()
 	@AppStorage("selectedModelID") private var selectedModelID = ""
 	@AppStorage("downloadedModelIDs") private var downloadedModelIDs = ""
 	@AppStorage("notificationsEnabled") private var notificationsEnabled = false
 	#if false // Web search is not currently available.
-	@AppStorage("webSearchEnabled") private var webSearchEnabled = false
+	// Web search is not part of the current release.
+	private let webSearchEnabled = false
 	#endif
 	@State private var inputText = ""
+	@State private var selectedImageItem: PhotosPickerItem?
+	@State private var attachedImageData: Data?
+	@State private var isShowingPhotoPicker = false
+	@State private var isShowingPhotoAccessAlert = false
 	#if false // Web search is not currently available.
 	@State private var isWebSearchTagged = false
 	#endif
@@ -58,13 +68,13 @@ struct ChatView: View {
 		models.filter(isDownloaded)
 	}
 
+	private var isAssistantBusy: Bool {
+		isPreparingResponse || runtime.isGenerating || responseTask != nil
+	}
+
 	#if false // Web search is not currently available.
 	private var isWebSearchUnavailable: Bool {
 		!webSearchEnabled || isBackendUnavailable || isWebSearchDisabledByBackend || backendStatus?.allowsWebSearch == false || searchQuota?.isExhausted == true
-	}
-
-	private var isAssistantBusy: Bool {
-		isPreparingResponse || runtime.isGenerating || responseTask != nil
 	}
 
 	private var webSearchUnavailableTitle: String {
@@ -159,12 +169,17 @@ struct ChatView: View {
 			.presentationDragIndicator(.visible)
 		}
 		.sheet(isPresented: $isShowingSettings) {
-			SettingsView(chatHistoryViewModel: historyViewModel, models: models, onDownloadModel: onDownloadModel)
+			SettingsView(chatHistoryViewModel: historyViewModel, memoryStore: memoryStore, models: models, onDownloadModel: onDownloadModel)
 		}
 		.sheet(isPresented: $isShowingAppIconPicker) {
 			NavigationStack {
 				AppIconPickerView()
 			}
+		}
+		.alert("Photo Access Needed", isPresented: $isShowingPhotoAccessAlert) {
+			Button("OK") { }
+		} message: {
+			Text("Allow photo access in Settings to attach an image to your message.")
 		}
 		#if os(macOS)
 		.sheet(isPresented: $isShowingModelMarketplace) {
@@ -223,6 +238,11 @@ struct ChatView: View {
 		.onDisappear {
 			modelSwitchToastTask?.cancel()
 		}
+		.onAppear {
+			if let action = notificationRouter.quickActionToOpen {
+				handleQuickAction(action)
+			}
+		}
 		.onChange(of: notificationRouter.chatIDToOpen) { _, chatID in
 			guard let chatID else { return }
 			openChatFromNotification(chatID)
@@ -268,7 +288,11 @@ struct ChatView: View {
 										ForEach(historyViewModel.currentMessages) { message in
 											MessageBubble(
 												text: message.text,
+												imageData: message.imageData,
 												thinkingText: message.thinkingText,
+												didStoreMemory: message.didStoreMemory,
+												requiresVisionModel: message.requiresVisionModel,
+												onDownloadVisionModel: downloadVisionModel,
 												role: message.role,
 												isWaitingForResponse: isAssistantBusy && message == historyViewModel.currentMessages.last
 											)
@@ -334,7 +358,7 @@ struct ChatView: View {
 						dismissKeyboard()
 						isShowingModelSwitcher = true
 					} label: {
-						Image("playground.icon")
+						Image("switch.icon")
 							.renderingMode(.template)
 					}
 					.accessibilityLabel("Switch model")
@@ -374,7 +398,7 @@ struct ChatView: View {
 			dismissKeyboard()
 			isShowingModelSwitcher = true
 		} label: {
-			Image("playground.icon")
+			Image("switch.icon")
 				.renderingMode(.template)
 		}
 		.accessibilityLabel("Switch model")
@@ -391,10 +415,41 @@ struct ChatView: View {
 	#endif
 
 	private var inputBar: some View {
-		Input(text: $inputText, placeholder: "Message", isGenerating: isAssistantBusy) {
-			stopGenerating()
-		} onSend: { text in
-			send(text)
+		VStack(alignment: .leading, spacing: 8) {
+			Input(
+				text: $inputText,
+				placeholder: "Message",
+				isGenerating: isAssistantBusy,
+				hasAttachment: attachedImageData != nil,
+				attachmentData: attachedImageData,
+				onAttachImage: {
+					requestPhotoAccess()
+				},
+				canAttachImages: selectedModel.supportsImages,
+				onRemoveAttachment: {
+					attachedImageData = nil
+				},
+				onStop: {
+					stopGenerating()
+				},
+				onSend: { text in
+					send(text, imageData: attachedImageData)
+					attachedImageData = nil
+				}
+			)
+			.photosPicker(
+				isPresented: $isShowingPhotoPicker,
+				selection: $selectedImageItem,
+				matching: .images,
+				preferredItemEncoding: .current
+			)
+		}
+		.task(id: selectedImageItem) {
+			guard let selectedImageItem,
+				  let data = try? await selectedImageItem.loadTransferable(type: Data.self) else { return }
+			attachedImageData = await Task.detached(priority: .userInitiated) {
+				Self.normalizedImageData(from: data)
+			}.value
 		}
 		.disabled(runtime.isLoading)
 		.opacity(runtime.isLoading ? 0.5 : 1)
@@ -416,26 +471,41 @@ struct ChatView: View {
 		.background(Color(uiColor: .systemBackground))
 	}
 
-	private func send(_ text: String) {
+	private func send(_ text: String, imageData: Data? = nil) {
 		pendingScrollMessageID = nil
 		dismissKeyboard()
 		#if canImport(UIKit)
 		UIImpactFeedbackGenerator(style: .medium).impactOccurred()
 		#endif
 		let displayText = text
+		let responseModel = imageData == nil ? selectedModel : visionModel ?? selectedModel
 
-		let responseID = historyViewModel.appendUserMessage(displayText, modelName: selectedModel.name)
+		let responseID = historyViewModel.appendUserMessage(displayText, imageData: imageData, modelName: responseModel.name)
+		if imageData != nil {
+			guard let visionModel, isDownloaded(visionModel) else {
+				historyViewModel.replaceMessage(responseID, with: "To read images, download the on-device vision model.")
+				historyViewModel.requireVisionModel(for: responseID)
+				return
+			}
+		}
+
 		scheduleChatReminder(for: displayText)
 		responseHaptics.start()
 		isPreparingResponse = true
 
 		responseTask = Task {
 			do {
-				await ensureSelectedModelLoaded()
-				let prompt = displayText
+				await ensureModelLoaded(responseModel)
+				let prompt: String
+				if imageData != nil {
+					let question = displayText.isEmpty ? "Describe this image." : displayText
+					prompt = "Analyze the attached image and answer the user's question using what you can see. User question: \(question)"
+				} else {
+					prompt = displayText
+				}
 
 				isPreparingResponse = false
-				try await runtime.streamResponse(to: prompt, onThinking: { chunk in
+				try await runtime.streamResponse(to: prompt, imageData: imageData, memories: memoryStore.memories, onThinking: { chunk in
 					historyViewModel.appendAssistantThinking(chunk, to: responseID)
 				}) { chunk in
 					historyViewModel.appendAssistantChunk(chunk, to: responseID)
@@ -443,6 +513,9 @@ struct ChatView: View {
 				}
 
 				responseHaptics.finish()
+				if memoryStore.store(from: displayText) {
+					historyViewModel.markMemoryStored(for: responseID)
+				}
 			} catch is CancellationError {
 				if historyViewModel.currentMessages.first(where: { $0.id == responseID })?.text.isEmpty == true {
 					historyViewModel.replaceMessage(responseID, with: "Stopped.")
@@ -458,6 +531,36 @@ struct ChatView: View {
 		}
 	}
 
+	private func requestPhotoAccess() {
+		PHPhotoLibrary.requestAuthorization(for: .readWrite) { status in
+			Task { @MainActor in
+				switch status {
+				case .authorized, .limited:
+					isShowingPhotoPicker = true
+				default:
+					isShowingPhotoAccessAlert = true
+				}
+			}
+		}
+	}
+
+	nonisolated private static func normalizedImageData(from data: Data) -> Data {
+		guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return data }
+		let options: [CFString: Any] = [
+			kCGImageSourceCreateThumbnailFromImageAlways: true,
+			kCGImageSourceCreateThumbnailWithTransform: true,
+			kCGImageSourceThumbnailMaxPixelSize: 1_024,
+			kCGImageSourceShouldCacheImmediately: true
+		]
+		guard let image = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else { return data }
+
+		let output = NSMutableData()
+		guard let destination = CGImageDestinationCreateWithData(output, UTType.jpeg.identifier as CFString, 1, nil) else { return data }
+		CGImageDestinationAddImage(destination, image, [kCGImageDestinationLossyCompressionQuality: 0.82] as CFDictionary)
+		guard CGImageDestinationFinalize(destination) else { return data }
+		return output as Data
+	}
+
 	private func stopGenerating() {
 		responseTask?.cancel()
 		responseTask = nil
@@ -465,10 +568,23 @@ struct ChatView: View {
 		responseHaptics.stop()
 	}
 
-	private func ensureSelectedModelLoaded() async {
-		guard !runtime.isReady(for: selectedModel) else { return }
+	private var visionModel: BeaconModel? {
+		models.first(where: \.supportsImages)
+	}
 
-		await runtime.load(selectedModel)
+	private func downloadVisionModel() {
+		guard let visionModel else { return }
+		onDownloadModel(visionModel)
+	}
+
+	private func ensureSelectedModelLoaded() async {
+		await ensureModelLoaded(selectedModel)
+	}
+
+	private func ensureModelLoaded(_ model: BeaconModel) async {
+		guard !runtime.isReady(for: model) else { return }
+
+		await runtime.load(model)
 	}
 
 	private func scrollToPendingMessage(using scrollProxy: ScrollViewProxy) {
@@ -859,7 +975,7 @@ private struct ChatModelSwitcherSheet: View {
 						onSelect(model)
 					} label: {
 						HStack(spacing: 14) {
-							Text(model.name)
+							Text(model.supportsImages ? "\(model.name) (Image)" : model.name)
 								.font(.system(size: 16, weight: .medium))
 								.foregroundStyle(.primary)
 

@@ -22,6 +22,31 @@ struct BeaconModel: Identifiable, Equatable {
 	let recommendedDevice: String
 	let isAvailableDuringOnboarding: Bool
 	let isBuiltIn: Bool
+	let supportsImages: Bool
+
+	init(
+		id: String,
+		name: String,
+		description: String,
+		repositoryID: String,
+		sizeInGB: Decimal,
+		type: ModelType,
+		recommendedDevice: String,
+		isAvailableDuringOnboarding: Bool,
+		isBuiltIn: Bool,
+		supportsImages: Bool = false
+	) {
+		self.id = id
+		self.name = name
+		self.description = description
+		self.repositoryID = repositoryID
+		self.sizeInGB = sizeInGB
+		self.type = type
+		self.recommendedDevice = recommendedDevice
+		self.isAvailableDuringOnboarding = isAvailableDuringOnboarding
+		self.isBuiltIn = isBuiltIn
+		self.supportsImages = supportsImages
+	}
 
 	var formattedSize: String {
 		if isBuiltIn { return "Built in" }
@@ -96,6 +121,18 @@ enum ModelCatalog {
 			recommendedDevice: "iPhone 15 Pro+",
 			isAvailableDuringOnboarding: false,
 			isBuiltIn: false
+		),
+		BeaconModel(
+			id: "qwen2-vl-2b-instruct-4bit",
+			name: "Qwen2-VL 2B 4-bit",
+			description: "A private on-device vision model for asking questions about images.",
+			repositoryID: "mlx-community/Qwen2-VL-2B-Instruct-4bit",
+			sizeInGB: 1.54,
+			type: .regular,
+			recommendedDevice: "iPhone 15 Pro+",
+			isAvailableDuringOnboarding: false,
+			isBuiltIn: false,
+			supportsImages: true
 		)
 	]
 
@@ -150,6 +187,28 @@ enum ModelStorageLimit {
 	}
 
 	static func downloadAvailability(for model: BeaconModel, downloadedModelIDs: String, in models: [BeaconModel]) -> DownloadAvailability {
+		if let availability = availabilityBeforeStorageCheck(for: model, downloadedModelIDs: downloadedModelIDs, in: models) {
+			return availability
+		}
+
+		return storageAvailability(for: model, availableGB: availableDeviceStorageGB())
+	}
+
+	/// Same as `downloadAvailability(for:downloadedModelIDs:in:)` but uses a prefetched
+	/// device storage measurement instead of querying the volume synchronously.
+	/// Pass nil for `availableGB` when the measurement failed — this keeps the
+	/// conservative "not enough space" behavior.
+	static func downloadAvailability(for model: BeaconModel, downloadedModelIDs: String, in models: [BeaconModel], availableGB: Double?) -> DownloadAvailability {
+		if let availability = availabilityBeforeStorageCheck(for: model, downloadedModelIDs: downloadedModelIDs, in: models) {
+			return availability
+		}
+
+		return storageAvailability(for: model, availableGB: availableGB)
+	}
+
+	/// Cheap checks that don't require querying the device for free storage.
+	/// Returns nil when the decision depends on available device storage.
+	private static func availabilityBeforeStorageCheck(for model: BeaconModel, downloadedModelIDs: String, in models: [BeaconModel]) -> DownloadAvailability? {
 		guard !model.isBuiltIn else { return .available }
 		let downloadedIDs = Set(downloadedModelIDs.split(separator: ",").map(String.init))
 		guard !downloadedIDs.contains(model.id) else { return .available }
@@ -158,8 +217,11 @@ enum ModelStorageLimit {
 			return .appStorageFull
 		}
 
+		return nil
+	}
+
+	private static func storageAvailability(for model: BeaconModel, availableGB: Double?) -> DownloadAvailability {
 		let requiredGB = NSDecimalNumber(decimal: model.sizeInGB).doubleValue * 1.1
-		let availableGB = availableDeviceStorageGB()
 		guard let availableGB, availableGB >= requiredGB else {
 			return .deviceStorageLow(requiredGB: requiredGB, availableGB: availableGB ?? 0)
 		}
@@ -179,7 +241,7 @@ enum ModelStorageLimit {
 		return String(format: "%.1f GB", value)
 	}
 
-	private static func availableDeviceStorageGB() -> Double? {
+	static func availableDeviceStorageGB() -> Double? {
 		guard let url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first,
 			let values = try? url.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]),
 			let bytes = values.volumeAvailableCapacityForImportantUsage else {

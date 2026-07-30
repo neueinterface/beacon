@@ -22,14 +22,28 @@ struct ModelMarketPlaceView: View {
 	@State private var switchedModelName: String?
 	@State private var modelSwitchToastTask: Task<Void, Never>?
 	@State private var selectedCompany = ModelCompanyFilter.all
+	@State private var availableStorageGB: Double?
+	@State private var hasMeasuredAvailableStorage = false
+	@State private var remoteModels: [BeaconModel] = []
+	@State private var catalogErrorMessage: String?
+	@State private var isRefreshingCatalog = false
+
+	private var catalogModels: [BeaconModel] {
+		guard !remoteModels.isEmpty else { return models }
+		let remoteIDs = Set(remoteModels.map(\.id))
+		let localRequiredModels = ModelCatalog.availableModels.filter {
+			($0.isBuiltIn || $0.supportsImages) && !remoteIDs.contains($0.id)
+		}
+		return localRequiredModels + remoteModels
+	}
 
 	private var companyFilters: [String] {
-		[ModelCompanyFilter.all] + Array(Set(models.map(\.company))).sorted()
+		[ModelCompanyFilter.all] + Array(Set(catalogModels.map(\.company))).sorted()
 	}
 
 	private var filteredModels: [BeaconModel] {
-		guard selectedCompany != ModelCompanyFilter.all else { return models }
-		return models.filter { $0.company == selectedCompany }
+		guard selectedCompany != ModelCompanyFilter.all else { return catalogModels }
+		return catalogModels.filter { $0.company == selectedCompany }
 	}
 
 	var body: some View {
@@ -40,6 +54,25 @@ struct ModelMarketPlaceView: View {
 						.font(.system(size: 16, weight: .regular))
 						.foregroundStyle(.secondary)
 						.lineSpacing(3)
+
+					if let catalogErrorMessage {
+						VStack(alignment: .leading, spacing: 10) {
+							Text("Could not refresh the model catalog")
+								.font(.system(size: 15, weight: .semibold))
+
+							Text("Endpoint: \(BackendConfig.baseURL.absoluteString)\nShowing the built-in catalog instead. \(catalogErrorMessage)")
+								.font(.system(size: 14, weight: .regular))
+								.foregroundStyle(.secondary)
+
+							Button("Retry") {
+								Task { await refreshCatalog() }
+							}
+							.buttonStyle(.bordered)
+						}
+						.padding(16)
+						.frame(maxWidth: .infinity, alignment: .leading)
+						.background(Color.orange.opacity(0.10), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+					}
 
 					if let deleteErrorMessage {
 						Text(deleteErrorMessage)
@@ -56,11 +89,10 @@ struct ModelMarketPlaceView: View {
 					) {
 						ModelMarketPlaceList(
 							models: filteredModels,
-							allModels: models,
-							downloadedModelIDs: downloadedModelIDs,
 							selectedModelID: selectedModelID,
 							deletingModelID: deletingModelID,
 							isDownloaded: isDownloaded,
+							downloadAvailability: downloadAvailability,
 							onDownload: onDownload,
 							onSelect: { model in
 								selectedModelID = model.id
@@ -112,6 +144,10 @@ struct ModelMarketPlaceView: View {
 		} message: {
 			Text("\(selectedDeleteWarningModelName ?? "This model") is currently active. Choose another downloaded model before deleting it.")
 		}
+		.task {
+			await refreshCatalog()
+			await measureAvailableStorage()
+		}
 		.onDisappear {
 			modelSwitchToastTask?.cancel()
 		}
@@ -145,6 +181,50 @@ struct ModelMarketPlaceView: View {
 	private func isDownloaded(_ model: BeaconModel) -> Bool {
 		if model.isBuiltIn { return true }
 		return downloadedIDs.contains(model.id)
+	}
+
+	/// Advisory per-row availability. Until the storage measurement lands, rows
+	/// present as downloadable — `ContentView.prepare(_:)` re-checks availability
+	/// synchronously when the user actually taps Download.
+	private func downloadAvailability(for model: BeaconModel) -> ModelStorageLimit.DownloadAvailability {
+		guard hasMeasuredAvailableStorage else { return .available }
+		return ModelStorageLimit.downloadAvailability(
+			for: model,
+			downloadedModelIDs: downloadedModelIDs,
+			in: catalogModels,
+			availableGB: availableStorageGB
+		)
+	}
+
+	/// Measures free device storage off the main actor. Querying
+	/// `volumeAvailableCapacityForImportantUsageKey` can be slow, so it must not
+	/// run inside `body` — let alone once per row.
+	@MainActor
+	private func measureAvailableStorage() async {
+		let measured = await Task.detached(priority: .userInitiated) {
+			ModelStorageLimit.availableDeviceStorageGB()
+		}.value
+		availableStorageGB = measured
+		hasMeasuredAvailableStorage = true
+	}
+
+	private func refreshCatalog() async {
+		guard !isRefreshingCatalog else { return }
+		isRefreshingCatalog = true
+		defer { isRefreshingCatalog = false }
+
+		do {
+			let fetchedModels = try await ModelCatalogService().fetchModels()
+			guard !fetchedModels.isEmpty else {
+				catalogErrorMessage = "The server returned no models."
+				return
+			}
+
+			remoteModels = fetchedModels
+			catalogErrorMessage = nil
+		} catch {
+			catalogErrorMessage = error.localizedDescription
+		}
 	}
 
 	private func delete(_ model: BeaconModel) {
@@ -184,6 +264,10 @@ struct ModelMarketPlaceView: View {
 			if selectedModelID == model.id {
 				selectedModelID = ""
 			}
+
+			// Deleting freed space — refresh the cached measurement so rows
+			// don't keep showing stale "Not Enough Space" states.
+			Task { await measureAvailableStorage() }
 		} catch {
 			deleteErrorMessage = "Could not delete \(model.name): \(error.localizedDescription)"
 		}
@@ -248,11 +332,10 @@ private struct ModelCompanyFilterTabs<Content: View>: View {
 
 private struct ModelMarketPlaceList: View {
 	let models: [BeaconModel]
-	let allModels: [BeaconModel]
-	let downloadedModelIDs: String
 	let selectedModelID: String
 	let deletingModelID: String?
 	var isDownloaded: (BeaconModel) -> Bool
+	var downloadAvailability: (BeaconModel) -> ModelStorageLimit.DownloadAvailability
 	var onDownload: (BeaconModel) -> Void
 	var onSelect: (BeaconModel) -> Void
 	var onDelete: (BeaconModel) -> Void
@@ -261,14 +344,12 @@ private struct ModelMarketPlaceList: View {
 	var body: some View {
 		VStack(alignment: .leading, spacing: 0) {
 			ForEach(Array(models.enumerated()), id: \.element.id) { index, model in
-				let downloadAvailability = ModelStorageLimit.downloadAvailability(for: model, downloadedModelIDs: downloadedModelIDs, in: allModels)
-
 				ModelMarketPlaceRow(
 					model: model,
 					isDownloaded: isDownloaded(model),
 					isSelected: selectedModelID == model.id,
 					isDeleting: deletingModelID == model.id,
-					downloadAvailability: downloadAvailability,
+					downloadAvailability: downloadAvailability(model),
 					onDownload: {
 						onDownload(model)
 					},
@@ -376,6 +457,10 @@ private struct ModelMarketPlaceRow: View {
 					Tag(title: "reasoning", color: .orange)
 				} else {
 					Tag(title: "chat", color: .gray)
+				}
+
+				if model.supportsImages {
+					Tag(title: "vision", color: .indigo)
 				}
 
 				if deviceCompatibility.showsTag {
@@ -564,7 +649,7 @@ private enum DeviceTier: Int {
 		}
 	}
 
-	static var current: DeviceTier {
+	static let current: DeviceTier = {
 		#if targetEnvironment(simulator)
 		return .iPhone16Pro
 		#else
@@ -578,7 +663,7 @@ private enum DeviceTier: Int {
 		#endif
 		return .iPhone13
 		#endif
-	}
+	}()
 
 	private static var currentDeviceIdentifier: String {
 		var systemInfo = utsname()

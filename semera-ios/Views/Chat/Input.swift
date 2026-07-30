@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import Foundation
 
 #if false // Web search input controls are not currently available.
 struct Input: View {
@@ -13,6 +14,7 @@ struct Input: View {
 	@Binding private var isWebSearchTagged: Bool
 	var placeholder: String = "Message"
 	var isGenerating = false
+	var hasAttachment = false
 	var isWebSearchEnabled = true
 	var webSearchTitle = "Search Web"
 	var isWebSearchUnavailable = false
@@ -51,6 +53,10 @@ struct Input: View {
 
 	private var hasTypedText: Bool {
 		!text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+	}
+
+	private var canSend: Bool {
+		hasTypedText || hasAttachment
 	}
 
 	private var showsWebSuggestion: Bool {
@@ -126,7 +132,7 @@ struct Input: View {
 					}
 
 					let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-					guard !trimmed.isEmpty else { return }
+					guard canSend else { return }
 					text = ""
 					onSend(trimmed)
 				} label: {
@@ -205,6 +211,11 @@ struct Input: View {
 	@Binding var text: String
 	var placeholder: String = "Message"
 	var isGenerating = false
+	var hasAttachment = false
+	var attachmentData: Data?
+	var onAttachImage: (() -> Void)?
+	var canAttachImages = true
+	var onRemoveAttachment: () -> Void = {}
 	var onStop: () -> Void = {}
 	var onSend: (String) -> Void
 
@@ -216,6 +227,10 @@ struct Input: View {
 		!text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
 	}
 
+	private var canSend: Bool {
+		hasTypedText || hasAttachment
+	}
+
 	private var cornerRadius: CGFloat {
 		let singleLineHeight: CGFloat = 22
 		let multilineAmount = min(max((textFieldHeight - singleLineHeight) / singleLineHeight, 0), 1)
@@ -223,44 +238,62 @@ struct Input: View {
 	}
 
 	var body: some View {
-		HStack(alignment: .bottom, spacing: 8) {
-			TextField(placeholder, text: $text, axis: .vertical)
-				.font(.system(size: 16))
-				.id(resetID)
-				.focused($isTextFieldFocused)
-				.frame(maxWidth: .infinity, alignment: .leading)
-				.lineLimit(1 ... 4)
-				#if !os(macOS)
-				.textInputAutocapitalization(.sentences)
-				#endif
-				.autocorrectionDisabled(false)
-				.padding(.vertical, 4)
-				.background {
-					GeometryReader { proxy in
-						Color.clear.onChange(of: proxy.size.height) { _, newHeight in
-							withAnimation(.smooth(duration: 0.22)) { textFieldHeight = newHeight }
-						}
+		VStack(alignment: .leading, spacing: 14) {
+			if let attachmentData {
+				AttachedImagePreview(data: attachmentData, onRemove: onRemoveAttachment)
+			}
+
+			HStack(alignment: .bottom, spacing: 8) {
+				if attachmentData == nil, let onAttachImage {
+					Button(action: onAttachImage) {
+						Image(systemName: "plus")
+							.font(.system(size: 18, weight: .regular))
+							.foregroundStyle(canAttachImages ? .primary : .secondary)
+							.frame(width: 24, height: 28)
 					}
+					.buttonStyle(.plain)
+					.disabled(!canAttachImages)
+					.accessibilityLabel("Attach image")
 				}
 
-			Button {
-				if isGenerating {
-					onStop()
-					return
+				TextField(placeholder, text: $text, axis: .vertical)
+					.font(.system(size: 16))
+					.id(resetID)
+					.focused($isTextFieldFocused)
+					.frame(maxWidth: .infinity, alignment: .leading)
+					.lineLimit(1 ... 4)
+					#if !os(macOS)
+					.textInputAutocapitalization(.sentences)
+					#endif
+					.autocorrectionDisabled(false)
+					.padding(.vertical, 4)
+					.background {
+						GeometryReader { proxy in
+							Color.clear.onChange(of: proxy.size.height) { _, newHeight in
+								withAnimation(.smooth(duration: 0.22)) { textFieldHeight = newHeight }
+							}
+						}
+					}
+
+				Button {
+					if isGenerating {
+						onStop()
+						return
+					}
+					let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+					guard canSend else { return }
+					text = ""
+					onSend(trimmed)
+				} label: {
+					Image(systemName: isGenerating ? "stop.fill" : "arrow.up")
+						.font(.system(size: 16, weight: .bold))
+						.frame(width: 28, height: 28)
+						.foregroundStyle((canSend || isGenerating) ? Color(uiColor: .systemBackground) : .secondary)
+						.background((canSend || isGenerating) ? Color.primary : Color(uiColor: .systemGray4), in: Circle())
 				}
-				let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-				guard !trimmed.isEmpty else { return }
-				text = ""
-				onSend(trimmed)
-			} label: {
-				Image(systemName: isGenerating ? "stop.fill" : "arrow.up")
-					.font(.system(size: 16, weight: .bold))
-					.frame(width: 28, height: 28)
-					.foregroundStyle((hasTypedText || isGenerating) ? Color(uiColor: .systemBackground) : .secondary)
-					.background((hasTypedText || isGenerating) ? Color.primary : Color(uiColor: .systemGray4), in: Circle())
+				.buttonStyle(.plain)
+				.disabled(!canSend && !isGenerating)
 			}
-			.buttonStyle(.plain)
-			.disabled(!hasTypedText && !isGenerating)
 		}
 		.padding(.horizontal, 14)
 		.padding(.vertical, 12)

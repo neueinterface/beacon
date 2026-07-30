@@ -62,7 +62,7 @@ struct Tabs<Selection: Hashable, Content: View>: View {
 			case .regular:
 				.smooth(duration: 0.14)
 			case .small:
-				.easeOut(duration: 0.08)
+				.snappy(duration: 0.18, extraBounce: 0)
 			}
 		}
 
@@ -71,7 +71,7 @@ struct Tabs<Selection: Hashable, Content: View>: View {
 			case .regular:
 				.opacity.combined(with: .move(edge: .bottom))
 			case .small:
-				.identity
+				.opacity.combined(with: .scale(scale: 0.985))
 			}
 		}
 	}
@@ -116,6 +116,7 @@ struct Tabs<Selection: Hashable, Content: View>: View {
 				.id(selection)
 				.transition(size.contentTransition)
 		}
+		.sensoryFeedback(.selection, trigger: selection)
 	}
 
 	private func tabButton(for option: Selection) -> some View {
