@@ -113,13 +113,13 @@ struct SettingsView: View {
 					}
 
 					settingsSection("Legal") {
-						SettingsLinkRow(title: "Terms of Service", icon: "legal.icon") {
-							SettingsTextDetailView(title: "Terms of Service", paragraphs: SettingsLegalContent.terms)
+						SettingsButtonRow(title: "Terms of Service", icon: "legal.icon") {
+							safariViewModel.open(URL(string: "https://beacon.neueinterface.com/terms-of-service")!)
 						}
 						SettingsListDivider()
 
-						SettingsLinkRow(title: "Privacy Policy", icon: "privacy.icon") {
-							SettingsTextDetailView(title: "Privacy Policy", paragraphs: SettingsLegalContent.privacyPolicy)
+						SettingsButtonRow(title: "Privacy Policy", icon: "privacy.icon") {
+							safariViewModel.open(URL(string: "https://beacon.neueinterface.com/privacy-policy")!)
 						}
 					}
 
