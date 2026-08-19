@@ -111,12 +111,6 @@ final class ChatHistoryViewModel: ObservableObject {
 		}
 	}
 
-	func markMemoryStored(for messageID: ChatMessage.ID) {
-		updateMessage(messageID) { message in
-			message.didStoreMemory = true
-		}
-	}
-
 	func requireVisionModel(for messageID: ChatMessage.ID) {
 		updateMessage(messageID) { message in
 			message.requiresVisionModel = true

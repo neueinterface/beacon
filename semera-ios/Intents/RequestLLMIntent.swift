@@ -4,17 +4,17 @@ import Foundation
 @available(iOS 16.0, macOS 13.0, *)
 struct RequestLLMIntent: AppIntent {
 	static var title: LocalizedStringResource = "New Chat"
-	static var description: IntentDescription = "Ask the selected Semera model a question."
+	static var description: IntentDescription = "Ask the selected Beacon model a question."
 	static var openAppWhenRun = false
 
 	@Parameter(title: "Continuous Chat", default: false)
 	var continuous: Bool
 
-	@Parameter(title: "Message", requestValueDialog: IntentDialog("What do you want to ask Semera?"))
+	@Parameter(title: "Message", requestValueDialog: IntentDialog("What do you want to ask Beacon?"))
 	var prompt: String
 
 	static var parameterSummary: some ParameterSummary {
-		Summary("Ask Semera \(\.$prompt)") {
+		Summary("Ask Beacon \(\.$prompt)") {
 			\.$continuous
 		}
 	}
@@ -27,17 +27,17 @@ struct RequestLLMIntent: AppIntent {
 	func perform() async throws -> some IntentResult & ReturnsValue<String> & ProvidesDialog {
 		let trimmedPrompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
 		guard !trimmedPrompt.isEmpty else {
-			throw $prompt.requestValue("What do you want to ask Semera?")
+			throw $prompt.requestValue("What do you want to ask Beacon?")
 		}
 
 		ModelIDMigration.migrate()
 		let defaults = UserDefaults.standard
 		let selectedModelID = defaults.string(forKey: "selectedModelID") ?? ""
-		let models = (try? await ModelCatalogService().fetchModels()) ?? ModelCatalog.availableModels
+		let models = ModelCatalog.availableModels
 		let selectedModel = ModelCatalog.model(id: selectedModelID, in: models) ?? ModelCatalog.defaultModel(in: models)
 
 		guard selectedModel.isBuiltIn || isDownloaded(selectedModel, defaults: defaults) else {
-			let message = "Open Semera and download \(selectedModel.name) before using it from Shortcuts."
+			let message = "Open Beacon and download \(selectedModel.name) before using it from Shortcuts."
 			return .result(value: message, dialog: IntentDialog(stringLiteral: message))
 		}
 
@@ -45,13 +45,13 @@ struct RequestLLMIntent: AppIntent {
 		await runtime.load(selectedModel)
 
 		guard runtime.isReady(for: selectedModel) else {
-			let message = runtime.errorMessage ?? "Semera could not load the selected model. Open the app and choose a model first."
+			let message = runtime.errorMessage ?? "Beacon could not load the selected model. Open the app and choose a model first."
 			return .result(value: message, dialog: IntentDialog(stringLiteral: message))
 		}
 
 		var output = ""
 		let prompt = promptForShortcut(trimmedPrompt, continuous: continuous)
-		try await runtime.streamResponse(to: prompt, memories: UserMemoryStore().memories) { chunk in
+		try await runtime.streamResponse(to: prompt) { chunk in
 			output += chunk
 		}
 
@@ -86,7 +86,7 @@ struct RequestLLMIntent: AppIntent {
 }
 
 @available(iOS 16.0, macOS 13.0, *)
-struct SemeraShortcuts: AppShortcutsProvider {
+struct BeaconShortcuts: AppShortcutsProvider {
 	static var appShortcuts: [AppShortcut] {
 		AppShortcut(
 			intent: RequestLLMIntent(),

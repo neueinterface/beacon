@@ -7,8 +7,8 @@
 
 import Foundation
 
-struct BeaconModel: Identifiable, Equatable {
-	enum ModelType {
+struct BeaconModel: Identifiable, Equatable, Decodable {
+	enum ModelType: String, Decodable {
 		case regular
 		case reasoning
 	}
@@ -55,86 +55,21 @@ struct BeaconModel: Identifiable, Equatable {
 }
 
 enum ModelCatalog {
-	static let availableModels: [BeaconModel] = [
-		BeaconModel(
-			id: "apple-foundation",
-			name: "Apple Foundation Model",
-			description: "Apple's private on-device system model. No download required when Apple Intelligence is available.",
-			repositoryID: "apple-foundation-model",
-			sizeInGB: 0,
-			type: .regular,
-			recommendedDevice: "Apple Intelligence device",
-			isAvailableDuringOnboarding: true,
-			isBuiltIn: true
-		),
-		BeaconModel(
-			id: "qwen3-0.6b-4bit",
-			name: "Qwen3 0.6B 4-bit",
-			description: "A very small Qwen model for fast private chat on most iPhones.",
-			repositoryID: "mlx-community/Qwen3-0.6B-4bit",
-			sizeInGB: 0.34,
-			type: .regular,
-			recommendedDevice: "iPhone 13+",
-			isAvailableDuringOnboarding: true,
-			isBuiltIn: false
-		),
-		BeaconModel(
-			id: "lfm2-1.2b-4bit",
-			name: "LFM2 1.2B 4-bit",
-			description: "A compact Liquid AI text model with strong tool/chat formatting support.",
-			repositoryID: "mlx-community/LFM2-1.2B-4bit",
-			sizeInGB: 0.66,
-			type: .regular,
-			recommendedDevice: "iPhone 14+",
-			isAvailableDuringOnboarding: true,
-			isBuiltIn: false
-		),
-		BeaconModel(
-			id: "llama-3.2-1b-instruct-4bit",
-			name: "Llama 3.2 1B Instruct 4-bit",
-			description: "A small instruct-tuned chat model with clearer everyday responses than reasoning-first models.",
-			repositoryID: "mlx-community/Llama-3.2-1B-Instruct-4bit",
-			sizeInGB: 0.76,
-			type: .regular,
-			recommendedDevice: "iPhone 14 Pro+",
-			isAvailableDuringOnboarding: true,
-			isBuiltIn: false
-		),
-		BeaconModel(
-			id: "qwen2.5-3b-instruct-4bit",
-			name: "Qwen2.5 3B Instruct 4-bit",
-			description: "A balanced chat model for stronger writing, summaries, and practical Q&A on newer iPhones.",
-			repositoryID: "mlx-community/Qwen2.5-3B-Instruct-4bit",
-			sizeInGB: 1.90,
-			type: .regular,
-			recommendedDevice: "iPhone 15 Pro+",
-			isAvailableDuringOnboarding: false,
-			isBuiltIn: false
-		),
-		BeaconModel(
-			id: "llama-3.2-3b-instruct-4bit",
-			name: "Llama 3.2 3B Instruct 4-bit",
-			description: "A higher-quality instruct model for conversational answers, rewriting, and longer chats on Pro devices.",
-			repositoryID: "mlx-community/Llama-3.2-3B-Instruct-4bit",
-			sizeInGB: 2.02,
-			type: .regular,
-			recommendedDevice: "iPhone 15 Pro+",
-			isAvailableDuringOnboarding: false,
-			isBuiltIn: false
-		),
-		BeaconModel(
-			id: "qwen2-vl-2b-instruct-4bit",
-			name: "Qwen2-VL 2B 4-bit",
-			description: "A private on-device vision model for asking questions about images.",
-			repositoryID: "mlx-community/Qwen2-VL-2B-Instruct-4bit",
-			sizeInGB: 1.54,
-			type: .regular,
-			recommendedDevice: "iPhone 15 Pro+",
-			isAvailableDuringOnboarding: false,
-			isBuiltIn: false,
-			supportsImages: true
-		)
-	]
+	static let availableModels: [BeaconModel] = {
+		do {
+			guard let url = Bundle.main.url(forResource: "models", withExtension: "json") else {
+				throw CocoaError(.fileNoSuchFile)
+			}
+
+			return try decode(Data(contentsOf: url))
+		} catch {
+			fatalError("Could not load the bundled model catalog: \(error)")
+		}
+	}()
+
+	static func decode(_ data: Data) throws -> [BeaconModel] {
+		try JSONDecoder().decode([BeaconModel].self, from: data)
+	}
 
 	static var onboardingModels: [BeaconModel] {
 		onboardingModels(in: availableModels)

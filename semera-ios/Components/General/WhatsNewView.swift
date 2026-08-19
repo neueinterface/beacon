@@ -14,7 +14,7 @@ struct WhatsNewRelease {
 		id: "2026-07-model-marketplace",
 		heroImageName: "whatsnew",
 		title: "What's New",
-		subtitle: "The latest improvements in Semera.",
+		subtitle: "The latest improvements in Beacon.",
 		updates: [
 			"Browse a larger collection of local models from the marketplace.",
 			"Choose models that fit your device, download them, and switch whenever you need.",

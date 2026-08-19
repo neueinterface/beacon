@@ -10,7 +10,6 @@ struct MessageBubble: View {
 	let text: String
 	var imageData: Data?
 	var thinkingText = ""
-	var didStoreMemory = false
 	var requiresVisionModel = false
 	var onDownloadVisionModel: () -> Void = {}
 	#if false // Web search sources are not currently shown.
@@ -74,10 +73,6 @@ struct MessageBubble: View {
 				SourceTag(sources: sources, onOpen: onOpenSource)
 			}
 			#endif
-
-			if didStoreMemory, !isWaitingForResponse {
-				MemoryStoredTag()
-			}
 
 			if requiresVisionModel, !isWaitingForResponse {
 				Button("Download vision model", action: onDownloadVisionModel)
@@ -146,30 +141,6 @@ private struct ChatAttachedImage: View {
 		}
 		#endif
 	}
-}
-
-// memory stored tag
-
-private struct MemoryStoredTag: View {
-	var body: some View {
-		HStack(spacing: 6) {
-			Image("memory.icon")
-				.resizable()
-				.scaledToFit()
-				.frame(width: 16, height: 16)
-
-			Text("Memory stored")
-		}
-        .font(.system(size: 14, weight: .medium))
-		.foregroundStyle(.secondary)
-        .padding(10)
-	}
-}
-
-#Preview("Memory Stored Tag") {
-	MemoryStoredTag()
-		.padding()
-		.background(Color(uiColor: .systemBackground))
 }
 
 private struct ThinkingStatusText: View {
@@ -287,7 +258,6 @@ private extension String {
 			- Handles markdown lists cleanly
 			""", role: .assistant)
 		MessageBubble(text: "Great, can you explain local inference in simple terms?", role: .user)
-		MessageBubble(text: "I'll keep that in mind.", didStoreMemory: true, role: .assistant)
 	}
     .padding()
 	.background(Color(uiColor: .systemBackground))

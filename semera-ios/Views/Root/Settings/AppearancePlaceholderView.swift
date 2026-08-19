@@ -50,7 +50,7 @@ struct AppearancePlaceholderView: View {
 						.font(.system(size: 22, weight: .semibold))
 						.foregroundStyle(.primary)
 
-					Text("Turn on dark mode, or let Semera visually match your device settings.")
+					Text("Turn on dark mode, or let Beacon visually match your device settings.")
 						.font(.system(size: 15, weight: .regular))
 						.foregroundStyle(.secondary)
 						.lineSpacing(3)

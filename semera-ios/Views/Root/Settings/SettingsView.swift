@@ -8,7 +8,6 @@ import UIKit
 
 struct SettingsView: View {
 	@ObservedObject var chatHistoryViewModel: ChatHistoryViewModel
-	@ObservedObject var memoryStore: UserMemoryStore
 	var models = ModelCatalog.availableModels
 	var onDownloadModel: (BeaconModel) -> Void = { _ in }
 	@Environment(\.dismiss) private var dismiss
@@ -39,7 +38,7 @@ struct SettingsView: View {
 		components.scheme = "mailto"
 		components.path = "semeraco@gmail.com"
 		components.queryItems = [
-			URLQueryItem(name: "subject", value: "Semera Bug Report - v\(appVersion) (\(buildNumber))"),
+			URLQueryItem(name: "subject", value: "Beacon Bug Report - v\(appVersion) (\(buildNumber))"),
 			URLQueryItem(name: "body", value: bugReportBody)
 		]
 
@@ -54,7 +53,7 @@ struct SettingsView: View {
 		---
 		Please write any extra details above this line.
 
-		App: Semera
+		App: Beacon
 		Version: v\(appVersion) (\(buildNumber))
 		Device: \(deviceDescription)
 		"""
@@ -89,11 +88,6 @@ struct SettingsView: View {
 						SettingsListDivider()
 
 						SettingsToggleRow(title: "Notifications", icon: "bell.icon", isOn: notificationsBinding)
-						SettingsListDivider()
-
-						SettingsLinkRow(title: "Memories", icon: "memory.icon") {
-							MemoriesView(memoryStore: memoryStore)
-						}
 						SettingsListDivider()
 
 						#if false // Web search is not currently available.
@@ -209,7 +203,7 @@ struct SettingsView: View {
 			.alert("Web Search", isPresented: $isShowingWebSearchInfo) {
 				Button("Continue") { }
 			} message: {
-				Text("Web Search can send your search query to Semera to retrieve current results. Daily search limits apply.")
+				Text("Web Search can send your search query to Beacon to retrieve current results. Daily search limits apply.")
 			}
 			#endif
 			.sheet(item: $safariViewModel.page) { page in
@@ -346,7 +340,7 @@ private struct WhyLocalModelsView: View {
 	]
 
 	private let closingParagraphs = [
-		"At Semera, we don’t see local AI as a replacement for cloud intelligence. We see it as an important part of a future where people can choose the experience that best fits their needs. Some questions will benefit from the web. Others should stay entirely on your device. Great software should make that choice feel effortless.",
+		"At Beacon, we don’t see local AI as a replacement for cloud intelligence. We see it as an important part of a future where people can choose the experience that best fits their needs. Some questions will benefit from the web. Others should stay entirely on your device. Great software should make that choice feel effortless.",
 		"Most importantly, local AI has the potential to make powerful technology more accessible. Students, educators, creators, travelers, healthcare workers, and communities with limited infrastructure shouldn’t be left behind because they lack a constant internet connection or the resources to pay for cloud services. As models become smaller, faster, and more capable, we believe AI can reach more people than ever before.",
 		"Our goal isn’t simply to bring AI onto your device. It’s to explore how on-device intelligence can create experiences that feel more private, more reliable, and ultimately more human."
 	]
@@ -406,5 +400,5 @@ private struct WhyLocalModelsView: View {
 }
 
 #Preview {
-SettingsView(chatHistoryViewModel: ChatHistoryViewModel(conversations: []), memoryStore: UserMemoryStore(memories: []))
+SettingsView(chatHistoryViewModel: ChatHistoryViewModel(conversations: []))
 }

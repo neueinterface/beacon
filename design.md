@@ -1,6 +1,6 @@
 # Design
 
-Semera should feel calm, native, and focused. The visual system should stay minimal and rely on restraint rather than decoration.
+Beacon should feel calm, native, and focused. The visual system should stay minimal and rely on restraint rather than decoration.
 
 ## Core Colors
 
@@ -37,7 +37,7 @@ This keeps color usage soft, consistent, and readable without making the interfa
 
 Color should clarify, not compete.
 
-Semera should default to black, white, and gray. Use accent colors only when they add meaning or improve recognition.
+Beacon should default to black, white, and gray. Use accent colors only when they add meaning or improve recognition.
 
 ## Typography
 

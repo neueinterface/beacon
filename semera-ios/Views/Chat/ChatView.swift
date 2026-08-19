@@ -15,7 +15,6 @@ struct ChatView: View {
 	@ObservedObject var notificationRouter = NotificationRouter()
 	var onDownloadModel: (BeaconModel) -> Void = { _ in }
 	@StateObject private var historyViewModel = ChatHistoryViewModel()
-	@StateObject private var memoryStore = UserMemoryStore()
 	@AppStorage("selectedModelID") private var selectedModelID = ""
 	@AppStorage("downloadedModelIDs") private var downloadedModelIDs = ""
 	@AppStorage("notificationsEnabled") private var notificationsEnabled = false
@@ -169,7 +168,7 @@ struct ChatView: View {
 			.presentationDragIndicator(.visible)
 		}
 		.sheet(isPresented: $isShowingSettings) {
-			SettingsView(chatHistoryViewModel: historyViewModel, memoryStore: memoryStore, models: models, onDownloadModel: onDownloadModel)
+			SettingsView(chatHistoryViewModel: historyViewModel, models: models, onDownloadModel: onDownloadModel)
 		}
 		.sheet(isPresented: $isShowingAppIconPicker) {
 			NavigationStack {
@@ -271,7 +270,7 @@ struct ChatView: View {
 		NavigationStack {
 			ZStack {
 				if historyViewModel.currentMessages.isEmpty {
-					Image("semera.logo")
+					Image("beacon.logo")
 						.resizable()
 						.scaledToFit()
 						.foregroundStyle(Color(uiColor: .systemGray6))
@@ -290,7 +289,6 @@ struct ChatView: View {
 												text: message.text,
 												imageData: message.imageData,
 												thinkingText: message.thinkingText,
-												didStoreMemory: message.didStoreMemory,
 												requiresVisionModel: message.requiresVisionModel,
 												onDownloadVisionModel: downloadVisionModel,
 												role: message.role,
@@ -479,6 +477,7 @@ struct ChatView: View {
 		#endif
 		let displayText = text
 		let responseModel = imageData == nil ? selectedModel : visionModel ?? selectedModel
+		let conversationHistory = historyViewModel.currentMessages
 
 		let responseID = historyViewModel.appendUserMessage(displayText, imageData: imageData, modelName: responseModel.name)
 		if imageData != nil {
@@ -505,7 +504,7 @@ struct ChatView: View {
 				}
 
 				isPreparingResponse = false
-				try await runtime.streamResponse(to: prompt, imageData: imageData, memories: memoryStore.memories, onThinking: { chunk in
+				try await runtime.streamResponse(to: prompt, imageData: imageData, conversationHistory: conversationHistory, onThinking: { chunk in
 					historyViewModel.appendAssistantThinking(chunk, to: responseID)
 				}) { chunk in
 					historyViewModel.appendAssistantChunk(chunk, to: responseID)
@@ -513,9 +512,6 @@ struct ChatView: View {
 				}
 
 				responseHaptics.finish()
-				if memoryStore.store(from: displayText) {
-					historyViewModel.markMemoryStored(for: responseID)
-				}
 			} catch is CancellationError {
 				if historyViewModel.currentMessages.first(where: { $0.id == responseID })?.text.isEmpty == true {
 					historyViewModel.replaceMessage(responseID, with: "Stopped.")

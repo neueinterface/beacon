@@ -7,7 +7,7 @@
 
 import XCTest
 
-final class SemeraUITestsLaunchTests: XCTestCase {
+final class BeaconUITestsLaunchTests: XCTestCase {
 
 	override class var runsForEachTargetApplicationUIConfiguration: Bool {
 		true

@@ -12,8 +12,8 @@ import UIKit
 #endif
 @testable import Semera
 
-@Suite("Semera app data")
-struct SemeraAppDataTests {
+@Suite("Beacon app data")
+struct BeaconAppDataTests {
 	@Test("Default model is available during onboarding")
 	func defaultModelIsAvailableDuringOnboarding() {
 		#expect(ModelCatalog.onboardingModels.contains(ModelCatalog.defaultModel))
@@ -50,53 +50,35 @@ struct SemeraAppDataTests {
 		#expect(model.supportsImages)
 		#expect(!model.isBuiltIn)
 	}
+
+	@Test("Bundled catalog offers varied model families")
+	func catalogOffersVariedModelFamilies() {
+		let repositories = ModelCatalog.availableModels.map(\.repositoryID)
+
+		#expect(ModelCatalog.availableModels.count >= 15)
+		#expect(repositories.contains { $0.localizedCaseInsensitiveContains("gemma") })
+		#expect(repositories.contains { $0.localizedCaseInsensitiveContains("granite") })
+		#expect(repositories.contains { $0.localizedCaseInsensitiveContains("phi") })
+		#expect(repositories.contains { $0.localizedCaseInsensitiveContains("deepseek") })
+		#expect(ModelCatalog.availableModels.contains { $0.type == .reasoning })
+	}
 }
 
-@Suite("User memories")
-struct UserMemoryTests {
-	@Test("Stores durable family details")
-	func storesFamilyOccupation() {
-		#expect(UserMemoryStore.memoryText(from: "My wife is a special education teacher") == "User's wife is a special education teacher")
-	}
-
-	@Test("Does not store preferences")
-	func ignoresPreferences() {
-		#expect(UserMemoryStore.memoryText(from: "I love cooking lasagna") == nil)
-	}
-}
-
-@Suite("Web search settings")
-struct WebSearchSettingsTests {
-	@Test("Web search toggle defaults to off")
-	func webSearchToggleDefaultsToOff() {
-		let key = "webSearchEnabled"
-		let defaults = UserDefaults.standard
-		let previousValue = defaults.object(forKey: key)
-
-		defaults.removeObject(forKey: key)
-		// @AppStorage("webSearchEnabled") private var webSearchEnabled = false
-		#expect(defaults.object(forKey: key) == nil)
-
-		if let previousValue {
-			defaults.set(previousValue, forKey: key)
-		} else {
-			defaults.removeObject(forKey: key)
-		}
-	}
-
+@Suite("Settings rows")
+struct SettingsRowTests {
 	@Test("Settings toggle row stores subtitle text")
 	func settingsToggleRowStoresSubtitle() {
 		var isOn = false
 		let binding = Binding<Bool>(get: { isOn }, set: { isOn = $0 })
 		let row = SettingsToggleRow(
-			title: "Web Search",
-			icon: "globe.icon",
-			subtitle: "Daily search limits apply",
+			title: "Notifications",
+			icon: "bell.icon",
+			subtitle: "Optional alerts",
 			isOn: binding
 		)
 
-		#expect(row.title == "Web Search")
-		#expect(row.subtitle == "Daily search limits apply")
+		#expect(row.title == "Notifications")
+		#expect(row.subtitle == "Optional alerts")
 	}
 
 	@Test("Settings toggle row subtitle defaults to nil")

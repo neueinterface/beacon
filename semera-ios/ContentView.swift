@@ -6,21 +6,14 @@
 //
 
 import SwiftUI
-import OSLog
 
 struct ContentView: View {
-	private static let modelCatalogLogger = Logger(
-		subsystem: Bundle.main.bundleIdentifier ?? "me.armond.semera-ios",
-		category: "ModelCatalog"
-	)
-
-	@Environment(\.scenePhase) private var scenePhase
 	@AppStorage("hasCompletedWelcome") private var hasCompletedWelcome = false
 	@AppStorage("selectedModelID") private var selectedModelID = ""
 	@AppStorage("downloadedModelIDs") private var downloadedModelIDs = ""
 	@AppStorage("lastSeenWhatsNewRelease") private var lastSeenWhatsNewRelease = ""
 	@ObservedObject private var modelRuntime: BeaconModelRuntime
-	@State private var models = ModelCatalog.availableModels
+	private let models = ModelCatalog.availableModels
 	@State private var isChoosingModel = false
 	@State private var downloadingModel: BeaconModel?
 	@State private var downloadAlert: DownloadAlert?
@@ -75,32 +68,7 @@ struct ContentView: View {
 		}
 		.task {
 			ModelIDMigration.migrate()
-			await loadRemoteModels()
 			presentWhatsNewIfNeeded()
-		}
-		.onChange(of: scenePhase) { _, phase in
-			guard phase == .active else { return }
-			Task {
-				await loadRemoteModels()
-			}
-		}
-	}
-
-	private func loadRemoteModels() async {
-		do {
-			let remoteModels = try await ModelCatalogService().fetchModels()
-			guard !remoteModels.isEmpty else {
-				Self.modelCatalogLogger.error("The remote model catalog was empty.")
-				return
-			}
-
-			let remoteIDs = Set(remoteModels.map(\.id))
-			let localRequiredModels = ModelCatalog.availableModels.filter {
-				($0.isBuiltIn || $0.supportsImages) && !remoteIDs.contains($0.id)
-			}
-			models = localRequiredModels + remoteModels
-		} catch {
-			Self.modelCatalogLogger.error("Could not load the remote model catalog from \(BackendConfig.baseURL.absoluteString, privacy: .public): \(error.localizedDescription, privacy: .public)")
 		}
 	}
 
@@ -134,7 +102,7 @@ struct ContentView: View {
 			case .available:
 				break
 			case .appStorageFull:
-				downloadAlert = .failed(model.name, "Delete a downloaded model to free up Semera's 10 GB model storage limit.")
+				downloadAlert = .failed(model.name, "Delete a downloaded model to free up Beacon's 10 GB model storage limit.")
 				return
 			case let .deviceStorageLow(requiredGB, availableGB):
 				downloadAlert = .failed(model.name, "This model needs about \(ModelStorageLimit.formattedGB(requiredGB)) free. You have \(ModelStorageLimit.formattedGB(availableGB)) available.")

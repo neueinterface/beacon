@@ -62,7 +62,7 @@ struct Tabs<Selection: Hashable, Content: View>: View {
 			case .regular:
 				.smooth(duration: 0.14)
 			case .small:
-				.snappy(duration: 0.18, extraBounce: 0)
+				.easeOut(duration: 0.1)
 			}
 		}
 
@@ -79,6 +79,7 @@ struct Tabs<Selection: Hashable, Content: View>: View {
 	let options: [Selection]
 	@Binding var selection: Selection
 	var size: Size = .regular
+	var horizontalScrollOverflow: CGFloat = 0
 	var title: (Selection) -> String
 	@ViewBuilder var content: (Selection) -> Content
 
@@ -88,12 +89,14 @@ struct Tabs<Selection: Hashable, Content: View>: View {
 		options: [Selection],
 		selection: Binding<Selection>,
 		size: Size = .regular,
+		horizontalScrollOverflow: CGFloat = 0,
 		title: @escaping (Selection) -> String,
 		@ViewBuilder content: @escaping (Selection) -> Content
 	) {
 		self.options = options
 		self._selection = selection
 		self.size = size
+		self.horizontalScrollOverflow = horizontalScrollOverflow
 		self.title = title
 		self.content = content
 	}
@@ -107,9 +110,12 @@ struct Tabs<Selection: Hashable, Content: View>: View {
 					}
 				}
 				.fixedSize(horizontal: true, vertical: false)
+				.padding(.horizontal, horizontalScrollOverflow)
+				.animation(size == .small ? size.animation : nil, value: selection)
 			}
 			.scrollIndicators(.hidden)
 			.frame(maxWidth: .infinity, alignment: .leading)
+			.padding(.horizontal, -horizontalScrollOverflow)
 
 			content(selection)
 				.frame(maxWidth: .infinity, alignment: .leading)
@@ -123,8 +129,12 @@ struct Tabs<Selection: Hashable, Content: View>: View {
 		let isSelected = selection == option
 
 		return Button {
-			withAnimation(size.animation) {
+			if size == .small {
 				selection = option
+			} else {
+				withAnimation(size.animation) {
+					selection = option
+				}
 			}
 		} label: {
 			Text(title(option))
@@ -175,12 +185,14 @@ extension Tabs where Selection == String {
 		options: [String],
 		selection: Binding<String>,
 		size: Size = .regular,
+		horizontalScrollOverflow: CGFloat = 0,
 		@ViewBuilder content: @escaping (String) -> Content
 	) {
 		self.init(
 			options: options,
 			selection: selection,
 			size: size,
+			horizontalScrollOverflow: horizontalScrollOverflow,
 			title: { $0 },
 			content: content
 		)

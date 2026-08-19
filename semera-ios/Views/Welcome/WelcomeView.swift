@@ -55,7 +55,7 @@ struct WelcomeView: View {
 
 	private var logo: some View {
 		ZStack {
-			Image("semera.logo")
+			Image("beacon.logo")
 				.renderingMode(.template)
 				.resizable()
 				.scaledToFit()
@@ -148,7 +148,7 @@ struct WelcomeView: View {
 				.font(.system(size: 32, weight: .medium))
 				.foregroundStyle(.primary)
 
-			Text("Semera provides private, on-device AI that feels simple and approachable.")
+			Text("Beacon provides private, on-device AI that feels simple and approachable.")
 				.font(.system(size: 16, weight: .regular))
 				.foregroundStyle(.secondary)
 				.lineSpacing(3)
@@ -212,7 +212,7 @@ private struct LogoShimmerMask: View {
 			.offset(x: proxy.size.width * offset)
 		}
 		.mask {
-			Image("semera.logo")
+			Image("beacon.logo")
 				.renderingMode(.template)
 				.resizable()
 				.scaledToFit()

@@ -24,17 +24,8 @@ struct ModelMarketPlaceView: View {
 	@State private var selectedCompany = ModelCompanyFilter.all
 	@State private var availableStorageGB: Double?
 	@State private var hasMeasuredAvailableStorage = false
-	@State private var remoteModels: [BeaconModel] = []
-	@State private var catalogErrorMessage: String?
-	@State private var isRefreshingCatalog = false
-
 	private var catalogModels: [BeaconModel] {
-		guard !remoteModels.isEmpty else { return models }
-		let remoteIDs = Set(remoteModels.map(\.id))
-		let localRequiredModels = ModelCatalog.availableModels.filter {
-			($0.isBuiltIn || $0.supportsImages) && !remoteIDs.contains($0.id)
-		}
-		return localRequiredModels + remoteModels
+		models
 	}
 
 	private var companyFilters: [String] {
@@ -54,25 +45,6 @@ struct ModelMarketPlaceView: View {
 						.font(.system(size: 16, weight: .regular))
 						.foregroundStyle(.secondary)
 						.lineSpacing(3)
-
-					if let catalogErrorMessage {
-						VStack(alignment: .leading, spacing: 10) {
-							Text("Could not refresh the model catalog")
-								.font(.system(size: 15, weight: .semibold))
-
-							Text("Endpoint: \(BackendConfig.baseURL.absoluteString)\nShowing the built-in catalog instead. \(catalogErrorMessage)")
-								.font(.system(size: 14, weight: .regular))
-								.foregroundStyle(.secondary)
-
-							Button("Retry") {
-								Task { await refreshCatalog() }
-							}
-							.buttonStyle(.bordered)
-						}
-						.padding(16)
-						.frame(maxWidth: .infinity, alignment: .leading)
-						.background(Color.orange.opacity(0.10), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-					}
 
 					if let deleteErrorMessage {
 						Text(deleteErrorMessage)
@@ -145,7 +117,6 @@ struct ModelMarketPlaceView: View {
 			Text("\(selectedDeleteWarningModelName ?? "This model") is currently active. Choose another downloaded model before deleting it.")
 		}
 		.task {
-			await refreshCatalog()
 			await measureAvailableStorage()
 		}
 		.onDisappear {
@@ -206,25 +177,6 @@ struct ModelMarketPlaceView: View {
 		}.value
 		availableStorageGB = measured
 		hasMeasuredAvailableStorage = true
-	}
-
-	private func refreshCatalog() async {
-		guard !isRefreshingCatalog else { return }
-		isRefreshingCatalog = true
-		defer { isRefreshingCatalog = false }
-
-		do {
-			let fetchedModels = try await ModelCatalogService().fetchModels()
-			guard !fetchedModels.isEmpty else {
-				catalogErrorMessage = "The server returned no models."
-				return
-			}
-
-			remoteModels = fetchedModels
-			catalogErrorMessage = nil
-		} catch {
-			catalogErrorMessage = error.localizedDescription
-		}
 	}
 
 	private func delete(_ model: BeaconModel) {
@@ -324,7 +276,7 @@ private struct ModelCompanyFilterTabs<Content: View>: View {
 	@ViewBuilder var content: () -> Content
 
 	var body: some View {
-		Tabs(options: companies, selection: $selection, size: .small) { _ in
+		Tabs(options: companies, selection: $selection, size: .small, horizontalScrollOverflow: 20) { _ in
 			content()
 		}
 	}
@@ -548,7 +500,7 @@ private struct ModelMarketPlaceRow: View {
 		case .available:
 			nil
 		case .appStorageFull:
-			"Delete a downloaded model to free up Semera's 10 GB model storage limit."
+			"Delete a downloaded model to free up Beacon's 10 GB model storage limit."
 		case let .deviceStorageLow(requiredGB, availableGB):
 			"Requires about \(ModelStorageLimit.formattedGB(requiredGB)) free. You have \(ModelStorageLimit.formattedGB(availableGB)) available."
 		}

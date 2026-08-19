@@ -7,7 +7,7 @@
 
 import XCTest
 
-final class SemeraUITests: XCTestCase {
+final class BeaconUITests: XCTestCase {
 
 	override func setUpWithError() throws {
 		continueAfterFailure = false

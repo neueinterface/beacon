@@ -5,7 +5,7 @@ struct SettingsFooterView: View {
 
 	var body: some View {
 		VStack(spacing: 10) {
-			SemeraLogoView(size: 42, playsShimmerOnAppear: true)
+			BeaconLogoView(size: 42, playsShimmerOnAppear: true)
 				.background(Color(uiColor: .systemGroupedBackground))
 
 			Text(appVersionText)

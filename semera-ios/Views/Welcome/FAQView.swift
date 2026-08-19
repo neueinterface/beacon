@@ -12,20 +12,20 @@ struct FAQView: View {
 
 	private let items = [
 		FAQItem(
-			question: "What is Semera?",
-			answer: "Semera is a local-first AI chat app. It helps you discover, download, and chat with models directly on your device."
+			question: "What is Beacon?",
+			answer: "Beacon is a local-first AI chat app. It helps you discover, download, and chat with models directly on your device."
 		),
 		FAQItem(
 			question: "Do my conversations leave my device?",
-			answer: "Semera is designed around private, on-device conversations. Your chats stay local by default."
+			answer: "Beacon is designed around private, on-device conversations. Your chats stay local by default."
 		),
 		FAQItem(
 			question: "Do I need to understand AI models?",
-			answer: "No. Semera keeps model setup simple and presents clear choices so you can start chatting without technical configuration."
+			answer: "No. Beacon keeps model setup simple and presents clear choices so you can start chatting without technical configuration."
 		),
 		FAQItem(
 			question: "Why do I need to download a model?",
-			answer: "Models power the chat experience locally. Downloading one lets Semera run AI on your device instead of relying on a remote service."
+			answer: "Models power the chat experience locally. Downloading one lets Beacon run AI on your device instead of relying on a remote service."
 		),
 		FAQItem(
 			question: "Can I delete models later?",

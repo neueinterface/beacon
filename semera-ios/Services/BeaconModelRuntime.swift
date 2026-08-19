@@ -31,7 +31,7 @@ final class BeaconModelRuntime: ModelDownloadRuntime {
 			case .modelNotLoaded:
 				"Model is not loaded yet."
 			case .alreadyGenerating:
-				"Semera is already generating a response."
+				"Beacon is already generating a response."
 			case .imageModelRequired:
 				"Select a downloaded vision model before sending an image."
 			case .invalidImage:
@@ -62,6 +62,7 @@ final class BeaconModelRuntime: ModelDownloadRuntime {
 	private var loadedModelRepositoryID: String?
 	private var loadedModelType: BeaconModel.ModelType = .regular
 	private var loadedModelSupportsImages = false
+	private var modelContainer: ModelContainer?
 	private var session: ChatSession?
 	private var foundationSession: LanguageModelSession?
 	private var progressObservations: [NSKeyValueObservation] = []
@@ -72,7 +73,7 @@ final class BeaconModelRuntime: ModelDownloadRuntime {
 			return loadedModelID == model.id && foundationSession != nil
 		}
 
-		return loadedModelID == model.id && session != nil
+		return loadedModelID == model.id && modelContainer != nil
 	}
 
 	func load(_ model: BeaconModel) async {
@@ -99,13 +100,14 @@ final class BeaconModelRuntime: ModelDownloadRuntime {
 
 			Memory.cacheLimit = 20 * 1024 * 1024
 			let configuration = configuration(for: model)
-			print("SemeraModelRuntime: loading \(model.repositoryID)")
+			print("BeaconModelRuntime: loading \(model.repositoryID)")
 			let container = try await #huggingFaceLoadModelContainer(configuration: configuration) { progress in
 				Task { @MainActor in
 					self.observe(progress)
 				}
 			}
 
+			modelContainer = container
 			session = ChatSession(
 				container,
 				instructions: BeaconSystemPrompt.instructions,
@@ -117,16 +119,16 @@ final class BeaconModelRuntime: ModelDownloadRuntime {
 			loadedModelSupportsImages = model.supportsImages
 			foundationSession = nil
 			progress = 1
-			print("SemeraModelRuntime: loaded \(model.repositoryID)")
+			print("BeaconModelRuntime: loaded \(model.repositoryID)")
 		} catch is CancellationError {
 			progress = 0
 			completedUnitCount = nil
 			totalUnitCount = nil
 			errorMessage = nil
-			print("SemeraModelRuntime: cancelled loading \(model.repositoryID)")
+			print("BeaconModelRuntime: cancelled loading \(model.repositoryID)")
 		} catch {
 			let message = "\(type(of: error)): \(error.localizedDescription)"
-			print("SemeraModelRuntime: failed to load \(model.repositoryID): \(message)")
+			print("BeaconModelRuntime: failed to load \(model.repositoryID): \(message)")
 			errorMessage = message
 		}
 
@@ -150,31 +152,40 @@ final class BeaconModelRuntime: ModelDownloadRuntime {
 	func streamResponse(
 		to prompt: String,
 		imageData: Data? = nil,
-		memories: [UserMemory] = [],
+		conversationHistory: [ChatMessage] = [],
 		onThinking: (@MainActor (String) -> Void)? = nil,
 		onChunk: @escaping @MainActor (String) -> Void
 	) async throws {
 		guard !isGenerating else { throw RuntimeError.alreadyGenerating }
-		guard session != nil || foundationSession != nil else { throw RuntimeError.modelNotLoaded }
+		guard modelContainer != nil || foundationSession != nil else { throw RuntimeError.modelNotLoaded }
 		guard imageData == nil || loadedModelSupportsImages else { throw RuntimeError.imageModelRequired }
 
 		isGenerating = true
 		defer { isGenerating = false }
 
-		let promptWithMemory = imageData == nil ? promptWithMemories(prompt, memories: memories) : prompt
-
-		if let foundationSession {
-			try await streamFoundationResponse(to: promptWithMemory, using: foundationSession, onChunk: onChunk)
+		if foundationSession != nil {
+			let session = LanguageModelSession(model: SystemLanguageModel.default, instructions: BeaconSystemPrompt.instructions)
+			foundationSession = session
+			try await streamFoundationResponse(to: contextualPrompt(prompt, history: conversationHistory), using: session, onChunk: onChunk)
 			return
 		}
+
+		guard let modelContainer else { throw RuntimeError.modelNotLoaded }
+		let session = ChatSession(
+			modelContainer,
+			instructions: BeaconSystemPrompt.instructions,
+			history: mlxHistory(from: conversationHistory),
+			generateParameters: GenerateParameters(maxTokens: 4096, temperature: 0.5)
+		)
+		self.session = session
 
 		let image = imageData.flatMap(CIImage.init(data:)).map(UserInput.Image.ciImage)
 		guard imageData == nil || image != nil else { throw RuntimeError.invalidImage }
 
 		var filter = ThinkingOutputFilter()
-		let modelPrompt = promptForLoadedModel(promptWithMemory)
+		let modelPrompt = promptForLoadedModel(prompt)
 
-		for try await chunk in session!.streamResponse(to: modelPrompt, image: image) {
+		for try await chunk in session.streamResponse(to: modelPrompt, image: image) {
 			try Task.checkCancellation()
 
 			let output = filter.append(chunk)
@@ -204,6 +215,7 @@ final class BeaconModelRuntime: ModelDownloadRuntime {
 	private func releaseLoadedModel() {
 		progressObservations.removeAll()
 		observedProgresses.removeAll()
+		modelContainer = nil
 		session = nil
 		foundationSession = nil
 		loadedModelID = nil
@@ -261,14 +273,32 @@ final class BeaconModelRuntime: ModelDownloadRuntime {
 		return "\(prompt) /no_think"
 	}
 
-	private func promptWithMemories(_ prompt: String, memories: [UserMemory]) -> String {
-		guard !memories.isEmpty else { return prompt }
-		let facts = memories.map { "- \($0.text)" }.joined(separator: "\n")
-		return """
-		Known user details from earlier conversations:
-		\(facts)
+	private func mlxHistory(from messages: [ChatMessage]) -> [Chat.Message] {
+		messages.compactMap { message in
+			let content = message.text.trimmingCharacters(in: .whitespacesAndNewlines)
+			guard !content.isEmpty else { return nil }
 
-		Use these details only when relevant. Do not mention this memory list or claim the user just told you these details.
+			switch message.role {
+			case .user:
+				return .user(content)
+			case .assistant:
+				return .assistant(content)
+			}
+		}
+	}
+
+	private func contextualPrompt(_ prompt: String, history: [ChatMessage]) -> String {
+		let transcript = history.compactMap { message -> String? in
+			let content = message.text.trimmingCharacters(in: .whitespacesAndNewlines)
+			guard !content.isEmpty else { return nil }
+			let role = message.role == .user ? "User" : "Assistant"
+			return "\(role): \(content)"
+		}.joined(separator: "\n")
+
+		guard !transcript.isEmpty else { return prompt }
+		return """
+		Continue this conversation using only the chat transcript below.
+		\(transcript)
 
 		User message: \(prompt)
 		"""
@@ -288,7 +318,7 @@ final class BeaconModelRuntime: ModelDownloadRuntime {
 			progress = 1
 			completedUnitCount = nil
 			totalUnitCount = nil
-			print("SemeraModelRuntime: loaded Apple Foundation Model")
+			print("BeaconModelRuntime: loaded Apple Foundation Model")
 		case let .unavailable(reason):
 			throw RuntimeError.foundationModelUnavailable(reason)
 		}
