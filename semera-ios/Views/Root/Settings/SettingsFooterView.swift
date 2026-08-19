@@ -13,7 +13,7 @@ struct SettingsFooterView: View {
 				.foregroundStyle(.secondary)
 
 			Button(action: onOpenWebsite) {
-				Text("semera.co")
+				Text("Learn more")
 					.font(.system(size: 16, weight: .medium))
 					.underline()
 					.foregroundStyle(.secondary)

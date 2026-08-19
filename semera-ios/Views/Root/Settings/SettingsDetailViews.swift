@@ -77,7 +77,7 @@ private struct SettingsLegalLine: View {
 	private func styledText(_ text: String) -> AttributedString {
 		var attributed = AttributedString(text)
 
-		for token in ["semeraco@gmail.com", "Hugging Face", "semera.co"] {
+		for token in ["armondschneider@gmail.com", "Hugging Face", "beacon.neueinterface.com"] {
 			if let range = attributed.range(of: token) {
 				attributed[range].foregroundColor = .blue
 				attributed[range].underlineStyle = .single

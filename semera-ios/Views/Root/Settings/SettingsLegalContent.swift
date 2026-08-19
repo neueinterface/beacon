@@ -12,7 +12,7 @@ enum SettingsLegalContent {
 		"Children\nBeacon is not intended to knowingly solicit data from or market to children under the age of 13. If you believe a child has provided personal information through the Application, contact us so appropriate action can be taken.",
 		"Security\nBeacon is designed to keep local chats and downloaded models on your device. You are responsible for maintaining the security of your device, passcode, Apple ID, and backups. Jailbreaking or modifying your device may compromise the security and reliability of the Application.",
 		"Changes\nThis Privacy Policy may be updated from time to time. If a change requires permission before Beacon sends personal data to a third party, Beacon will request that permission before making the transfer.",
-		"Contact Us\nIf you have questions about privacy while using Beacon, contact us at semeraco@gmail.com."
+		"Contact Us\nIf you have questions about privacy while using Beacon, contact us at armondschneider@gmail.com."
 	]
 
 	static let terms = [
@@ -30,6 +30,6 @@ enum SettingsLegalContent {
 		"Termination\nWe may stop providing the Application or terminate access to features at any time. Upon termination, the rights granted to you under these terms will end, and you must stop using the Application if required.",
 		"Limitation of liability\nTo the fullest extent permitted by law, Beacon is provided as is and without warranties of any kind. We are not liable for losses, direct or indirect, arising from your use of the Application, model outputs, downloaded models, web search results, third-party services, or inability to access the Application.",
 		"Changes to these Terms & Conditions\nThese Terms & Conditions may be updated from time to time. You are advised to review them regularly. Continued use of the Application after changes means you accept the updated terms.",
-		"Contact Us\nIf you have questions or suggestions about these Terms & Conditions, contact us at semeraco@gmail.com."
+		"Contact Us\nIf you have questions or suggestions about these Terms & Conditions, contact us at armondschneider@gmail.com."
 	]
 }

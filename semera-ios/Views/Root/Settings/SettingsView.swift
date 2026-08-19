@@ -36,13 +36,13 @@ struct SettingsView: View {
 	private var bugReportURL: URL {
 		var components = URLComponents()
 		components.scheme = "mailto"
-		components.path = "semeraco@gmail.com"
+		components.path = "armondschneider@gmail.com"
 		components.queryItems = [
 			URLQueryItem(name: "subject", value: "Beacon Bug Report - v\(appVersion) (\(buildNumber))"),
 			URLQueryItem(name: "body", value: bugReportBody)
 		]
 
-		return components.url ?? URL(string: "mailto:semeraco@gmail.com")!
+		return components.url ?? URL(string: "mailto:armondschneider@gmail.com")!
 	}
 
 	private var bugReportBody: String {
@@ -164,7 +164,7 @@ struct SettingsView: View {
 					}
 
 					SettingsFooterView {
-						safariViewModel.open(URL(string: "https://semera.co")!)
+						safariViewModel.open(URL(string: "https://beacon.neueinterface.com")!)
 					}
 				}
 				.padding(.horizontal, 14)

@@ -2,7 +2,7 @@
 
 ## Reporting a vulnerability
 
-Do not open a public issue for a suspected vulnerability or exposed credential. Email the maintainers at semeraco@gmail.com with steps to reproduce and any relevant impact details.
+Do not open a public issue for a suspected vulnerability or exposed credential. Email the maintainers at armondschneider@gmail.com with steps to reproduce and any relevant impact details.
 
 ## Credentials
 
