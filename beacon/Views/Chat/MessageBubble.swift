@@ -9,7 +9,6 @@ import AppKit
 struct MessageBubble: View {
 	let text: String
 	var imageData: Data?
-	var thinkingText = ""
 	var requiresVisionModel = false
 	var onDownloadVisionModel: () -> Void = {}
 	#if false // Web search sources are not currently shown.
@@ -49,7 +48,7 @@ struct MessageBubble: View {
 	private var assistantText: some View {
 		VStack(alignment: .leading, spacing: 10) {
 			if isWaitingForResponse {
-				ThinkingStatusText(text: thinkingStatusText)
+				ThinkingStatusText(text: "Thinking")
 			}
 
 			if text.isEmpty, isWaitingForResponse {
@@ -90,15 +89,6 @@ struct MessageBubble: View {
 	#else
 	private var displayText: String { text }
 	#endif
-
-	private var thinkingStatusText: String {
-		let lines = thinkingText
-			.split(whereSeparator: \.isNewline)
-			.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-			.filter { !$0.isEmpty }
-
-		return lines.last ?? "Thinking"
-	}
 
 	private var userBubble: some View {
 		VStack(alignment: .trailing, spacing: 16) {

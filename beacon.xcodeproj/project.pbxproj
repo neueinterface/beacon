@@ -22,37 +22,37 @@
 			containerPortal = 9933A7C12F5CB3DD009E269F /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = 9933A7C82F5CB3DD009E269F;
-			remoteInfo = "beacon";
+			remoteInfo = beacon;
 		};
 		9933A7E12F5CB3DE009E269F /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 9933A7C12F5CB3DD009E269F /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = 9933A7C82F5CB3DD009E269F;
-			remoteInfo = "beacon";
+			remoteInfo = beacon;
 		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		9933A7C92F5CB3DD009E269F /* beacon.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = beacon.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		9933A7D62F5CB3DE009E269F /* beaconTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "beaconTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
-		9933A7E02F5CB3DE009E269F /* beaconUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "beaconUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		9933A7D62F5CB3DE009E269F /* beaconTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = beaconTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		9933A7E02F5CB3DE009E269F /* beaconUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = beaconUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		9933A7CB2F5CB3DD009E269F /* beacon */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = "beacon";
+			path = beacon;
 			sourceTree = "<group>";
 		};
 		9933A7D92F5CB3DE009E269F /* beaconTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = "beaconTests";
+			path = beaconTests;
 			sourceTree = "<group>";
 		};
 		9933A7E32F5CB3DE009E269F /* beaconUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = "beaconUITests";
+			path = beaconUITests;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -127,7 +127,7 @@
 			fileSystemSynchronizedGroups = (
 				9933A7CB2F5CB3DD009E269F /* beacon */,
 			);
-			name = "beacon";
+			name = beacon;
 			packageProductDependencies = (
 				99BCFF8C2FDE2A8F00E1AF28 /* MLXHuggingFace */,
 				99BCFFA12FDE2A8F00E1AF28 /* MLXVLM */,
@@ -137,7 +137,7 @@
 				99BCFF942FDE3F4F00E1AF28 /* Tokenizers */,
 				99BC002B2FDE4ED800E1AF28 /* MarkdownView */,
 			);
-			productName = "beacon";
+			productName = beacon;
 			productReference = 9933A7C92F5CB3DD009E269F /* beacon.app */;
 			productType = "com.apple.product-type.application";
 		};
@@ -157,10 +157,10 @@
 			fileSystemSynchronizedGroups = (
 				9933A7D92F5CB3DE009E269F /* beaconTests */,
 			);
-			name = "beaconTests";
+			name = beaconTests;
 			packageProductDependencies = (
 			);
-			productName = "beaconTests";
+			productName = beaconTests;
 			productReference = 9933A7D62F5CB3DE009E269F /* beaconTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
@@ -180,10 +180,10 @@
 			fileSystemSynchronizedGroups = (
 				9933A7E32F5CB3DE009E269F /* beaconUITests */,
 			);
-			name = "beaconUITests";
+			name = beaconUITests;
 			packageProductDependencies = (
 			);
-			productName = "beaconUITests";
+			productName = beaconUITests;
 			productReference = 9933A7E02F5CB3DE009E269F /* beaconUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
@@ -424,7 +424,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = QKJNPJ67XX;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -448,7 +448,7 @@
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = "me.armond.semera-ios";
 				PRODUCT_NAME = beacon;
 				REGISTER_APP_GROUPS = YES;
@@ -475,7 +475,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = QKJNPJ67XX;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -499,7 +499,7 @@
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = "me.armond.semera-ios";
 				PRODUCT_NAME = beacon;
 				REGISTER_APP_GROUPS = YES;
@@ -590,7 +590,7 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2,7";
-				TEST_TARGET_NAME = "beacon";
+				TEST_TARGET_NAME = beacon;
 				XROS_DEPLOYMENT_TARGET = 26.2;
 			};
 			name = Debug;
@@ -615,7 +615,7 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2,7";
-				TEST_TARGET_NAME = "beacon";
+				TEST_TARGET_NAME = beacon;
 				XROS_DEPLOYMENT_TARGET = 26.2;
 			};
 			name = Release;

@@ -350,7 +350,7 @@ final class BeaconModelRuntime: ModelDownloadRuntime {
 	}
 }
 
-private struct ThinkingOutputFilter {
+struct ThinkingOutputFilter {
 	struct Output {
 		var visible = ""
 		var thinking = ""

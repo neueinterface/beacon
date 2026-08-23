@@ -288,7 +288,6 @@ struct ChatView: View {
 											MessageBubble(
 												text: message.text,
 												imageData: message.imageData,
-												thinkingText: message.thinkingText,
 												requiresVisionModel: message.requiresVisionModel,
 												onDownloadVisionModel: downloadVisionModel,
 												role: message.role,
@@ -350,16 +349,6 @@ struct ChatView: View {
 							.renderingMode(.template)
 					}
 					.accessibilityLabel("Open chat history")
-
-					Button {
-						playHeaderHaptic()
-						dismissKeyboard()
-						isShowingModelSwitcher = true
-					} label: {
-						Image("switch.icon")
-							.renderingMode(.template)
-					}
-					.accessibilityLabel("Switch model")
 				}
 
 				ToolbarItem(placement: .topBarTrailing) {
@@ -368,7 +357,7 @@ struct ChatView: View {
 						historyViewModel.startNewChat()
 						dismissKeyboard()
 					} label: {
-						Image("chat.icon")
+						Image("newchat.icon")
 							.renderingMode(.template)
 					}
 					.accessibilityLabel("New chat")
@@ -393,19 +382,10 @@ struct ChatView: View {
 		.accessibilityLabel("Open chat history")
 
 		Button {
-			dismissKeyboard()
-			isShowingModelSwitcher = true
-		} label: {
-			Image("switch.icon")
-				.renderingMode(.template)
-		}
-		.accessibilityLabel("Switch model")
-
-		Button {
 			historyViewModel.startNewChat()
 			dismissKeyboard()
 		} label: {
-			Image("chat.icon")
+			Image("newchat.icon")
 				.renderingMode(.template)
 		}
 		.accessibilityLabel("New chat")
@@ -424,6 +404,12 @@ struct ChatView: View {
 					requestPhotoAccess()
 				},
 				canAttachImages: selectedModel.supportsImages,
+				selectedModelName: selectedModel.name,
+				onSelectModel: {
+					playHeaderHaptic()
+					dismissKeyboard()
+					isShowingModelSwitcher = true
+				},
 				onRemoveAttachment: {
 					attachedImageData = nil
 				},
@@ -470,6 +456,8 @@ struct ChatView: View {
 	}
 
 	private func send(_ text: String, imageData: Data? = nil) {
+		guard !isAssistantBusy else { return }
+		isPreparingResponse = true
 		pendingScrollMessageID = nil
 		dismissKeyboard()
 		#if canImport(UIKit)
@@ -484,13 +472,13 @@ struct ChatView: View {
 			guard let visionModel, isDownloaded(visionModel) else {
 				historyViewModel.replaceMessage(responseID, with: "To read images, download the on-device vision model.")
 				historyViewModel.requireVisionModel(for: responseID)
+				isPreparingResponse = false
 				return
 			}
 		}
 
 		scheduleChatReminder(for: displayText)
 		responseHaptics.start()
-		isPreparingResponse = true
 
 		responseTask = Task {
 			do {
@@ -504,9 +492,7 @@ struct ChatView: View {
 				}
 
 				isPreparingResponse = false
-				try await runtime.streamResponse(to: prompt, imageData: imageData, conversationHistory: conversationHistory, onThinking: { chunk in
-					historyViewModel.appendAssistantThinking(chunk, to: responseID)
-				}) { chunk in
+				try await runtime.streamResponse(to: prompt, imageData: imageData, conversationHistory: conversationHistory) { chunk in
 					historyViewModel.appendAssistantChunk(chunk, to: responseID)
 					responseHaptics.tick(for: chunk)
 				}

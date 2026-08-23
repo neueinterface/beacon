@@ -36,12 +36,11 @@ struct ChatHistoryDrawerView: View {
 				ToolbarItem(placement: .topBarLeading) {
 					Button {
 						playHeaderHaptic()
-						onOpenModels()
+						onClose()
 					} label: {
-						Image("playground.icon")
-							.renderingMode(.template)
+						Image(systemName: "xmark")
 					}
-					.accessibilityLabel("Open models")
+					.accessibilityLabel("Close chat history")
 				}
 
 				ToolbarItemGroup(placement: .topBarTrailing) {
@@ -56,11 +55,12 @@ struct ChatHistoryDrawerView: View {
 
 					Button {
 						playHeaderHaptic()
-						onClose()
+						onOpenModels()
 					} label: {
-						Image(systemName: "arrow.right")
+						Image("playground.icon")
+							.renderingMode(.template)
 					}
-					.accessibilityLabel("Close chat history")
+					.accessibilityLabel("Open models")
 				}
 				#endif
 			}
@@ -109,11 +109,11 @@ struct ChatHistoryDrawerView: View {
 		Group {
 			Button {
 				playHeaderHaptic()
-				onOpenModels()
+				onClose()
 			} label: {
-				Image("playground.icon")
-					.renderingMode(.template)
+				Image(systemName: "xmark")
 			}
+			.accessibilityLabel("Close chat history")
 
 			Button {
 				playHeaderHaptic()
@@ -125,10 +125,12 @@ struct ChatHistoryDrawerView: View {
 
 			Button {
 				playHeaderHaptic()
-				onClose()
+				onOpenModels()
 			} label: {
-				Image(systemName: "arrow.right")
+				Image("playground.icon")
+					.renderingMode(.template)
 			}
+			.accessibilityLabel("Open models")
 		}
 	}
 
@@ -165,14 +167,14 @@ private struct ChatHistoryRow: View {
 		chat.usedModelNames
 	}
 
-	private var modelTagTitle: String {
+	private var modelSummary: String {
 		guard usedModelNames.count > 1 else { return usedModelNames.first ?? chat.modelName }
 		return "\(usedModelNames.count) models"
 	}
 
 	var body: some View {
 		VStack(alignment: .leading, spacing: 0) {
-			VStack(alignment: .leading, spacing: 18) {
+			VStack(alignment: .leading, spacing: 8) {
 				HStack(alignment: .firstTextBaseline, spacing: 14) {
 					Text(chat.historyTitle)
 						.font(.system(size: 14, weight: .medium))
@@ -193,20 +195,24 @@ private struct ChatHistoryRow: View {
 							Button(modelName) {}
 						}
 					} label: {
-						HStack(spacing: 6) {
-							Tag(title: modelTagTitle, color: .indigo)
-
-							Image(systemName: "chevron.up.chevron.down")
-								.font(.system(size: 10, weight: .bold))
-								.foregroundStyle(.indigo)
+						HStack(spacing: 4) {
+							Text(modelSummary)
+							Image(systemName: "chevron.down")
+								.font(.system(size: 9, weight: .semibold))
 						}
+						.font(.system(size: 12, weight: .regular))
+						.foregroundStyle(.secondary)
 					}
+					.accessibilityLabel("Models used: \(usedModelNames.joined(separator: ", "))")
 				} else {
-					Tag(title: modelTagTitle, color: .indigo)
+					Text(modelSummary)
+						.font(.system(size: 12, weight: .regular))
+						.foregroundStyle(.secondary)
+						.lineLimit(1)
 				}
 			}
 			.padding(.horizontal, 20)
-			.padding(.vertical, 24)
+			.padding(.vertical, 18)
 
 			if showsDivider {
 				Divider()

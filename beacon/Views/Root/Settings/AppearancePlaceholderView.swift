@@ -145,14 +145,18 @@ private struct AppearanceChatPreview: View {
 			VStack(spacing: 14) {
 				VStack(spacing: 12) {
 					MessageBubble(text: "How long do sea turtles live for?", role: .user)
-					MessageBubble(text: "Sure. I can keep it short and highlight the next steps.", role: .assistant)
+					MessageBubble(text: "Sea turtles often live 50 to 100 years, depending on the species.", role: .assistant)
 				}
 				.padding(.horizontal, 14)
 				.padding(.top, 18)
 
 				Input(
 					text: $previewText,
-					placeholder: "Message"
+					placeholder: "Message",
+					onAttachImage: {},
+					canAttachImages: false,
+					selectedModelName: "Qwen3 0.6B",
+					onSelectModel: {}
 				) { _ in }
 				.allowsHitTesting(false)
 				.padding(.horizontal, 14)

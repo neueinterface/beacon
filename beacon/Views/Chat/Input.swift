@@ -215,6 +215,8 @@ struct Input: View {
 	var attachmentData: Data?
 	var onAttachImage: (() -> Void)?
 	var canAttachImages = true
+	var selectedModelName: String?
+	var onSelectModel: (() -> Void)?
 	var onRemoveAttachment: () -> Void = {}
 	var onStop: () -> Void = {}
 	var onSend: (String) -> Void
@@ -238,42 +240,64 @@ struct Input: View {
 	}
 
 	var body: some View {
-		VStack(alignment: .leading, spacing: 14) {
+		VStack(alignment: .leading, spacing: 12) {
 			if let attachmentData {
 				AttachedImagePreview(data: attachmentData, onRemove: onRemoveAttachment)
 			}
 
-			HStack(alignment: .bottom, spacing: 8) {
+			TextField(placeholder, text: $text, axis: .vertical)
+				.font(.system(size: 16))
+				.id(resetID)
+				.focused($isTextFieldFocused)
+				.frame(maxWidth: .infinity, alignment: .leading)
+				.lineLimit(1 ... 4)
+				#if !os(macOS)
+				.textInputAutocapitalization(.sentences)
+				#endif
+				.autocorrectionDisabled(false)
+				.padding(.vertical, 4)
+				.background {
+					GeometryReader { proxy in
+						Color.clear.onChange(of: proxy.size.height) { _, newHeight in
+							withAnimation(.smooth(duration: 0.22)) { textFieldHeight = newHeight }
+						}
+					}
+				}
+
+			HStack(spacing: 8) {
 				if attachmentData == nil, let onAttachImage {
 					Button(action: onAttachImage) {
 						Image(systemName: "plus")
-							.font(.system(size: 18, weight: .regular))
+							.font(.system(size: 17, weight: .medium))
 							.foregroundStyle(canAttachImages ? .primary : .secondary)
-							.frame(width: 24, height: 28)
+							.frame(width: 32, height: 32)
+							.background(Color(uiColor: .tertiarySystemBackground), in: Circle())
 					}
 					.buttonStyle(.plain)
 					.disabled(!canAttachImages)
 					.accessibilityLabel("Attach image")
 				}
 
-				TextField(placeholder, text: $text, axis: .vertical)
-					.font(.system(size: 16))
-					.id(resetID)
-					.focused($isTextFieldFocused)
-					.frame(maxWidth: .infinity, alignment: .leading)
-					.lineLimit(1 ... 4)
-					#if !os(macOS)
-					.textInputAutocapitalization(.sentences)
-					#endif
-					.autocorrectionDisabled(false)
-					.padding(.vertical, 4)
-					.background {
-						GeometryReader { proxy in
-							Color.clear.onChange(of: proxy.size.height) { _, newHeight in
-								withAnimation(.smooth(duration: 0.22)) { textFieldHeight = newHeight }
-							}
+				if let selectedModelName, let onSelectModel {
+					Button(action: onSelectModel) {
+						HStack(spacing: 5) {
+							Text(selectedModelName)
+								.lineLimit(1)
+							Image(systemName: "chevron.down")
+								.font(.system(size: 9, weight: .semibold))
 						}
+						.font(.system(size: 14, weight: .medium))
+						.foregroundStyle(.primary)
+						.padding(.horizontal, 11)
+						.frame(height: 32)
+						.background(Color(uiColor: .tertiarySystemBackground), in: Capsule())
 					}
+					.buttonStyle(.plain)
+					.disabled(isGenerating)
+					.accessibilityLabel("Current model: \(selectedModelName). Switch model")
+				}
+
+				Spacer(minLength: 8)
 
 				Button {
 					if isGenerating {
@@ -287,7 +311,7 @@ struct Input: View {
 				} label: {
 					Image(systemName: isGenerating ? "stop.fill" : "arrow.up")
 						.font(.system(size: 16, weight: .bold))
-						.frame(width: 28, height: 28)
+						.frame(width: 32, height: 32)
 						.foregroundStyle((canSend || isGenerating) ? Color(uiColor: .systemBackground) : .secondary)
 						.background((canSend || isGenerating) ? Color.primary : Color(uiColor: .systemGray4), in: Circle())
 				}
@@ -332,7 +356,12 @@ private struct InputPreviewContainer: View {
 	@State private var previewText = ""
 
 	var body: some View {
-		Input(text: $previewText) { _ in }
+		Input(
+			text: $previewText,
+			onAttachImage: {},
+			selectedModelName: "Qwen3 0.6B",
+			onSelectModel: {}
+		) { _ in }
 			.padding()
 			.background(Color(uiColor: .systemBackground))
 	}

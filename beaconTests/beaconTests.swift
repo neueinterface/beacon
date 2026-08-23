@@ -64,6 +64,21 @@ struct BeaconAppDataTests {
 	}
 }
 
+@Suite("Model response filtering")
+struct ModelResponseFilteringTests {
+	@Test("Reasoning that repeats the user message is not emitted as the answer")
+	func reasoningIsSeparatedFromAnswer() {
+		var filter = ThinkingOutputFilter()
+		let reasoning = filter.append("<think>The user said hey, what's up")
+		let answer = filter.append(".</think>Hey! Not much. How are you?")
+
+		#expect(reasoning.visible.isEmpty)
+		#expect(reasoning.thinking == "The user said hey, what's up")
+		#expect(answer.thinking == ".")
+		#expect(answer.visible == "Hey! Not much. How are you?")
+	}
+}
+
 @Suite("Settings rows")
 struct SettingsRowTests {
 	@Test("Settings toggle row stores subtitle text")
