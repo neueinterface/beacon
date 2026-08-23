@@ -31,20 +31,20 @@ It lets you choose curated local models, download and manage them, and keep priv
 
 ## Development
 
-Open `semera-ios.xcodeproj` in Xcode, select your signing team and bundle identifier, then build the `semera-ios` scheme.
+Open `beacon.xcodeproj` in Xcode, select your signing team and bundle identifier, then build the `beacon` scheme.
 
-Add or update compatible models by editing `semera-ios/Resources/models.json`. Downloadable entries must use a Hugging Face repository supported by MLX Swift LM.
+Add or update compatible models by editing `beacon/Resources/models.json`. Downloadable entries must use a Hugging Face repository supported by MLX Swift LM.
 
 ### Run On Your iPhone
 
 1. Clone the repository:
 
    ```sh
-   git clone https://github.com/semeraco/semera-ios-public.git
-   cd semera-ios-public
+   git clone https://github.com/semeraco/beacon.git
+   cd beacon
    ```
 
-2. Open `semera-ios.xcodeproj` in Xcode and wait for Swift Package dependencies to resolve.
+2. Open `beacon.xcodeproj` in Xcode and wait for Swift Package dependencies to resolve.
 3. In the target's **Signing & Capabilities** settings, select your Apple Developer team and choose a unique bundle identifier.
 4. Connect and unlock your iPhone, select it as the run destination, then press Run.
 5. Download a text model from the marketplace. To attach images, download and select **Qwen2-VL 2B 4-bit (Image)**.

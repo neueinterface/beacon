@@ -41,6 +41,9 @@ Secrets.xcconfig
 .idea/
 .vscode/
 
+# Local skills / team reference (not committed)
+.skills/
+
 # Fastlane
 fastlane/report.xml
 fastlane/Preview.html
