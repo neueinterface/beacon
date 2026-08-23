@@ -40,7 +40,7 @@ Add or update compatible models by editing `beacon/Resources/models.json`. Downl
 1. Clone the repository:
 
    ```sh
-   git clone https://github.com/semeraco/beacon.git
+   git clone https://github.com/armondschneider/beacon.git
    cd beacon
    ```
 
