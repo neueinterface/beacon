@@ -199,6 +199,76 @@ final class BeaconModelRuntime: ModelDownloadRuntime {
 		}
 	}
 
+	func webSearchQuery(for prompt: String, conversationHistory: [ChatMessage] = []) async throws -> String? {
+		guard !isGenerating else { throw RuntimeError.alreadyGenerating }
+		guard modelContainer != nil || foundationSession != nil else { throw RuntimeError.modelNotLoaded }
+
+		isGenerating = true
+		defer { isGenerating = false }
+
+		let recentContext = conversationHistory.suffix(4).compactMap { message -> String? in
+			let text = message.text.trimmingCharacters(in: .whitespacesAndNewlines)
+			guard !text.isEmpty else { return nil }
+			return "\(message.role == .user ? "User" : "Assistant"): \(text.prefix(500))"
+		}.joined(separator: "\n")
+		let routingPrompt = """
+		Today is \(Date.now.formatted(date: .long, time: .omitted)).
+		Decide whether answering the latest user message requires current information from the web.
+		Search for current events, live facts, weather, prices, schedules, recent releases, requested sources, or facts likely to have changed.
+		Do not search for casual conversation, creative writing, rewriting, timeless knowledge, or questions answerable from general knowledge.
+		Make the search query standalone. Resolve relative dates using today's date, disambiguate named events, and prefer "winner" over the ambiguous word "won".
+		When uncertain whether a factual answer may have changed, search. Do not answer the user's question in this routing step.
+		Return exactly one line in one of these forms:
+		NO_SEARCH
+		SEARCH: a concise standalone search query
+
+		Examples:
+		User: Who won the World Cup?
+		SEARCH: latest FIFA World Cup winner
+		User: What is the weather in Berlin?
+		SEARCH: Berlin weather today
+		User: Explain why the sky is blue.
+		NO_SEARCH
+
+		Recent conversation:
+		\(recentContext.isEmpty ? "None" : recentContext)
+
+		Latest user message: \(prompt)
+		"""
+
+		var output = ""
+		if foundationSession != nil {
+			let router = LanguageModelSession(instructions: "You are a deterministic web-search router. Follow the output format exactly.")
+			for try await snapshot in router.streamResponse(to: routingPrompt) {
+				try Task.checkCancellation()
+				output = snapshot.content
+			}
+		} else if let modelContainer {
+			let router = ChatSession(
+				modelContainer,
+				instructions: "You are a deterministic web-search router. Follow the output format exactly.",
+				generateParameters: GenerateParameters(maxTokens: 64, temperature: 0)
+			)
+			for try await chunk in router.streamResponse(to: promptForLoadedModel(routingPrompt)) {
+				try Task.checkCancellation()
+				output += chunk
+			}
+		}
+
+		return Self.parseWebSearchQuery(from: output)
+	}
+
+	nonisolated static func parseWebSearchQuery(from output: String) -> String? {
+		let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
+		if trimmed.uppercased().hasPrefix("NO_SEARCH") { return nil }
+		guard let range = trimmed.range(of: "SEARCH:", options: [.caseInsensitive]) else { return nil }
+		let query = trimmed[range.upperBound...]
+			.components(separatedBy: .newlines)[0]
+			.trimmingCharacters(in: .whitespacesAndNewlines)
+		guard !query.isEmpty else { return nil }
+		return String(query.prefix(200))
+	}
+
 	private func configuration(for model: BeaconModel) -> ModelConfiguration {
 		switch model.repositoryID {
 		case "mlx-community/Qwen3-0.6B-4bit":

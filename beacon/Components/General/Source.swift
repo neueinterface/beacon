@@ -25,7 +25,6 @@ struct Source: Identifiable, Hashable, Codable {
 	}
 }
 
-#if false // Web search source presentation is not currently available.
 struct SourceTag: View {
 	let sources: [Source]
 	var onOpen: (URL) -> Void
@@ -102,9 +101,7 @@ struct SourceTag: View {
 		.padding(.bottom, 4)
 	}
 }
-#endif
 
-#if false // Web search source presentation is not currently available.
 #Preview {
 	SourceTag(
 		sources: [
@@ -115,4 +112,3 @@ struct SourceTag: View {
 	)
 	.padding()
 }
-#endif

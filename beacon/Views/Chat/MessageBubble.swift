@@ -11,14 +11,13 @@ struct MessageBubble: View {
 	var imageData: Data?
 	var requiresVisionModel = false
 	var onDownloadVisionModel: () -> Void = {}
-	#if false // Web search sources are not currently shown.
 	var sources: [Source] = []
-	#endif
 	let role: ChatMessage.Role
 	var isWaitingForResponse = false
-	#if false // Web search sources are not currently shown.
+	var waitingText = "Thinking"
 	var onOpenSource: (URL) -> Void = { _ in }
-	#endif
+	var showsWebSearchRetry = false
+	var onRetryWebSearch: () -> Void = {}
 
 	var body: some View {
 		HStack {
@@ -48,7 +47,7 @@ struct MessageBubble: View {
 	private var assistantText: some View {
 		VStack(alignment: .leading, spacing: 10) {
 			if isWaitingForResponse {
-				ThinkingStatusText(text: "Thinking")
+				ThinkingStatusText(text: waitingText)
 			}
 
 			if text.isEmpty, isWaitingForResponse {
@@ -56,6 +55,7 @@ struct MessageBubble: View {
 			} else if !displayText.isEmpty {
 				MarkdownView(displayText)
 					.font(.system(size: 16), for: .body)
+					.lineSpacing(4)
 					.font(.system(size: 18, weight: .semibold), for: .h1)
 					.font(.system(size: 17, weight: .semibold), for: .h2)
 					.font(.system(size: 16, weight: .semibold), for: .h3)
@@ -67,11 +67,16 @@ struct MessageBubble: View {
 					.tint(.secondary, for: .inlineCodeBlock)
 			}
 
-			#if false // Web search sources are not currently shown.
 			if !isWaitingForResponse {
 				SourceTag(sources: sources, onOpen: onOpenSource)
 			}
-			#endif
+
+			if showsWebSearchRetry, !isWaitingForResponse {
+				Button(action: onRetryWebSearch) {
+					Label("Retry", systemImage: "arrow.clockwise")
+				}
+				.buttonStyle(.bordered)
+			}
 
 			if requiresVisionModel, !isWaitingForResponse {
 				Button("Download vision model", action: onDownloadVisionModel)
@@ -81,14 +86,10 @@ struct MessageBubble: View {
 		.frame(maxWidth: .infinity, alignment: .leading)
 	}
 
-	#if false // Web search source cleanup is not currently needed.
 	private var displayText: String {
 		guard role == .assistant, !sources.isEmpty else { return text }
 		return text.removingRenderedSourceSection()
 	}
-	#else
-	private var displayText: String { text }
-	#endif
 
 	private var userBubble: some View {
 		VStack(alignment: .trailing, spacing: 16) {
@@ -140,7 +141,17 @@ private struct ThinkingStatusText: View {
 	private let rotatingStatuses = ["Thinking", "Tokenizing the thought", "Ummm...", "Pulling it together"]
 
 	var body: some View {
-		Text(displayText)
+		HStack(spacing: 7) {
+			if isSearchingWeb {
+				Image("websearch.icon")
+					.resizable()
+					.scaledToFit()
+					.frame(width: 17, height: 17)
+					.accessibilityHidden(true)
+			}
+
+			Text(displayText)
+		}
 			.font(.system(size: 16))
 			.foregroundStyle(.secondary)
 			.shimmering()
@@ -168,6 +179,10 @@ private struct ThinkingStatusText: View {
 
 	private var shouldRotate: Bool {
 		text == "Thinking"
+	}
+
+	private var isSearchingWeb: Bool {
+		text == "Searching the web"
 	}
 }
 

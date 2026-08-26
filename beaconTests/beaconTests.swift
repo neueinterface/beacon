@@ -79,6 +79,31 @@ struct ModelResponseFilteringTests {
 	}
 }
 
+@Suite("Web search routing")
+struct WebSearchRoutingTests {
+	@Test("No-search decision does not produce a query")
+	func noSearchDecision() {
+		#expect(BeaconModelRuntime.parseWebSearchQuery(from: "NO_SEARCH") == nil)
+		#expect(BeaconModelRuntime.parseWebSearchQuery(from: "NO_SEARCH\nSEARCH: ignored") == nil)
+	}
+
+	@Test("Search decision extracts one bounded query")
+	func searchDecision() {
+		#expect(BeaconModelRuntime.parseWebSearchQuery(from: "SEARCH: weather in Berlin today") == "weather in Berlin today")
+		#expect(BeaconModelRuntime.parseWebSearchQuery(from: "Result: SEARCH: Swift 6.2 release notes\nExtra text") == "Swift 6.2 release notes")
+		#expect(BeaconModelRuntime.parseWebSearchQuery(from: "SEARCH:   ") == nil)
+	}
+
+	@Test("MCP event stream extracts JSON payload")
+	func eventStreamPayload() throws {
+		let stream = "event: message\r\ndata: {\"jsonrpc\":\"2.0\",\"id\":\"test\"}\r\n\r\n"
+		let payload = try #require(WebSearchMCPClient.eventStreamPayloads(from: Data(stream.utf8)).first)
+
+		#expect(String(decoding: payload, as: UTF8.self) == "{\"jsonrpc\":\"2.0\",\"id\":\"test\"}")
+	}
+
+}
+
 @Suite("Settings rows")
 struct SettingsRowTests {
 	@Test("Settings toggle row stores subtitle text")

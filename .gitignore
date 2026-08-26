@@ -31,6 +31,8 @@ Carthage/Build/
 *.env
 Config.xcconfig
 Secrets.xcconfig
+beacon/Resources/LocalConfiguration.plist
+beacon/Resources/ReleaseConfiguration.plist
 *.mobileprovision
 *.p12
 *.cer
@@ -40,6 +42,9 @@ Secrets.xcconfig
 # Local tooling
 .idea/
 .vscode/
+node_modules/
+.wrangler/
+worker-configuration.d.ts
 
 # Local skills / team reference (not committed)
 .skills/
