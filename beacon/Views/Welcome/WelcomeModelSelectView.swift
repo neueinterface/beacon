@@ -23,13 +23,13 @@ struct WelcomeModelSelectView: View {
 					.modelSelectEntrance(hasAppeared, delay: 0.04)
 
 				VStack(alignment: .leading, spacing: 0) {
-					ForEach(Array(models.enumerated()), id: \.element.id) { index, model in
+					ForEach(Array(orderedModels.enumerated()), id: \.element.id) { index, model in
 						WelcomeModelSelectRow(model: model) {
 							onSelect(model)
 						}
 						.modelSelectEntrance(hasAppeared, delay: 0.12 + Double(index) * 0.06)
 
-						if index < models.count - 1 {
+						if index < orderedModels.count - 1 {
 							Divider()
 								.padding(.vertical, 20)
 								.modelSelectEntrance(hasAppeared, delay: 0.1 + Double(index) * 0.06)
@@ -51,11 +51,30 @@ struct WelcomeModelSelectView: View {
 		}
 	}
 
+	private var orderedModels: [BeaconModel] {
+		models.enumerated().sorted { left, right in
+			let leftPriority = ModelDeviceCompatibility.current(for: left.element).sortPriority
+			let rightPriority = ModelDeviceCompatibility.current(for: right.element).sortPriority
+			return leftPriority == rightPriority ? left.offset < right.offset : leftPriority < rightPriority
+		}.map(\.element)
+	}
+
+	private var hasUsableModel: Bool {
+		models.contains { ModelDeviceCompatibility.current(for: $0).canUse }
+	}
+
 	private var header: some View {
-		Text("Choose an initial model to use.")
-			.font(.system(size: 28, weight: .medium))
-			.foregroundStyle(.primary)
-			.lineSpacing(2)
+		VStack(alignment: .leading, spacing: 12) {
+			Text("Choose a model for your iPhone.")
+				.font(.system(size: 28, weight: .medium))
+				.foregroundStyle(.primary)
+				.lineSpacing(2)
+
+			Text(hasUsableModel ? "Choose one marked Works with this iPhone. You can change it anytime." : "Beacon's models aren't supported on this iPhone yet.")
+				.font(.system(size: 16, weight: .regular))
+				.foregroundStyle(.secondary)
+				.lineSpacing(3)
+		}
 	}
 }
 
@@ -64,6 +83,10 @@ private struct WelcomeModelSelectRow: View {
 	var onDownload: () -> Void
 
 	@State private var isDownloading = false
+
+	private var compatibility: ModelDeviceCompatibility {
+		.current(for: model)
+	}
 
 	var body: some View {
 		VStack(alignment: .leading, spacing: 16) {
@@ -78,8 +101,8 @@ private struct WelcomeModelSelectRow: View {
 					.lineSpacing(3)
 			}
 
-			VStack(alignment: .leading, spacing: 8) {
-				HStack(spacing: 12) {
+			VStack(alignment: .leading, spacing: 10) {
+				HStack(spacing: 10) {
 					Tag(title: model.formattedSize, color: .indigo)
 
 					if model.type == .reasoning {
@@ -89,25 +112,42 @@ private struct WelcomeModelSelectRow: View {
 					}
 				}
 
-				Tag(title: "Recommended: \(model.recommendedDevice)", color: .green)
+				Tag(title: compatibility.tagTitle, color: compatibility.tint)
+
+				if let message = compatibility.message {
+					Label(message, systemImage: compatibility.systemImage)
+						.font(.system(size: 13, weight: .regular))
+						.foregroundStyle(compatibility.tint)
+				}
 			}
 
 			BeaconButton(
-				model.isBuiltIn ? "Use" : "Download",
+				compatibility.canUse ? (model.isBuiltIn ? "Use" : "Download") : "Unavailable",
 				variant: .secondary,
 				size: .small,
 				trailingIcon: model.isBuiltIn ? "checkmark" : nil,
 				trailingAssetIcon: model.isBuiltIn ? nil : "download.icon",
+				isDisabled: !compatibility.canUse,
 				isLoading: isDownloading
 			) {
 				#if canImport(UIKit)
 				UIImpactFeedbackGenerator(style: .medium).impactOccurred()
 				#endif
-				isDownloading = !model.isBuiltIn
+				isDownloading = compatibility.canUse && !model.isBuiltIn
 				onDownload()
 			}
 		}
 		.frame(maxWidth: .infinity, alignment: .leading)
+	}
+}
+
+private extension ModelDeviceCompatibility {
+	var tint: Color {
+		switch self {
+		case .goodFit: .green
+		case .mayBeSlow: .orange
+		case .unavailable: .gray
+		}
 	}
 }
 

@@ -95,6 +95,12 @@ struct ContentView: View {
 	}
 
 	private func prepare(_ model: BeaconModel) {
+		let compatibility = ModelDeviceCompatibility.current(for: model)
+		guard compatibility.canUse else {
+			downloadAlert = .unavailable(model.name, compatibility.message ?? "Choose a model marked Works with this iPhone instead.")
+			return
+		}
+
 		if model.isBuiltIn {
 			select(model)
 		} else {
@@ -162,6 +168,10 @@ private struct DownloadAlert: Identifiable {
 
 	static func failed(_ modelName: String, _ errorMessage: String) -> DownloadAlert {
 		DownloadAlert(title: "Download failed", message: "\(modelName) could not be downloaded. \(errorMessage)")
+	}
+
+	static func unavailable(_ modelName: String, _ message: String) -> DownloadAlert {
+		DownloadAlert(title: "\(modelName) isn't available", message: message)
 	}
 }
 

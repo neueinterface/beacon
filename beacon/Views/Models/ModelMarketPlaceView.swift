@@ -396,7 +396,7 @@ private struct ModelMarketPlaceRow: View {
 					.font(.system(size: 18, weight: .medium))
 					.foregroundStyle(.primary)
 
-				Text(descriptionText)
+				Text(model.description)
 					.font(.system(size: 16, weight: .regular))
 					.foregroundStyle(.secondary)
 					.lineSpacing(3)
@@ -415,9 +415,7 @@ private struct ModelMarketPlaceRow: View {
 					Tag(title: "vision", color: .indigo)
 				}
 
-				if deviceCompatibility.showsTag {
-					Tag(title: deviceCompatibility.tagTitle, color: deviceCompatibility.tint)
-				}
+				Tag(title: deviceCompatibility.tagTitle, color: deviceCompatibility.tint)
 			}
 
 			if let compatibilityMessage = deviceCompatibility.message {
@@ -437,7 +435,7 @@ private struct ModelMarketPlaceRow: View {
 							}
 						}
 					} else {
-						BeaconButton(downloadButtonTitle, variant: .secondary, size: .small, trailingAssetIcon: "download.icon", isDisabled: !downloadAvailability.canDownload, isLoading: isDownloading) {
+						BeaconButton(downloadButtonTitle, variant: .secondary, size: .small, trailingAssetIcon: "download.icon", isDisabled: !downloadAvailability.canDownload || !deviceCompatibility.canUse, isLoading: isDownloading) {
 							isDownloading = true
 							onDownload()
 						}
@@ -454,7 +452,7 @@ private struct ModelMarketPlaceRow: View {
 					VStack(alignment: .leading, spacing: 10) {
 						HStack(spacing: 10) {
 							if !isSelected {
-								BeaconButton("Use", variant: .secondary, size: .small) {
+								BeaconButton("Use", variant: .secondary, size: .small, isDisabled: !deviceCompatibility.canUse) {
 									onSelect()
 								}
 							}
@@ -473,19 +471,9 @@ private struct ModelMarketPlaceRow: View {
 		.frame(maxWidth: .infinity, alignment: .leading)
 	}
 
-	private var descriptionText: String {
-		let trimmedDescription = model.description.trimmingCharacters(in: .whitespacesAndNewlines)
-		let recommendation = "Recommended for \(model.recommendedDevice)."
-
-		if trimmedDescription.hasSuffix(".") {
-			return "\(trimmedDescription) \(recommendation)"
-		}
-
-		return "\(trimmedDescription). \(recommendation)"
-	}
-
 	private var downloadButtonTitle: String {
-		switch downloadAvailability {
+		guard deviceCompatibility.canUse else { return "Unavailable" }
+		return switch downloadAvailability {
 		case .available:
 			"Download"
 		case .appStorageFull:
@@ -507,123 +495,16 @@ private struct ModelMarketPlaceRow: View {
 	}
 
 	private var deviceCompatibility: ModelDeviceCompatibility {
-		ModelDeviceCompatibility(recommendedDevice: model.recommendedDevice)
+		.current(for: model)
 	}
 }
 
-private struct ModelDeviceCompatibility {
-	let recommendedDevice: String
-
-	var showsTag: Bool {
-		status != .compatible
-	}
-
-	var tagTitle: String {
-		switch status {
-		case .compatible:
-			"compatible"
-		case .belowRecommended:
-			"may run slowly"
-		case .likelyIncompatible:
-			"high-end"
-		}
-	}
-
-	var message: String? {
-		switch status {
-		case .compatible:
-			nil
-		case .belowRecommended:
-			"Optimized for \(recommendedDevice) - may run slowly on this device."
-		case .likelyIncompatible:
-			"Requires \(recommendedDevice) for best results."
-		}
-	}
-
+private extension ModelDeviceCompatibility {
 	var tint: Color {
-		switch status {
-		case .compatible:
-			.green
-		case .belowRecommended:
-			.orange
-		case .likelyIncompatible:
-			.gray
-		}
-	}
-
-	var systemImage: String {
-		switch status {
-		case .compatible:
-			"checkmark.circle.fill"
-		case .belowRecommended:
-			"exclamationmark.triangle.fill"
-		case .likelyIncompatible:
-			"iphone.slash"
-		}
-	}
-
-	private var status: Status {
-		let recommendedTier = DeviceTier(recommendedDevice: recommendedDevice)
-		let currentTier = DeviceTier.current
-		if currentTier.rawValue >= recommendedTier.rawValue { return .compatible }
-		if recommendedTier.rawValue - currentTier.rawValue <= 1 { return .belowRecommended }
-		return .likelyIncompatible
-	}
-
-	private enum Status {
-		case compatible
-		case belowRecommended
-		case likelyIncompatible
-	}
-}
-
-private enum DeviceTier: Int {
-	case appleIntelligence = 0
-	case iPhone13 = 1
-	case iPhone14 = 2
-	case iPhone14Pro = 3
-	case iPhone15Pro = 4
-	case iPhone16Pro = 5
-
-	init(recommendedDevice: String) {
-		if recommendedDevice.contains("16 Pro") {
-			self = .iPhone16Pro
-		} else if recommendedDevice.contains("15 Pro") || recommendedDevice.contains("15 Pro Max") {
-			self = .iPhone15Pro
-		} else if recommendedDevice.contains("14 Pro") {
-			self = .iPhone14Pro
-		} else if recommendedDevice.contains("14") {
-			self = .iPhone14
-		} else if recommendedDevice.contains("13") {
-			self = .iPhone13
-		} else {
-			self = .appleIntelligence
-		}
-	}
-
-	static let current: DeviceTier = {
-		#if targetEnvironment(simulator)
-		return .iPhone16Pro
-		#else
-		#if canImport(UIKit)
-		let identifier = currentDeviceIdentifier
-		if identifier.hasPrefix("iPhone17,") { return .iPhone16Pro }
-		if identifier == "iPhone16,1" || identifier == "iPhone16,2" { return .iPhone15Pro }
-		if identifier == "iPhone15,2" || identifier == "iPhone15,3" { return .iPhone14Pro }
-		if identifier.hasPrefix("iPhone15,") { return .iPhone14 }
-		if identifier.hasPrefix("iPhone14,") { return .iPhone13 }
-		#endif
-		return .iPhone13
-		#endif
-	}()
-
-	private static var currentDeviceIdentifier: String {
-		var systemInfo = utsname()
-		uname(&systemInfo)
-		let mirror = Mirror(reflecting: systemInfo.machine)
-		return mirror.children.reduce(into: "") { identifier, element in
-			guard let value = element.value as? Int8, value != 0 else { return }
-			identifier.append(Character(UnicodeScalar(UInt8(value))))
+		switch self {
+		case .goodFit: .green
+		case .mayBeSlow: .orange
+		case .unavailable: .gray
 		}
 	}
 }

@@ -65,5 +65,5 @@ struct SafariView: View {
 #endif
 
 #Preview {
-	SafariView(url: URL(string: "https://huggingface.co")!)
+	SafariView(url: URL(string: "https://beacon.neueinterface.com")!)
 }

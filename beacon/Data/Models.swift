@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import FoundationModels
 
 struct BeaconModel: Identifiable, Equatable, Decodable {
 	enum ModelType: String, Decodable {
@@ -51,6 +52,167 @@ struct BeaconModel: Identifiable, Equatable, Decodable {
 	var formattedSize: String {
 		if isBuiltIn { return "Built in" }
 		return String(format: "%.2f GB", NSDecimalNumber(decimal: sizeInGB).doubleValue)
+	}
+}
+
+enum ModelDeviceCompatibility: Equatable {
+	case goodFit
+	case mayBeSlow
+	case unavailable(UnavailableReason)
+
+	enum UnavailableReason: Equatable {
+		case appleIntelligenceUnsupported
+		case appleIntelligenceDisabled
+		case appleIntelligencePreparing
+		case appleIntelligenceUnavailable
+		case modelTooDemanding
+	}
+
+	var canUse: Bool {
+		if case .unavailable = self { return false }
+		return true
+	}
+
+	var sortPriority: Int {
+		switch self {
+		case .goodFit: 0
+		case .mayBeSlow: 1
+		case .unavailable: 2
+		}
+	}
+
+	var tagTitle: String {
+		switch self {
+		case .goodFit:
+			"Works with this iPhone"
+		case .mayBeSlow:
+			"Reduced performance"
+		case let .unavailable(reason):
+			switch reason {
+			case .appleIntelligenceDisabled:
+				"Apple Intelligence off"
+			case .appleIntelligencePreparing:
+				"Model preparing"
+			default:
+				"Not supported"
+			}
+		}
+	}
+
+	var message: String? {
+		switch self {
+		case .goodFit:
+			nil
+		case .mayBeSlow:
+			"This model can run on your iPhone, but responses may be slower."
+		case let .unavailable(reason):
+			switch reason {
+			case .appleIntelligenceUnsupported:
+				"Apple's built-in model isn't available on this iPhone. You can still use Beacon with one of the downloadable models below."
+			case .appleIntelligenceDisabled:
+				"Turn on Apple Intelligence in Settings to use this option, or choose one of the downloadable models below."
+			case .appleIntelligencePreparing:
+				"Apple Intelligence is still getting ready. Try again later, or choose one of the downloadable models below."
+			case .appleIntelligenceUnavailable:
+				"Apple's built-in model isn't available right now. Choose one of the downloadable models below."
+			case .modelTooDemanding:
+				"This model isn't supported on this iPhone. Choose one marked Works with this iPhone instead."
+			}
+		}
+	}
+
+	var systemImage: String {
+		switch self {
+		case .goodFit:
+			"checkmark.circle.fill"
+		case .mayBeSlow:
+			"exclamationmark.triangle.fill"
+		case let .unavailable(reason):
+			switch reason {
+			case .appleIntelligenceDisabled:
+				"gear"
+			case .appleIntelligencePreparing:
+				"clock.fill"
+			default:
+				"iphone.slash"
+			}
+		}
+	}
+
+	static func current(for model: BeaconModel) -> ModelDeviceCompatibility {
+		if model.isBuiltIn {
+			switch SystemLanguageModel.default.availability {
+			case .available:
+				return .goodFit
+			case let .unavailable(reason):
+				switch reason {
+				case .deviceNotEligible:
+					return .unavailable(.appleIntelligenceUnsupported)
+				case .appleIntelligenceNotEnabled:
+					return .unavailable(.appleIntelligenceDisabled)
+				case .modelNotReady:
+					return .unavailable(.appleIntelligencePreparing)
+				@unknown default:
+					return .unavailable(.appleIntelligenceUnavailable)
+				}
+			}
+		}
+
+		let recommendedTier = DeviceTier(recommendedDevice: model.recommendedDevice)
+		let currentTier = DeviceTier.current
+		if currentTier.rawValue >= recommendedTier.rawValue { return .goodFit }
+		if recommendedTier.rawValue - currentTier.rawValue == 1 { return .mayBeSlow }
+		return .unavailable(.modelTooDemanding)
+	}
+}
+
+private enum DeviceTier: Int {
+	case unsupported = 0
+	case iPhone13 = 1
+	case iPhone14 = 2
+	case iPhone14Pro = 3
+	case iPhone15Pro = 4
+	case iPhone16Pro = 5
+
+	init(recommendedDevice: String) {
+		if recommendedDevice.contains("16 Pro") {
+			self = .iPhone16Pro
+		} else if recommendedDevice.contains("15 Pro") {
+			self = .iPhone15Pro
+		} else if recommendedDevice.contains("14 Pro") {
+			self = .iPhone14Pro
+		} else if recommendedDevice.contains("14") {
+			self = .iPhone14
+		} else {
+			self = .iPhone13
+		}
+	}
+
+	static let current: DeviceTier = {
+		#if targetEnvironment(simulator)
+		return .iPhone16Pro
+		#elseif os(iOS)
+		let identifier = currentDeviceIdentifier
+		guard identifier.hasPrefix("iPhone") else { return .iPhone16Pro }
+		if identifier.hasPrefix("iPhone18,") || identifier.hasPrefix("iPhone17,") { return .iPhone16Pro }
+		if identifier == "iPhone16,1" || identifier == "iPhone16,2" { return .iPhone15Pro }
+		if identifier == "iPhone15,2" || identifier == "iPhone15,3" || identifier == "iPhone16,3" || identifier == "iPhone16,4" { return .iPhone14Pro }
+		if identifier == "iPhone14,2" || identifier == "iPhone14,3" || identifier == "iPhone14,7" || identifier == "iPhone14,8" || identifier == "iPhone15,4" || identifier == "iPhone15,5" { return .iPhone14 }
+		if identifier.hasPrefix("iPhone14,") { return .iPhone13 }
+		return .unsupported
+		#else
+		return .iPhone16Pro
+		#endif
+	}()
+
+	private static var currentDeviceIdentifier: String {
+		var systemInfo = utsname()
+		uname(&systemInfo)
+		let mirror = Mirror(reflecting: systemInfo.machine)
+		return mirror.children.reduce(into: "") { identifier, element in
+			guard let value = element.value as? Int8, value != 0 else { return }
+			identifier.append(Character(UnicodeScalar(UInt8(value))))
+		}
 	}
 }
 
