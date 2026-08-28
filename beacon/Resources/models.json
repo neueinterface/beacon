@@ -21,7 +21,8 @@
     "recommendedDevice": "iPhone 13+",
     "isAvailableDuringOnboarding": true,
     "isBuiltIn": false,
-    "supportsImages": false
+    "supportsImages": false,
+    "parameterCountInBillions": 0.6
   },
   {
     "id": "qwen2.5-0.5b-instruct-4bit",
@@ -33,7 +34,8 @@
     "recommendedDevice": "iPhone 13+",
     "isAvailableDuringOnboarding": false,
     "isBuiltIn": false,
-    "supportsImages": false
+    "supportsImages": false,
+    "parameterCountInBillions": 0.5
   },
   {
     "id": "lfm2-1.2b-4bit",
@@ -45,7 +47,8 @@
     "recommendedDevice": "iPhone 14+",
     "isAvailableDuringOnboarding": true,
     "isBuiltIn": false,
-    "supportsImages": false
+    "supportsImages": false,
+    "parameterCountInBillions": 1.2
   },
   {
     "id": "lfm2.5-1.2b-instruct-4bit",
@@ -57,7 +60,8 @@
     "recommendedDevice": "iPhone 14+",
     "isAvailableDuringOnboarding": false,
     "isBuiltIn": false,
-    "supportsImages": false
+    "supportsImages": false,
+    "parameterCountInBillions": 1.2
   },
   {
     "id": "llama-3.2-1b-instruct-4bit",
@@ -69,7 +73,8 @@
     "recommendedDevice": "iPhone 14 Pro+",
     "isAvailableDuringOnboarding": true,
     "isBuiltIn": false,
-    "supportsImages": false
+    "supportsImages": false,
+    "parameterCountInBillions": 1
   },
   {
     "id": "gemma-3-1b-it-4bit",
@@ -81,7 +86,8 @@
     "recommendedDevice": "iPhone 14+",
     "isAvailableDuringOnboarding": false,
     "isBuiltIn": false,
-    "supportsImages": false
+    "supportsImages": false,
+    "parameterCountInBillions": 1
   },
   {
     "id": "qwen2.5-1.5b-instruct-4bit",
@@ -93,7 +99,8 @@
     "recommendedDevice": "iPhone 14+",
     "isAvailableDuringOnboarding": false,
     "isBuiltIn": false,
-    "supportsImages": false
+    "supportsImages": false,
+    "parameterCountInBillions": 1.5
   },
   {
     "id": "qwen3-1.7b-4bit",
@@ -105,7 +112,8 @@
     "recommendedDevice": "iPhone 14 Pro+",
     "isAvailableDuringOnboarding": false,
     "isBuiltIn": false,
-    "supportsImages": false
+    "supportsImages": false,
+    "parameterCountInBillions": 1.7
   },
   {
     "id": "granite-3.3-2b-instruct-4bit",
@@ -117,7 +125,8 @@
     "recommendedDevice": "iPhone 15 Pro+",
     "isAvailableDuringOnboarding": false,
     "isBuiltIn": false,
-    "supportsImages": false
+    "supportsImages": false,
+    "parameterCountInBillions": 2
   },
   {
     "id": "qwen2.5-3b-instruct-4bit",
@@ -129,7 +138,8 @@
     "recommendedDevice": "iPhone 15 Pro+",
     "isAvailableDuringOnboarding": false,
     "isBuiltIn": false,
-    "supportsImages": false
+    "supportsImages": false,
+    "parameterCountInBillions": 3
   },
   {
     "id": "qwen2.5-coder-3b-instruct-4bit",
@@ -141,7 +151,8 @@
     "recommendedDevice": "iPhone 15 Pro+",
     "isAvailableDuringOnboarding": false,
     "isBuiltIn": false,
-    "supportsImages": false
+    "supportsImages": false,
+    "parameterCountInBillions": 3
   },
   {
     "id": "deepseek-r1-distill-qwen-1.5b-4bit",
@@ -153,7 +164,8 @@
     "recommendedDevice": "iPhone 15 Pro+",
     "isAvailableDuringOnboarding": false,
     "isBuiltIn": false,
-    "supportsImages": false
+    "supportsImages": false,
+    "parameterCountInBillions": 1.5
   },
   {
     "id": "llama-3.2-3b-instruct-4bit",
@@ -165,7 +177,8 @@
     "recommendedDevice": "iPhone 15 Pro+",
     "isAvailableDuringOnboarding": false,
     "isBuiltIn": false,
-    "supportsImages": false
+    "supportsImages": false,
+    "parameterCountInBillions": 3
   },
   {
     "id": "phi-3.5-mini-instruct-4bit",
@@ -177,7 +190,8 @@
     "recommendedDevice": "iPhone 15 Pro+",
     "isAvailableDuringOnboarding": false,
     "isBuiltIn": false,
-    "supportsImages": false
+    "supportsImages": false,
+    "parameterCountInBillions": 3.8
   },
   {
     "id": "qwen2-vl-2b-instruct-4bit",
@@ -189,6 +203,7 @@
     "recommendedDevice": "iPhone 15 Pro+",
     "isAvailableDuringOnboarding": false,
     "isBuiltIn": false,
-    "supportsImages": true
+    "supportsImages": true,
+    "parameterCountInBillions": 2
   }
 ]

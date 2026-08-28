@@ -21,6 +21,7 @@ struct ModelMarketPlaceView: View {
 	@State private var selectedDeleteWarningModelName: String?
 	@State private var switchedModelName: String?
 	@State private var modelSwitchToastTask: Task<Void, Never>?
+	@State private var informationModelID: String?
 	@State private var selectedCompany = ModelCompanyFilter.all
 	@State private var availableStorageGB: Double?
 	@State private var hasMeasuredAvailableStorage = false
@@ -72,8 +73,8 @@ struct ModelMarketPlaceView: View {
 								showModelSwitchToast(for: model.name)
 							},
 							onDelete: delete,
-							onOpenLink: { model in
-								safariViewModel.open(model.huggingFaceURL)
+							onOpenDetails: { model in
+								informationModelID = model.id
 							}
 						)
 					}
@@ -107,9 +108,35 @@ struct ModelMarketPlaceView: View {
 					.transition(.opacity.combined(with: .scale(scale: 0.96)))
 			}
 		}
-		.sheet(item: $safariViewModel.page) { page in
-			SafariView(url: page.url)
-				.ignoresSafeArea()
+		.sheet(isPresented: modelDetailsPresented) {
+			NavigationStack {
+				if let modelID = informationModelID,
+				   let model = catalogModels.first(where: { $0.id == modelID }) {
+					ModelDetailsView(
+						model: model,
+						isDownloaded: isDownloaded(model),
+						isSelected: selectedModelID == model.id,
+						isDeleting: deletingModelID == model.id,
+						deleteErrorMessage: deleteErrorMessage,
+						downloadAvailability: downloadAvailability(for: model),
+						onDownload: { onDownload(model) },
+						onSelect: {
+							selectedModelID = model.id
+							onSelect(model)
+							showModelSwitchToast(for: model.name)
+						},
+						onDelete: { delete(model) },
+						onOpenURL: { safariViewModel.open($0) }
+					)
+				}
+			}
+			.presentationDetents([.large])
+			.presentationDragIndicator(.visible)
+			.presentationCornerRadius(40)
+			.sheet(item: $safariViewModel.page) { page in
+				SafariView(url: page.url)
+					.ignoresSafeArea()
+			}
 		}
 		.alert("Switch models first", isPresented: selectedDeleteWarningBinding) {
 			Button("OK") { }
@@ -130,6 +157,17 @@ struct ModelMarketPlaceView: View {
 			set: { isPresented in
 				if !isPresented {
 					selectedDeleteWarningModelName = nil
+				}
+			}
+		)
+	}
+
+	private var modelDetailsPresented: Binding<Bool> {
+		Binding(
+			get: { informationModelID != nil },
+			set: { isPresented in
+				if !isPresented {
+					informationModelID = nil
 				}
 			}
 		)
@@ -291,7 +329,7 @@ private struct ModelMarketPlaceList: View {
 	var onDownload: (BeaconModel) -> Void
 	var onSelect: (BeaconModel) -> Void
 	var onDelete: (BeaconModel) -> Void
-	var onOpenLink: (BeaconModel) -> Void
+	var onOpenDetails: (BeaconModel) -> Void
 
 	var body: some View {
 		VStack(alignment: .leading, spacing: 0) {
@@ -311,8 +349,8 @@ private struct ModelMarketPlaceList: View {
 					onDelete: {
 						onDelete(model)
 					},
-					onOpenLink: {
-						onOpenLink(model)
+					onOpenDetails: {
+						onOpenDetails(model)
 					}
 				)
 
@@ -322,31 +360,6 @@ private struct ModelMarketPlaceList: View {
 				}
 			}
 		}
-	}
-}
-
-private extension BeaconModel {
-	var company: String {
-		let searchableText = "\(name) \(repositoryID)".lowercased()
-
-		if searchableText.contains("deepseek") { return "DeepSeek" }
-		if searchableText.contains("apple") { return "Apple" }
-		if searchableText.contains("openelm") { return "Apple" }
-		if searchableText.contains("qwen") { return "Alibaba" }
-		if searchableText.contains("lfm") || searchableText.contains("liquid") { return "Liquid AI" }
-		if searchableText.contains("llama") { return "Meta" }
-		if searchableText.contains("gemma") { return "Google" }
-		if searchableText.contains("phi") { return "Microsoft" }
-		if searchableText.contains("mistral") || searchableText.contains("ministral") { return "Mistral AI" }
-		if searchableText.contains("granite") { return "IBM" }
-		if searchableText.contains("stablelm") { return "Stability AI" }
-		if searchableText.contains("smollm") { return "Hugging Face" }
-		if searchableText.contains("olmo") { return "Allen Institute" }
-		if searchableText.contains("yi-") { return "01.AI" }
-		if searchableText.contains("glm") { return "Zhipu" }
-		if searchableText.contains("minicpm") { return "OpenBMB" }
-
-		return repositoryID.split(separator: "/").first.map(String.init) ?? "Other"
 	}
 }
 
@@ -360,7 +373,7 @@ private struct ModelMarketPlaceRow: View {
 	var onDownload: () -> Void
 	var onSelect: () -> Void
 	var onDelete: () -> Void
-	var onOpenLink: () -> Void
+	var onOpenDetails: () -> Void
 
 	@State private var isDownloading: Bool
 
@@ -374,7 +387,7 @@ private struct ModelMarketPlaceRow: View {
 		onDownload: @escaping () -> Void,
 		onSelect: @escaping () -> Void = { },
 		onDelete: @escaping () -> Void,
-		onOpenLink: @escaping () -> Void = { }
+		onOpenDetails: @escaping () -> Void = { }
 	) {
 		self.model = model
 		self.isDownloaded = isDownloaded
@@ -385,44 +398,43 @@ private struct ModelMarketPlaceRow: View {
 		self.onDownload = onDownload
 		self.onSelect = onSelect
 		self.onDelete = onDelete
-		self.onOpenLink = onOpenLink
+		self.onOpenDetails = onOpenDetails
 		self._isDownloading = State(initialValue: showsDownloadInProgress)
 	}
 
 	var body: some View {
 		VStack(alignment: .leading, spacing: 16) {
-			VStack(alignment: .leading, spacing: 12) {
-				Text(model.name)
-					.font(.system(size: 18, weight: .medium))
-					.foregroundStyle(.primary)
+			Button(action: onOpenDetails) {
+				VStack(alignment: .leading, spacing: 16) {
+					VStack(alignment: .leading, spacing: 12) {
+						Text(model.name)
+							.font(.system(size: 18, weight: .medium))
+							.foregroundStyle(.primary)
 
-				Text(model.description)
-					.font(.system(size: 16, weight: .regular))
-					.foregroundStyle(.secondary)
-					.lineSpacing(3)
-			}
+						Text(model.description)
+							.font(.system(size: 16, weight: .regular))
+							.foregroundStyle(.secondary)
+							.lineSpacing(3)
+					}
 
-			HStack(spacing: 12) {
-				Tag(title: model.formattedSize, color: .indigo)
+					ModelTagLayout(spacing: 8) {
+						ForEach(model.marketplaceTags) { tag in
+							Tag(title: tag.title, color: tag.color)
+						}
+						Tag(title: deviceCompatibility.tagTitle, color: deviceCompatibility.marketplaceTint)
+					}
 
-				if model.type == .reasoning {
-					Tag(title: "reasoning", color: .orange)
-				} else {
-					Tag(title: "chat", color: .gray)
+					if let compatibilityMessage = deviceCompatibility.message {
+						Label(compatibilityMessage, systemImage: deviceCompatibility.systemImage)
+							.font(.system(size: 13, weight: .regular))
+							.foregroundStyle(deviceCompatibility.marketplaceTint)
+					}
 				}
-
-				if model.supportsImages {
-					Tag(title: "vision", color: .indigo)
-				}
-
-				Tag(title: deviceCompatibility.tagTitle, color: deviceCompatibility.tint)
+				.frame(maxWidth: .infinity, alignment: .leading)
+				.contentShape(Rectangle())
 			}
-
-			if let compatibilityMessage = deviceCompatibility.message {
-				Label(compatibilityMessage, systemImage: deviceCompatibility.systemImage)
-					.font(.system(size: 13, weight: .regular))
-					.foregroundStyle(deviceCompatibility.tint)
-			}
+			.buttonStyle(SpringButtonStyle(pressedScale: 0.99))
+			.accessibilityIdentifier("model-details-\(model.id)")
 
 			VStack(alignment: .leading, spacing: 14) {
 				HStack(spacing: 10) {
@@ -438,12 +450,6 @@ private struct ModelMarketPlaceRow: View {
 						BeaconButton(downloadButtonTitle, variant: .secondary, size: .small, trailingAssetIcon: "download.icon", isDisabled: !downloadAvailability.canDownload || !deviceCompatibility.canUse, isLoading: isDownloading) {
 							isDownloading = true
 							onDownload()
-						}
-					}
-
-					if !model.isBuiltIn {
-						BeaconButton("View on Hugging Face", variant: .subtle, size: .small, trailingIcon: "arrow.up.right") {
-							onOpenLink()
 						}
 					}
 				}
@@ -496,40 +502,6 @@ private struct ModelMarketPlaceRow: View {
 
 	private var deviceCompatibility: ModelDeviceCompatibility {
 		.current(for: model)
-	}
-}
-
-private extension ModelDeviceCompatibility {
-	var tint: Color {
-		switch self {
-		case .goodFit: .green
-		case .mayBeSlow: .orange
-		case .unavailable: .gray
-		}
-	}
-}
-
-private struct DownloadedModelButton: View {
-	var title = "Downloaded"
-
-	var body: some View {
-		HStack(spacing: 8) {
-			Text(title)
-				.font(.system(size: 14, weight: .semibold))
-
-			Image(systemName: "checkmark")
-				.font(.system(size: 14, weight: .bold))
-		}
-		.foregroundStyle(Color(uiColor: .systemGreen))
-		.padding(.horizontal, 14)
-		.frame(minHeight: 34)
-		.background(Color(uiColor: .systemGreen).opacity(0.14), in: Capsule())
-	}
-}
-
-private extension BeaconModel {
-	var huggingFaceURL: URL {
-		URL(string: "https://huggingface.co/\(repositoryID)")!
 	}
 }
 

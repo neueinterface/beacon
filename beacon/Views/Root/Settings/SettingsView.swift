@@ -148,19 +148,15 @@ struct SettingsView: View {
 						}
 						.buttonStyle(.plain)
 
-						Button {
+						BeaconButton(
+							"Delete All Chats",
+							variant: .destructive,
+							size: .large,
+							isFullWidth: true,
+							isDisabled: chatHistoryViewModel.chats.isEmpty
+						) {
 							isConfirmingDeleteAllChats = true
-						} label: {
-							Text("Delete All Chats")
-								.font(.system(size: 16, weight: .medium))
-								.foregroundStyle(Color(uiColor: .systemRed))
-								.frame(maxWidth: .infinity)
-								.frame(height: 54)
-								.background(Color(uiColor: .systemRed).opacity(0.10), in: Capsule())
 						}
-						.buttonStyle(.plain)
-						.disabled(chatHistoryViewModel.chats.isEmpty)
-						.opacity(chatHistoryViewModel.chats.isEmpty ? 0.55 : 1)
 					}
 
 					SettingsFooterView {

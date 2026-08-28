@@ -1,6 +1,6 @@
 import { launch, type Browser, type BrowserContext, type BrowserWorker, type Page } from "@cloudflare/playwright";
 import { searchDuckDuckGoDirect } from "./direct-search";
-import { hasRelevantResults, refinedSearchQuery } from "./search-query";
+import { filterRelevantResults, refinedSearchQuery } from "./search-query";
 import { isSafeExternalURL, sanitizeResults, unwrapBingURL, type RawSearchResult } from "./url-safety";
 
 export type SearchResult = {
@@ -24,13 +24,17 @@ const USER_AGENT = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) Apple
 export async function searchWeb(browserBinding: BrowserWorker, options: SearchOptions): Promise<SearchResult[]> {
 	try {
 		const results = await searchDuckDuckGoDirect(options.query, options.limit, USER_AGENT, SEARCH_TIMEOUT_MS);
-		return results.map(result => ({ ...result, content: "" }));
+		const relevant = filterRelevantResults(options.query, results);
+		if (relevant.length === 0) throw new Error("Direct search returned no relevant results");
+		return relevant.map(result => ({ ...result, content: "" }));
 	} catch {
 		const refinedQuery = refinedSearchQuery(options.query);
 		if (refinedQuery !== options.query) {
 			try {
 				const results = await searchDuckDuckGoDirect(refinedQuery, options.limit, USER_AGENT, SEARCH_TIMEOUT_MS);
-				return results.map(result => ({ ...result, content: "" }));
+				const relevant = filterRelevantResults(refinedQuery, results);
+				if (relevant.length === 0) throw new Error("Refined direct search returned no relevant results");
+				return relevant.map(result => ({ ...result, content: "" }));
 			} catch {
 				// Browser search remains a fallback for providers that require rendered markup.
 			}
@@ -77,7 +81,8 @@ async function runRelevantSearch(page: Page, query: string, limit: number): Prom
   for (const provider of providers) {
     try {
       const results = await provider(page, query, limit);
-      if (hasRelevantResults(query, results)) return results;
+			const relevant = filterRelevantResults(query, results);
+			if (relevant.length > 0) return relevant;
     } catch {
       continue;
     }

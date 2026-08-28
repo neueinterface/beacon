@@ -632,7 +632,13 @@ struct ChatView: View {
 		if isForced {
 			query = forcedQuery
 		} else {
-			query = try? await runtime.webSearchQuery(for: trimmed, conversationHistory: conversationHistory)
+			do {
+				query = try await runtime.webSearchQuery(for: trimmed, conversationHistory: conversationHistory)
+			} catch is CancellationError {
+				throw CancellationError()
+			} catch {
+				query = BeaconModelRuntime.fallbackWebSearchQuery(for: trimmed)
+			}
 		}
 		guard let query, !query.isEmpty else { return text }
 
@@ -650,7 +656,6 @@ struct ChatView: View {
 				[\(index + 1)] \(result.title)
 				URL: \(result.url.absoluteString)
 				Summary: \(result.description)
-				Page text: \(result.content ?? "Not available")
 				"""
 			}.joined(separator: "\n\n")
 
@@ -669,9 +674,12 @@ struct ChatView: View {
 			Reference material:
 			\(context)
 			"""
+		} catch is CancellationError {
+			throw CancellationError()
 		} catch let error as WebSearchMCPClient.ClientError {
 			throw error
 		} catch {
+			try Task.checkCancellation()
 			throw WebSearchMCPClient.ClientError.requestFailed(error.localizedDescription)
 		}
 	}

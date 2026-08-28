@@ -6,13 +6,17 @@ const STOP_WORDS = new Set([
 ]);
 
 export function hasRelevantResults(query: string, results: RawSearchResult[]): boolean {
-  const terms = words(query).filter(term => term.length >= 3 && !STOP_WORDS.has(term));
-  if (terms.length === 0) return results.length > 0;
+	return filterRelevantResults(query, results).length > 0;
+}
 
-  const requiredMatches = Math.min(2, terms.length);
-  return results.some(result => {
-    const text = `${result.title} ${result.description}`.toLowerCase();
-    return terms.filter(term => text.includes(term)).length >= requiredMatches;
+export function filterRelevantResults(query: string, results: RawSearchResult[]): RawSearchResult[] {
+  const terms = words(query).filter(term => term.length >= 3 && !STOP_WORDS.has(term));
+	if (terms.length === 0) return results;
+
+	const requiredMatches = Math.min(2, terms.length);
+	return results.filter(result => {
+		const resultTerms = new Set(words(`${result.title} ${result.description}`));
+		return terms.filter(term => matchesTerm(term, resultTerms)).length >= requiredMatches;
   });
 }
 
@@ -33,4 +37,10 @@ export function refinedSearchQuery(query: string, year = new Date().getUTCFullYe
 
 function words(value: string): string[] {
   return value.toLowerCase().match(/[a-z0-9]+/g) ?? [];
+}
+
+function matchesTerm(term: string, resultTerms: Set<string>): boolean {
+	if (resultTerms.has(term)) return true;
+	if (term.endsWith("s") && term.length > 3) return resultTerms.has(term.slice(0, -1));
+	return resultTerms.has(`${term}s`);
 }

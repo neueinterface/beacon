@@ -92,8 +92,8 @@ struct WebSearchMCPClient: Sendable {
 				"arguments": [
 					"query": String(query.prefix(200)),
 					"limit": 5,
-					"includeContent": true,
-					"maxContentLength": 2_500
+					"includeContent": false,
+					"maxContentLength": 500
 				]
 			]
 		]

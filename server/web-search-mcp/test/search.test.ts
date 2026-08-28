@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { parseDuckDuckGoHTML } from "../src/direct-search";
-import { hasRelevantResults, refinedSearchQuery } from "../src/search-query";
+import { filterRelevantResults, hasRelevantResults, refinedSearchQuery } from "../src/search-query";
 import { isSafeExternalURL, sanitizeResults, unwrapBingURL } from "../src/url-safety";
 
 describe("search result safety", () => {
@@ -46,6 +46,16 @@ describe("search result safety", () => {
     expect(hasRelevantResults("who won the most recent World Cup", dictionaryResults)).toBe(false);
     expect(refinedSearchQuery("who won the most recent World Cup", 2026)).toBe("FIFA winner World Cup 2026");
   });
+
+	it("removes individually irrelevant results from a mixed provider response", () => {
+		const results = [
+			{ title: "MANY Definition & Meaning", url: "https://example.com/many", description: "English dictionary entry" },
+			{ title: "Spain at the FIFA World Cup", url: "https://example.com/spain", description: "Spain World Cup titles and appearances" },
+			{ title: "Chat Marketing", url: "https://example.com/chat", description: "Automate social messages" }
+		];
+
+		expect(filterRelevantResults("how many world cups do spaing have", results)).toEqual([results[1]]);
+	});
 
 	it("parses direct DuckDuckGo results without a browser session", () => {
 		const html = `

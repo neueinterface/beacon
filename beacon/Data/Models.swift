@@ -24,6 +24,7 @@ struct BeaconModel: Identifiable, Equatable, Decodable {
 	let isAvailableDuringOnboarding: Bool
 	let isBuiltIn: Bool
 	let supportsImages: Bool
+	let parameterCountInBillions: Decimal?
 
 	init(
 		id: String,
@@ -35,7 +36,8 @@ struct BeaconModel: Identifiable, Equatable, Decodable {
 		recommendedDevice: String,
 		isAvailableDuringOnboarding: Bool,
 		isBuiltIn: Bool,
-		supportsImages: Bool = false
+		supportsImages: Bool = false,
+		parameterCountInBillions: Decimal? = nil
 	) {
 		self.id = id
 		self.name = name
@@ -47,11 +49,25 @@ struct BeaconModel: Identifiable, Equatable, Decodable {
 		self.isAvailableDuringOnboarding = isAvailableDuringOnboarding
 		self.isBuiltIn = isBuiltIn
 		self.supportsImages = supportsImages
+		self.parameterCountInBillions = parameterCountInBillions
 	}
 
 	var formattedSize: String {
 		if isBuiltIn { return "Built in" }
 		return String(format: "%.2f GB", NSDecimalNumber(decimal: sizeInGB).doubleValue)
+	}
+
+	var formattedParameterCount: String? {
+		guard let parameterCountInBillions else { return nil }
+		return "\(String(format: "%g", NSDecimalNumber(decimal: parameterCountInBillions).doubleValue))b"
+	}
+
+	var capabilityTags: [String] {
+		var tags = ["chat"]
+		if supportsImages { tags.append("vision") }
+		if type == .reasoning { tags.append("thinking") }
+		if repositoryID.localizedCaseInsensitiveContains("coder") { tags.append("coding") }
+		return tags
 	}
 }
 

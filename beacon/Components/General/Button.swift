@@ -30,6 +30,7 @@ struct BeaconButton: View {
 	private let assetIcon: String?
 	private let variant: Variant
 	private let size: Size
+	private let isFullWidth: Bool
 	private let isDisabled: Bool
 	private let isLoading: Bool
 	private let action: () -> Void
@@ -38,6 +39,7 @@ struct BeaconButton: View {
 		_ title: String,
 		variant: Variant = .primary,
 		size: Size = .default,
+		isFullWidth: Bool = false,
 		leadingIcon: String? = nil,
 		leadingAssetIcon: String? = nil,
 		trailingIcon: String? = nil,
@@ -55,6 +57,7 @@ struct BeaconButton: View {
 		self.assetIcon = nil
 		self.variant = variant
 		self.size = size
+		self.isFullWidth = isFullWidth
 		self.isDisabled = isDisabled
 		self.isLoading = isLoading
 		self.action = action
@@ -77,6 +80,7 @@ struct BeaconButton: View {
 		self.assetIcon = nil
 		self.variant = variant
 		self.size = size
+		self.isFullWidth = false
 		self.isDisabled = isDisabled
 		self.isLoading = isLoading
 		self.action = action
@@ -99,6 +103,7 @@ struct BeaconButton: View {
 		self.assetIcon = assetIcon
 		self.variant = variant
 		self.size = size
+		self.isFullWidth = false
 		self.isDisabled = isDisabled
 		self.isLoading = isLoading
 		self.action = action
@@ -145,7 +150,7 @@ struct BeaconButton: View {
 			}
 			.foregroundStyle(foregroundStyle)
 			.padding(.horizontal, horizontalPadding)
-			.frame(minHeight: height)
+			.frame(maxWidth: isFullWidth ? .infinity : nil, minHeight: height)
 			.background(backgroundStyle, in: Capsule())
 		}
 	}
@@ -241,7 +246,7 @@ struct BeaconButton: View {
 		case .secondary, .subtle:
 			.primary
 		case .destructive:
-			.white
+			Color(uiColor: .systemRed)
 		}
 	}
 
@@ -254,7 +259,7 @@ struct BeaconButton: View {
 		case .subtle:
 			.clear
 		case .destructive:
-			.red
+			Color(uiColor: .systemRed).opacity(0.10)
 		}
 	}
 }
@@ -265,6 +270,7 @@ struct BeaconButton: View {
 		BeaconButton("Download", variant: .secondary, leadingIcon: "arrow.down") { }
 		BeaconButton("Small", size: .small) { }
 		BeaconButton("Large", size: .large, leadingIcon: "sparkles") { }
+		BeaconButton("Delete", variant: .destructive, trailingAssetIcon: "trash.icon") { }
 		BeaconButton(icon: "plus") { }
 	}
 	.padding()

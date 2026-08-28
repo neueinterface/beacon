@@ -43,12 +43,41 @@ struct BeaconAppDataTests {
 		#expect(model.formattedSize.hasSuffix("GB"))
 	}
 
+	@Test("Catalog provides compact parameter-count labels")
+	func parameterCountLabels() throws {
+		let qwen = try #require(ModelCatalog.model(id: "qwen3-0.6b-4bit"))
+		let phi = try #require(ModelCatalog.model(id: "phi-3.5-mini-instruct-4bit"))
+		let apple = try #require(ModelCatalog.model(id: "apple-foundation"))
+
+		#expect(qwen.formattedParameterCount == "0.6b")
+		#expect(phi.formattedParameterCount == "3.8b")
+		#expect(apple.formattedParameterCount == nil)
+	}
+
 	@Test("Vision model accepts image attachments")
 	func visionModelSupportsImages() throws {
 		let model = try #require(ModelCatalog.model(id: "qwen2-vl-2b-instruct-4bit"))
 
 		#expect(model.supportsImages)
 		#expect(!model.isBuiltIn)
+	}
+
+	@Test("Model capability tags are additive")
+	func modelCapabilityTagsAreAdditive() {
+		let model = BeaconModel(
+			id: "multimodal-coder",
+			name: "Multimodal Coder",
+			description: "Test model",
+			repositoryID: "example/multimodal-coder",
+			sizeInGB: 1,
+			type: .reasoning,
+			recommendedDevice: "iPhone 15 Pro",
+			isAvailableDuringOnboarding: false,
+			isBuiltIn: false,
+			supportsImages: true
+		)
+
+		#expect(model.capabilityTags == ["chat", "vision", "thinking", "coding"])
 	}
 
 	@Test("Bundled catalog offers varied model families")
@@ -61,6 +90,24 @@ struct BeaconAppDataTests {
 		#expect(repositories.contains { $0.localizedCaseInsensitiveContains("phi") })
 		#expect(repositories.contains { $0.localizedCaseInsensitiveContains("deepseek") })
 		#expect(ModelCatalog.availableModels.contains { $0.type == .reasoning })
+	}
+
+	@Test("Hugging Face README front matter is removed")
+	func huggingFaceReadmeFrontMatterIsRemoved() {
+		let readme = """
+		---
+		license: apache-2.0
+		tags:
+		- mlx
+		---
+
+		# Model card
+		Model details.
+		"""
+
+		let result = HuggingFaceModelMetadataService.removingFrontMatter(from: readme)
+
+		#expect(result.trimmingCharacters(in: .whitespacesAndNewlines) == "# Model card\nModel details.")
 	}
 }
 
@@ -83,15 +130,65 @@ struct ModelResponseFilteringTests {
 struct WebSearchRoutingTests {
 	@Test("No-search decision does not produce a query")
 	func noSearchDecision() {
-		#expect(BeaconModelRuntime.parseWebSearchQuery(from: "NO_SEARCH") == nil)
-		#expect(BeaconModelRuntime.parseWebSearchQuery(from: "NO_SEARCH\nSEARCH: ignored") == nil)
+		#expect(BeaconModelRuntime.parseWebSearchDecision(from: "NO_SEARCH") == .noSearch)
+		#expect(BeaconModelRuntime.parseWebSearchDecision(from: "NO_SEARCH: explanation") == .noSearch)
 	}
 
 	@Test("Search decision extracts one bounded query")
 	func searchDecision() {
-		#expect(BeaconModelRuntime.parseWebSearchQuery(from: "SEARCH: weather in Berlin today") == "weather in Berlin today")
-		#expect(BeaconModelRuntime.parseWebSearchQuery(from: "Result: SEARCH: Swift 6.2 release notes\nExtra text") == "Swift 6.2 release notes")
-		#expect(BeaconModelRuntime.parseWebSearchQuery(from: "SEARCH:   ") == nil)
+		#expect(BeaconModelRuntime.parseWebSearchDecision(from: "SEARCH: weather in Berlin today") == .search("weather in Berlin today"))
+		#expect(BeaconModelRuntime.parseWebSearchDecision(from: "SEARCH: Swift 6.2 release notes\nExtra text") == .search("Swift 6.2 release notes"))
+		let longQuery = String(repeating: "a", count: 250)
+		#expect(BeaconModelRuntime.parseWebSearchDecision(from: "SEARCH: \(longQuery)") == .search(String(longQuery.prefix(200))))
+	}
+
+	@Test("Malformed or contradictory decisions are invalid")
+	func invalidDecision() {
+		#expect(BeaconModelRuntime.parseWebSearchDecision(from: "I would probably search") == .invalid)
+		#expect(BeaconModelRuntime.parseWebSearchDecision(from: "SEARCH:   ") == .invalid)
+		#expect(BeaconModelRuntime.parseWebSearchDecision(from: "NO_SEARCH\nSEARCH: ignored") == .invalid)
+		#expect(BeaconModelRuntime.parseWebSearchDecision(from: "SEARCH: first\nSEARCH: second") == .invalid)
+		#expect(BeaconModelRuntime.parseWebSearchDecision(from: "Do not SEARCH: private text") == .invalid)
+		#expect(BeaconModelRuntime.parseWebSearchDecision(from: "SEARCH: query NO_SEARCH") == .invalid)
+	}
+
+	@Test("Obvious live requests have a conservative fallback")
+	func highConfidenceFallback() {
+		#expect(BeaconModelRuntime.fallbackWebSearchQuery(for: "What is the weather in Berlin?") == "What is the weather in Berlin?")
+		#expect(BeaconModelRuntime.fallbackWebSearchQuery(for: "Search the web for Swift 6.2 changes") == "Search the web for Swift 6.2 changes")
+		#expect(BeaconModelRuntime.fallbackWebSearchQuery(for: "Find sources about new battery technology") == "Find sources about new battery technology")
+		#expect(BeaconModelRuntime.fallbackWebSearchQuery(for: "Who is the current CEO of Apple?") == "Who is the current CEO of Apple?")
+		#expect(BeaconModelRuntime.fallbackWebSearchQuery(for: "Who won the World Cup?") == "Who won the World Cup?")
+		#expect(BeaconModelRuntime.fallbackWebSearchQuery(for: "How many world cups do Spaing have?") == "How many world cups do Spaing have?")
+		#expect(BeaconModelRuntime.fallbackWebSearchQuery(for: "Explain why the sky is blue") == nil)
+		#expect(BeaconModelRuntime.fallbackWebSearchQuery(for: "Explain electric current") == nil)
+		#expect(BeaconModelRuntime.fallbackWebSearchQuery(for: "Write a poem about today's news") == "Write a poem about today's news")
+		#expect(BeaconModelRuntime.fallbackWebSearchQuery(for: "Write a poem using the word today") == nil)
+		#expect(BeaconModelRuntime.fallbackWebSearchQuery(for: "Write about living in the now") == nil)
+		#expect(BeaconModelRuntime.fallbackWebSearchQuery(for: "Explain live versus recorded music") == nil)
+		#expect(BeaconModelRuntime.fallbackWebSearchQuery(for: "Translate the price of freedom into French") == nil)
+		#expect(BeaconModelRuntime.fallbackWebSearchQuery(for: "Explain the phrase right now") == nil)
+	}
+
+	@Test("Context-dependent fallback does not send an incomplete query")
+	func incompleteFallbackIsSkipped() {
+		#expect(BeaconModelRuntime.fallbackWebSearchQuery(for: "What about tomorrow?") == nil)
+		#expect(BeaconModelRuntime.fallbackWebSearchQuery(for: "Is it available now?") == nil)
+	}
+
+	@Test("Router receives only relevant immediate user context")
+	func routingContextIsMinimized() {
+		let history = [
+			ChatMessage(text: "My private account number is 1234", role: .user),
+			ChatMessage(text: "What is the weather in Berlin?", role: .user),
+			ChatMessage(text: "It is sunny.", role: .assistant)
+		]
+
+		#expect(BeaconModelRuntime.webSearchRoutingContext(for: "Who is the CEO of Apple?", conversationHistory: history) == nil)
+		#expect(
+			BeaconModelRuntime.webSearchRoutingContext(for: "What about tomorrow?", conversationHistory: history)
+				== "User: What is the weather in Berlin?"
+		)
 	}
 
 	@Test("MCP event stream extracts JSON payload")
