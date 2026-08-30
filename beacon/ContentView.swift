@@ -13,6 +13,7 @@ struct ContentView: View {
 	@AppStorage("downloadedModelIDs") private var downloadedModelIDs = ""
 	@AppStorage("lastSeenWhatsNewRelease") private var lastSeenWhatsNewRelease = ""
 	@ObservedObject private var modelRuntime: BeaconModelRuntime
+	@ObservedObject private var memoryStore: MemoryStore
 	private let models = ModelCatalog.availableModels
 	@State private var isChoosingModel = false
 	@State private var downloadingModel: BeaconModel?
@@ -20,8 +21,9 @@ struct ContentView: View {
 	@State private var isShowingWhatsNew = false
 	@ObservedObject private var notificationRouter: NotificationRouter
 
-	init(modelRuntime: BeaconModelRuntime, notificationRouter: NotificationRouter) {
+	init(modelRuntime: BeaconModelRuntime, memoryStore: MemoryStore, notificationRouter: NotificationRouter) {
 		self.modelRuntime = modelRuntime
+		self.memoryStore = memoryStore
 		self.notificationRouter = notificationRouter
 	}
 
@@ -39,7 +41,7 @@ struct ContentView: View {
 					downloadAlert = .failed(downloadingModel.name, message)
 				})
 			} else if hasCompletedWelcome {
-				ChatView(runtime: modelRuntime, models: models, notificationRouter: notificationRouter) { model in
+				ChatView(runtime: modelRuntime, memoryStore: memoryStore, models: models, notificationRouter: notificationRouter) { model in
 					prepare(model)
 				}
 			} else if isChoosingModel {
@@ -176,5 +178,5 @@ private struct DownloadAlert: Identifiable {
 }
 
 #Preview {
-	ContentView(modelRuntime: BeaconModelRuntime(), notificationRouter: NotificationRouter())
+	ContentView(modelRuntime: BeaconModelRuntime(), memoryStore: MemoryStore(), notificationRouter: NotificationRouter())
 }

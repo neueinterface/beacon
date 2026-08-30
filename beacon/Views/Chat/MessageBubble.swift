@@ -224,7 +224,6 @@ private extension String {
 		}
 
 		return lines
-			.map { $0.removingInlineSourceCitations() }
 			.joined(separator: "\n")
 			.trimmingCharacters(in: .whitespacesAndNewlines)
 	}
@@ -239,16 +238,6 @@ private extension String {
 			|| trimmed.hasPrefix("http://")
 			|| trimmed.hasPrefix("https://")
 			|| trimmed.contains("](http")
-	}
-
-	private func removingInlineSourceCitations() -> String {
-		var result = self
-		for number in 1...20 {
-			result = result.replacingOccurrences(of: "[\(number)]", with: "")
-			result = result.replacingOccurrences(of: "(\(number))", with: "")
-		}
-
-		return result.replacingOccurrences(of: "  ", with: " ")
 	}
 }
 

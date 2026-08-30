@@ -8,6 +8,7 @@ import UIKit
 
 struct SettingsView: View {
 	@ObservedObject var chatHistoryViewModel: ChatHistoryViewModel
+	@ObservedObject var memoryStore: MemoryStore
 	var models = ModelCatalog.availableModels
 	var onDownloadModel: (BeaconModel) -> Void = { _ in }
 	@Environment(\.dismiss) private var dismiss
@@ -79,6 +80,11 @@ struct SettingsView: View {
 					settingsSection("General") {
 						SettingsLinkRow(title: "Appearance", icon: "appearance.icon") {
 							AppearancePlaceholderView()
+						}
+						SettingsListDivider()
+
+						SettingsLinkRow(title: "Memory", icon: "memory") {
+							MemorySettingsView(memoryStore: memoryStore)
 						}
 						SettingsListDivider()
 
@@ -396,5 +402,5 @@ private struct WhyLocalModelsView: View {
 }
 
 #Preview {
-SettingsView(chatHistoryViewModel: ChatHistoryViewModel(conversations: []))
+SettingsView(chatHistoryViewModel: ChatHistoryViewModel(conversations: []), memoryStore: MemoryStore())
 }

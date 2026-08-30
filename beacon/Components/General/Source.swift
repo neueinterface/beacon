@@ -72,7 +72,7 @@ struct SourceTag: View {
 
 	private var sourceList: some View {
 		VStack(alignment: .leading, spacing: 12) {
-			ForEach(sources) { source in
+			ForEach(Array(sources.enumerated()), id: \.element.id) { index, source in
 				Button {
 					#if canImport(UIKit)
 					UIImpactFeedbackGenerator(style: .light).impactOccurred()
@@ -80,7 +80,7 @@ struct SourceTag: View {
 					onOpen(source.url)
 				} label: {
 					VStack(alignment: .leading, spacing: 3) {
-						Text(source.displayHost)
+						Text("[\(index + 1)] \(source.displayHost)")
 							.font(.system(size: 16, weight: .semibold))
 							.foregroundStyle(.secondary)
 

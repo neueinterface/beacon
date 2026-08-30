@@ -1,4 +1,3 @@
-import { hasRelevantResults } from "./search-query";
 import { sanitizeResults, type RawSearchResult } from "./url-safety";
 
 export async function searchDuckDuckGoDirect(query: string, limit: number, userAgent: string, timeout: number): Promise<RawSearchResult[]> {
@@ -8,9 +7,11 @@ export async function searchDuckDuckGoDirect(query: string, limit: number, userA
   });
   if (!response.ok) throw new Error(`DuckDuckGo returned HTTP ${response.status}`);
 
-  const results = parseDuckDuckGoHTML(await boundedResponseText(response, 512_000), limit);
-  if (!hasRelevantResults(query, results)) throw new Error("DuckDuckGo returned no relevant results");
-  return results;
+  return parseDuckDuckGoHTML(await boundedResponseText(response, 512_000), limit).map((result, providerRank) => ({
+    ...result,
+    provider: "duckduckgo",
+    providerRank
+  }));
 }
 
 export function parseDuckDuckGoHTML(html: string, limit: number): RawSearchResult[] {

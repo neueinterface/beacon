@@ -8,7 +8,18 @@ struct WhatsNewRelease {
 	let updates: [String]
 
 	/// Set to nil to disable What's New for the current build.
-	static let current: WhatsNewRelease? = .version102
+	static let current: WhatsNewRelease? = .version103
+
+	static let version103 = WhatsNewRelease(
+		id: "1.0.3",
+		heroImageName: "whatsnew",
+		title: "What's New in 1.0.3",
+		subtitle: "The latest improvements in Beacon.",
+		updates: [
+			"Web search is fixed and more reliable than before.",
+			"Beacon can now remember useful details across conversations, kept private on your device and clearable anytime."
+		]
+	)
 
 	static let version102 = WhatsNewRelease(
 		id: "1.0.2",
@@ -109,6 +120,6 @@ struct WhatsNewView: View {
 #Preview {
 	Color.clear
 		.sheet(isPresented: .constant(true)) {
-			WhatsNewView(release: .version102)
+			WhatsNewView(release: .version103)
 		}
 }

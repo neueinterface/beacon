@@ -1,11 +1,15 @@
 import { launch, type Browser, type BrowserContext, type BrowserWorker, type Page } from "@cloudflare/playwright";
 import { searchDuckDuckGoDirect } from "./direct-search";
-import { filterRelevantResults, refinedSearchQuery } from "./search-query";
-import { isSafeExternalURL, sanitizeResults, unwrapBingURL, type RawSearchResult } from "./url-safety";
+import { refinedSearchQuery, selectBestResults } from "./search-query";
+import { isSafeExternalURL, sanitizeResults, sourceForURL, unwrapBingURL, type RawSearchResult } from "./url-safety";
 
 export type SearchResult = {
   title: string;
   url: string;
+  source: string;
+  snippet: string;
+  publishedDate?: string;
+  // Kept while older Beacon releases still decode this field.
   description: string;
   content?: string;
 };
@@ -22,24 +26,30 @@ const PAGE_TIMEOUT_MS = 8_000;
 const USER_AGENT = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Version/18.0 Mobile/15E148 Safari/604.1";
 
 export async function searchWeb(browserBinding: BrowserWorker, options: SearchOptions): Promise<SearchResult[]> {
+  const candidateLimit = Math.min(15, Math.max(10, options.limit * 3));
+  const minimumResults = Math.min(3, options.limit);
+  const candidates: RawSearchResult[] = [];
+  const refinedQuery = refinedSearchQuery(options.query);
+
 	try {
-		const results = await searchDuckDuckGoDirect(options.query, options.limit, USER_AGENT, SEARCH_TIMEOUT_MS);
-		const relevant = filterRelevantResults(options.query, results);
-		if (relevant.length === 0) throw new Error("Direct search returned no relevant results");
-		return relevant.map(result => ({ ...result, content: "" }));
+		candidates.push(...await searchDuckDuckGoDirect(options.query, candidateLimit, USER_AGENT, SEARCH_TIMEOUT_MS));
 	} catch {
-		const refinedQuery = refinedSearchQuery(options.query);
-		if (refinedQuery !== options.query) {
-			try {
-				const results = await searchDuckDuckGoDirect(refinedQuery, options.limit, USER_AGENT, SEARCH_TIMEOUT_MS);
-				const relevant = filterRelevantResults(refinedQuery, results);
-				if (relevant.length === 0) throw new Error("Refined direct search returned no relevant results");
-				return relevant.map(result => ({ ...result, content: "" }));
-			} catch {
-				// Browser search remains a fallback for providers that require rendered markup.
-			}
-		}
+		// Browser search remains a fallback when direct HTML search is unavailable.
 	}
+
+  let selected = selectBestResults(options.query, candidates, options.limit);
+  if (selected.length < minimumResults && refinedQuery !== options.query) {
+    try {
+      candidates.push(...await searchDuckDuckGoDirect(refinedQuery, candidateLimit, USER_AGENT, SEARCH_TIMEOUT_MS));
+      selected = selectBestResults(options.query, candidates, options.limit);
+    } catch {
+      // Continue to rendered providers below.
+    }
+  }
+
+  if (selected.length >= minimumResults && !options.includeContent) {
+    return selected.map(normalizeResult);
+  }
 
   let browser: Browser | undefined;
 
@@ -49,23 +59,24 @@ export async function searchWeb(browserBinding: BrowserWorker, options: SearchOp
     await installNetworkGuard(context);
 
     const page = await context.newPage();
-    let results: RawSearchResult[];
-    try {
-      results = await runRelevantSearch(page, options.query, options.limit);
-    } catch {
-      const refinedQuery = refinedSearchQuery(options.query);
-      if (refinedQuery === options.query) throw new Error("Web search returned no relevant results");
-      results = await runRelevantSearch(page, refinedQuery, options.limit);
+    if (selected.length < minimumResults) {
+      candidates.push(...await runSearchCandidates(page, options.query, candidateLimit, minimumResults));
+      selected = selectBestResults(options.query, candidates, options.limit);
     }
+    if (selected.length < minimumResults && refinedQuery !== options.query) {
+      candidates.push(...await runSearchCandidates(page, refinedQuery, candidateLimit, minimumResults));
+      selected = selectBestResults(options.query, candidates, options.limit);
+    }
+    if (selected.length === 0) throw new Error("Web search returned no relevant results");
 
     if (!options.includeContent) {
-      return results;
+      return selected.map(normalizeResult);
     }
 
     const enhanced: SearchResult[] = [];
-    for (const result of results) {
+    for (const result of selected) {
       enhanced.push({
-        ...result,
+        ...normalizeResult(result),
         content: await extractPageText(page, result.url, options.maxContentLength).catch(() => "")
       });
     }
@@ -76,19 +87,30 @@ export async function searchWeb(browserBinding: BrowserWorker, options: SearchOp
   }
 }
 
-async function runRelevantSearch(page: Page, query: string, limit: number): Promise<RawSearchResult[]> {
+async function runSearchCandidates(page: Page, query: string, limit: number, minimumResults: number): Promise<RawSearchResult[]> {
   const providers = [searchGoogle, searchBing, searchDuckDuckGo];
+  const candidates: RawSearchResult[] = [];
   for (const provider of providers) {
     try {
-      const results = await provider(page, query, limit);
-			const relevant = filterRelevantResults(query, results);
-			if (relevant.length > 0) return relevant;
+      candidates.push(...await provider(page, query, limit));
+      if (selectBestResults(query, candidates, minimumResults).length >= minimumResults) break;
     } catch {
       continue;
     }
   }
 
-  throw new Error("Web search returned no relevant results");
+  return candidates;
+}
+
+function normalizeResult(result: RawSearchResult): SearchResult {
+  return {
+    title: result.title,
+    url: result.url,
+    source: sourceForURL(result.url),
+    snippet: result.description,
+    ...(result.publishedDate ? { publishedDate: result.publishedDate } : {}),
+    description: result.description
+  };
 }
 
 async function installNetworkGuard(context: BrowserContext): Promise<void> {
@@ -111,17 +133,21 @@ async function searchBing(page: Page, query: string, limit: number): Promise<Raw
     return items.slice(0, maxResults).map(item => {
       const link = item.querySelector<HTMLAnchorElement>("h2 a");
       const description = item.querySelector<HTMLElement>(".b_caption p");
+      const publishedDate = item.querySelector<HTMLTimeElement>("time[datetime]")?.dateTime;
       return {
         title: link?.textContent?.trim() ?? "",
         url: link?.href ?? "",
-        description: description?.textContent?.trim() ?? ""
+        description: description?.textContent?.trim() ?? "",
+        publishedDate
       };
     });
   }, limit);
 
-  const valid = sanitizeResults(results.map(result => ({
+  const valid = sanitizeResults(results.map((result, providerRank) => ({
     ...result,
-    url: unwrapBingURL(result.url)
+    url: unwrapBingURL(result.url),
+    provider: "bing" as const,
+    providerRank
   })), limit);
   if (valid.length === 0) throw new Error("Bing returned no usable results");
   return valid;
@@ -139,10 +165,12 @@ async function searchGoogle(page: Page, query: string, limit: number): Promise<R
       const title = heading.textContent?.trim() ?? "";
       const container = anchor?.closest("div.MjjYud") ?? anchor?.parentElement?.parentElement?.parentElement;
       const blockText = container?.textContent?.replace(/\s+/g, " ").trim() ?? "";
+      const publishedDate = container?.querySelector<HTMLTimeElement>("time[datetime]")?.dateTime;
       return {
         title,
         url: anchor?.href ?? "",
-        description: blockText.replace(title, "").trim().slice(0, 1_000)
+        description: blockText.replace(title, "").trim().slice(0, 1_000),
+        publishedDate
       };
     });
   }, limit);
@@ -154,7 +182,7 @@ async function searchGoogle(page: Page, query: string, limit: number): Promise<R
     } catch {
       return false;
     }
-  }), limit);
+  }).map((result, providerRank) => ({ ...result, provider: "google" as const, providerRank })), limit);
   if (valid.length === 0) throw new Error("Google returned no usable results");
   return valid;
 }
@@ -169,17 +197,21 @@ async function searchDuckDuckGo(page: Page, query: string, limit: number): Promi
     return items.slice(0, maxResults).map(item => {
       const link = item.querySelector<HTMLAnchorElement>(".result__a");
       const description = item.querySelector<HTMLElement>(".result__snippet");
+      const publishedDate = item.querySelector<HTMLTimeElement>("time[datetime]")?.dateTime;
       return {
         title: link?.textContent?.trim() ?? "",
         url: link?.href ?? "",
-        description: description?.textContent?.trim() ?? ""
+        description: description?.textContent?.trim() ?? "",
+        publishedDate
       };
     });
   }, limit);
 
-  const valid = sanitizeResults(results.map(result => ({
+  const valid = sanitizeResults(results.map((result, providerRank) => ({
     ...result,
-    url: unwrapDuckDuckGoURL(result.url)
+    url: unwrapDuckDuckGoURL(result.url),
+    provider: "duckduckgo" as const,
+    providerRank
   })), limit);
   if (valid.length === 0) throw new Error("Web search returned no usable results");
   return valid;
@@ -191,8 +223,10 @@ async function extractPageText(page: Page, url: string, maxLength: number): Prom
   await page.goto(url, { timeout: PAGE_TIMEOUT_MS, waitUntil: "domcontentloaded" });
   if (!isSafeExternalURL(page.url())) return "";
 
-  return page.locator("body").evaluate((body, length) => {
-    const text = (body as HTMLElement).innerText
+  const primaryContent = page.locator("main, article").first();
+  const target = await primaryContent.count() > 0 ? primaryContent : page.locator("body");
+  return target.evaluate((element, length) => {
+    const text = (element as HTMLElement).innerText
       .replace(/\n{3,}/g, "\n\n")
       .replace(/[ \t]{2,}/g, " ")
       .trim();

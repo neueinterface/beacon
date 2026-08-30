@@ -71,6 +71,7 @@ struct BeaconApp: App {
 	@Environment(\.scenePhase) private var scenePhase
 	@AppStorage("appearanceColorScheme") private var selectedScheme = AppearanceColorScheme.system.rawValue
 	@StateObject private var modelRuntime = BeaconModelRuntime()
+	@StateObject private var memoryStore = MemoryStore()
 	@StateObject private var notificationRouter = NotificationRouter()
 
 	private var appearanceScheme: AppearanceColorScheme {
@@ -83,7 +84,7 @@ struct BeaconApp: App {
 
 	var body: some Scene {
 		WindowGroup {
-			ContentView(modelRuntime: modelRuntime, notificationRouter: notificationRouter)
+			ContentView(modelRuntime: modelRuntime, memoryStore: memoryStore, notificationRouter: notificationRouter)
 				.background(AppearanceStyleUpdater(scheme: appearanceScheme).frame(width: 0, height: 0))
 				.onAppear {
 					#if canImport(UIKit)
