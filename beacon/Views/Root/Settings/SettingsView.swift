@@ -108,7 +108,7 @@ struct SettingsView: View {
 						}
 						SettingsListDivider()
 
-						SettingsButtonRow(title: "Leave a review in the App Store", icon: "review.icon") {
+						SettingsButtonRow(title: "Leave a rating on the App Store", icon: "review.icon") {
 							requestAppReview()
 						}
 						SettingsListDivider()

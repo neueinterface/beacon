@@ -41,7 +41,7 @@ Local answer                 HTTPS POST /mcp
 
 ## 1. Local Routing
 
-`BeaconModelRuntime.webSearchQuery` first checks deterministic recency phrases such as `recent`, `latest`, `today`, `weather`, `score`, and `who won`. These obvious cases go directly to search with the current year added when no year was supplied. This prevents a small model from incorrectly suppressing an obviously time-sensitive tool call.
+`BeaconModelRuntime.webSearchQuery` first applies a deterministic gate for explicit search requests and current-information phrases such as `recent`, `latest`, `today`, `weather`, `score`, and `who won`. Messages without one of these strong signals stay local and do not run the search-routing generation. This prevents a small model from turning ordinary factual prompts into web searches.
 
 For less obvious messages, Beacon runs a separate deterministic generation using the model that is already loaded for chat. Beacon does not download or keep a second routing model in memory.
 
@@ -52,7 +52,7 @@ The router receives:
 - Instructions to return exactly `NO_SEARCH` or `SEARCH: <standalone query>`.
 - A maximum of 64 output tokens and temperature `0` for MLX models.
 
-Search is intended for current events, weather, prices, schedules, recent releases, requested sources, and other facts likely to change. Casual conversation, creative work, rewriting, and timeless knowledge stay local.
+Search is intended for current events, weather, prices, schedules, recent releases, requested sources, and other facts likely to change. Casual conversation, historical facts, creative work, rewriting, and timeless knowledge stay local.
 
 Two explicit overrides are available:
 

@@ -132,7 +132,11 @@ private struct AppIconOption: Identifiable, CaseIterable {
 		AppIconOption(title: "Default", assetName: "AppIcons/icon", alternateIconName: nil),
 		AppIconOption(title: "Icon 2", assetName: "AppIcons/icon2", alternateIconName: "icon2"),
 		AppIconOption(title: "Icon 3", assetName: "AppIcons/icon3", alternateIconName: "icon3"),
-		AppIconOption(title: "Icon 4", assetName: "AppIcons/icon4", alternateIconName: "icon4")
+		AppIconOption(title: "Icon 4", assetName: "AppIcons/icon4", alternateIconName: "icon4"),
+		AppIconOption(title: "Icon 5", assetName: "AppIcons/icon5", alternateIconName: "icon5"),
+		AppIconOption(title: "Icon 6", assetName: "AppIcons/icon6", alternateIconName: "icon6"),
+		AppIconOption(title: "Icon 7", assetName: "AppIcons/icon7", alternateIconName: "icon7"),
+		AppIconOption(title: "Icon 8", assetName: "AppIcons/icon8", alternateIconName: "icon8")
 	]
 }
 

@@ -24,7 +24,7 @@ public struct Shimmer: ViewModifier {
     public init(
         animation: Animation = Self.defaultAnimation,
         gradient: Gradient = Self.defaultGradient,
-        bandSize: CGFloat = 0.3,
+        bandSize: CGFloat = 0.5,
         mode: Mode = .mask
     ) {
         self.animation = animation

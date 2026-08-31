@@ -66,7 +66,6 @@ struct AppearancePlaceholderView: View {
 						}
 					}
 				}
-				.animation(.easeInOut(duration: 0.18), value: selection)
 
 				AppearanceChatPreview(colorScheme: previewColorScheme)
 			}
@@ -84,10 +83,7 @@ struct AppearancePlaceholderView: View {
 
 	private func select(_ scheme: AppearanceColorScheme) {
 		guard scheme != selection else { return }
-
-		withAnimation(.easeInOut(duration: 0.18)) {
-			selectedScheme = scheme.rawValue
-		}
+		selectedScheme = scheme.rawValue
 	}
 }
 
@@ -168,7 +164,7 @@ private struct AppearanceChatPreview: View {
 					.stroke(Color(uiColor: .separator).opacity(0.35), lineWidth: 1)
 			}
 		}
-		.preferredColorScheme(colorScheme)
+		.environment(\.colorScheme, colorScheme)
 	}
 }
 

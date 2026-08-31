@@ -301,7 +301,9 @@ struct WebSearchRoutingTests {
 		#expect(BeaconModelRuntime.fallbackWebSearchQuery(for: "Find sources about new battery technology") == "Find sources about new battery technology")
 		#expect(BeaconModelRuntime.fallbackWebSearchQuery(for: "Who is the current CEO of Apple?") == "Who is the current CEO of Apple?")
 		#expect(BeaconModelRuntime.fallbackWebSearchQuery(for: "Who won the World Cup?") == "Who won the World Cup?")
-		#expect(BeaconModelRuntime.fallbackWebSearchQuery(for: "How many world cups do Spaing have?") == "How many world cups do Spaing have?")
+		#expect(BeaconModelRuntime.fallbackWebSearchQuery(for: "How many world cups does Spain have?") == nil)
+		#expect(BeaconModelRuntime.fallbackWebSearchQuery(for: "When did Spain win the World Cup?") == nil)
+		#expect(BeaconModelRuntime.fallbackWebSearchQuery(for: "Who wrote Pride and Prejudice?") == nil)
 		#expect(BeaconModelRuntime.fallbackWebSearchQuery(for: "Explain why the sky is blue") == nil)
 		#expect(BeaconModelRuntime.fallbackWebSearchQuery(for: "Explain electric current") == nil)
 		#expect(BeaconModelRuntime.fallbackWebSearchQuery(for: "Write a poem about today's news") == nil)
@@ -312,15 +314,32 @@ struct WebSearchRoutingTests {
 		#expect(BeaconModelRuntime.fallbackWebSearchQuery(for: "Explain the phrase right now") == nil)
 	}
 
-	@Test("Factual and current examples search while creative tasks stay local")
+	@Test("Current examples search while factual and creative tasks stay local")
 	func requestedRoutingExamples() {
-		#expect(BeaconModelRuntime.fallbackWebSearchQuery(for: "when did Spain win the World Cup?") != nil)
-		#expect(BeaconModelRuntime.fallbackWebSearchQuery(for: "who won the World Cup in 2010?") != nil)
+		#expect(BeaconModelRuntime.fallbackWebSearchQuery(for: "when did Spain win the World Cup?") == nil)
+		#expect(BeaconModelRuntime.fallbackWebSearchQuery(for: "who won the World Cup in 2010?") == nil)
 		#expect(BeaconModelRuntime.fallbackWebSearchQuery(for: "what happened with OpenAI today?") != nil)
 		#expect(BeaconModelRuntime.fallbackWebSearchQuery(for: "what's the latest version of Swift?") != nil)
 		#expect(BeaconModelRuntime.fallbackWebSearchQuery(for: "write me a poem about rain") == nil)
 		#expect(BeaconModelRuntime.fallbackWebSearchQuery(for: "help me rewrite this paragraph") == nil)
 		#expect(BeaconModelRuntime.fallbackWebSearchQuery(for: "who are you?") == nil)
+	}
+
+	@Test("Automatic routing runs only for strong web signals")
+	func automaticRoutingGate() {
+		#expect(BeaconModelRuntime.shouldConsiderAutomaticWebSearch(for: "Tell me a joke", conversationHistory: []) == false)
+		#expect(BeaconModelRuntime.shouldConsiderAutomaticWebSearch(for: "Who wrote Pride and Prejudice?", conversationHistory: []) == false)
+		#expect(BeaconModelRuntime.shouldConsiderAutomaticWebSearch(for: "What's the weather today?", conversationHistory: []) == true)
+		#expect(BeaconModelRuntime.shouldConsiderAutomaticWebSearch(for: "Search the web for Swift updates", conversationHistory: []) == true)
+	}
+
+	@Test("Current follow-ups retain automatic routing")
+	func automaticRoutingFollowUp() {
+		let currentHistory = [ChatMessage(text: "What is the weather in Berlin?", role: .user)]
+		let localHistory = [ChatMessage(text: "Explain photosynthesis", role: .user)]
+
+		#expect(BeaconModelRuntime.shouldConsiderAutomaticWebSearch(for: "What about tomorrow?", conversationHistory: currentHistory) == true)
+		#expect(BeaconModelRuntime.shouldConsiderAutomaticWebSearch(for: "What about that?", conversationHistory: localHistory) == false)
 	}
 
 	@Test("Context-dependent fallback does not send an incomplete query")
@@ -519,41 +538,15 @@ struct ModelStorageLimitTests {
 
 @Suite("Appearance color scheme")
 struct AppearanceColorSchemeTests {
-	@Test("System maps to unspecified user interface style")
-	func systemMapsToUnspecified() {
-		#if canImport(UIKit)
-		#expect(AppearanceColorScheme.system.userInterfaceStyle == .unspecified)
-		#endif
-	}
-
-	@Test("Light maps to light user interface style")
-	func lightMapsToLight() {
-		#if canImport(UIKit)
-		#expect(AppearanceColorScheme.light.userInterfaceStyle == .light)
-		#endif
-	}
-
-	@Test("Dark maps to dark user interface style")
-	func darkMapsToDark() {
-		#if canImport(UIKit)
-		#expect(AppearanceColorScheme.dark.userInterfaceStyle == .dark)
-		#endif
-	}
-
 	@Test("System preferred color scheme is nil (follows system)")
 	func systemPreferredColorSchemeIsNil() {
 		#expect(AppearanceColorScheme.system.preferredColorScheme == nil)
 	}
 
-	@Test("Dark then system produces different user interface styles")
-	func darkThenSystemProducesDifferentStyles() {
-		#if canImport(UIKit)
-		let darkStyle = AppearanceColorScheme.dark.userInterfaceStyle
-		let systemStyle = AppearanceColorScheme.system.userInterfaceStyle
-		#expect(darkStyle != systemStyle)
-		#expect(darkStyle == .dark)
-		#expect(systemStyle == .unspecified)
-		#endif
+	@Test("Explicit schemes map to SwiftUI color schemes")
+	func explicitPreferredColorSchemes() {
+		#expect(AppearanceColorScheme.light.preferredColorScheme == .light)
+		#expect(AppearanceColorScheme.dark.preferredColorScheme == .dark)
 	}
 
 	@Test("Appearance setting defaults to system")
