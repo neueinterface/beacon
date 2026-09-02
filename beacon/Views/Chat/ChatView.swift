@@ -8,11 +8,69 @@ import UniformTypeIdentifiers
 import UIKit
 #endif
 
-private struct FailedWebSearch {
+private struct FailedResponse {
 	let responseID: ChatMessage.ID
 	let text: String
+	let imageData: Data?
 	let model: BeaconModel
 	let conversationHistory: [ChatMessage]
+	let forceWebSearch: Bool
+}
+
+struct ResponseAttemptTracker {
+	private(set) var activeID: UUID?
+
+	mutating func begin() -> UUID {
+		let id = UUID()
+		activeID = id
+		return id
+	}
+
+	func owns(_ id: UUID) -> Bool {
+		activeID == id
+	}
+
+	mutating func finish(_ id: UUID) -> Bool {
+		guard owns(id) else { return false }
+		activeID = nil
+		return true
+	}
+}
+
+enum ResponseRetryPolicy {
+	static func shouldForceWebSearch(wasForced: Bool, usedWebSearch: Bool) -> Bool {
+		wasForced || usedWebSearch
+	}
+}
+
+enum ImageResponseRouting {
+	static func usesVisionBridge(for model: BeaconModel) -> Bool {
+		!model.supportsImages
+	}
+
+	static func analysisPrompt(for question: String) -> String {
+		let request = question.trimmingCharacters(in: .whitespacesAndNewlines)
+		let focus = request.isEmpty ? "The user has not included a specific question." : "The user asks: \(request)"
+		return """
+			Analyze this image for another on-device language model. Describe the visible subjects, objects, setting, actions, spatial relationships, notable details, and any readable text. Be factual and detailed, and prioritize information needed to answer the user's request. Do not answer the user directly.
+
+			\(focus)
+			"""
+	}
+
+	static func responsePrompt(question: String, visualAnalysis: String) -> String {
+		let request = question.trimmingCharacters(in: .whitespacesAndNewlines)
+		let userRequest = request.isEmpty ? "Describe this image." : request
+		return """
+			Answer the user's request using the private visual analysis below. Treat it as your visual context, do not mention the analysis handoff or claim that you cannot see the image, and do not invent details that are not present.
+
+			User request:
+			\(userRequest)
+
+			Visual analysis:
+			\(visualAnalysis)
+			"""
+	}
 }
 
 struct ChatView: View {
@@ -45,11 +103,16 @@ struct ChatView: View {
 	@State private var isShowingSettings = false
 	@State private var isShowingAppIconPicker = false
 	@State private var shouldOpenMarketplaceAfterModelSwitcherDismisses = false
+	@State private var marketplacePresentationTask: Task<Void, Never>?
+	@State private var quickActionPresentationTask: Task<Void, Never>?
 	@State private var pendingScrollMessageID: ChatMessage.ID?
+	@State private var enteringUserMessageID: ChatMessage.ID?
 	@State private var responseTask: Task<Void, Never>?
+	@State private var responseAttemptTracker = ResponseAttemptTracker()
 	@State private var isPreparingResponse = false
 	@State private var isSearchingWeb = false
-	@State private var failedWebSearch: FailedWebSearch?
+	@State private var isAnalyzingImage = false
+	@State private var failedResponse: FailedResponse?
 	@State private var switchedModelName: String?
 	@State private var modelSwitchToastTask: Task<Void, Never>?
 	#if false // Web search is not currently available.
@@ -221,22 +284,12 @@ struct ChatView: View {
 		.task(id: selectedModelID) {
 			await ensureSelectedModelLoaded()
 		}
-		#if false // Web search is not currently available.
-		.task {
-			guard webSearchEnabled else { return }
-			await refreshBackendStatus()
-			await refreshSearchQuota()
-		}
 		.onChange(of: scenePhase) { _, phase in
 			switch phase {
 			case .active:
-				Task {
-					await ensureSelectedModelLoaded()
-					guard webSearchEnabled else { return }
-					await refreshBackendStatus()
-					await refreshSearchQuota()
-				}
+				Task { await ensureSelectedModelLoaded() }
 			case .background:
+				stopGenerating()
 				_ = runtime.unloadIfIdle()
 			default:
 				break
@@ -244,6 +297,8 @@ struct ChatView: View {
 		}
 		.onDisappear {
 			modelSwitchToastTask?.cancel()
+			marketplacePresentationTask?.cancel()
+			quickActionPresentationTask?.cancel()
 		}
 		.onAppear {
 			if let action = notificationRouter.quickActionToOpen {
@@ -257,6 +312,12 @@ struct ChatView: View {
 		.onChange(of: notificationRouter.quickActionToOpen) { _, action in
 			guard let action else { return }
 			handleQuickAction(action)
+		}
+		#if false // Web search is not currently available.
+		.task {
+			guard webSearchEnabled else { return }
+			await refreshBackendStatus()
+			await refreshSearchQuota()
 		}
 		.onChange(of: webSearchEnabled) { _, isEnabled in
 			if !isEnabled {
@@ -300,11 +361,12 @@ struct ChatView: View {
 											onDownloadVisionModel: downloadVisionModel,
 											sources: message.sources,
 											role: message.role,
+											animatesEntrance: message.id == enteringUserMessageID,
 											isWaitingForResponse: isAssistantBusy && message == historyViewModel.currentMessages.last,
-											waitingText: isSearchingWeb ? "Searching the web" : "Thinking",
+											waitingText: isSearchingWeb ? "Searching the web" : isAnalyzingImage ? "Looking at the image" : "Thinking",
 											onOpenSource: safariViewModel.open,
-											showsWebSearchRetry: failedWebSearch?.responseID == message.id,
-											onRetryWebSearch: retryWebSearch
+											showsRetry: failedResponse?.responseID == message.id,
+											onRetry: retryResponse
 											)
 											.id(message.id)
 										}
@@ -416,7 +478,7 @@ struct ChatView: View {
 				onAttachImage: {
 					requestPhotoAccess()
 				},
-				canAttachImages: selectedModel.supportsImages,
+				canAttachImages: visionModel != nil,
 				selectedModelName: selectedModel.name,
 				onSelectModel: {
 					playHeaderHaptic()
@@ -425,6 +487,7 @@ struct ChatView: View {
 				},
 				onRemoveAttachment: {
 					attachedImageData = nil
+					selectedImageItem = nil
 				},
 				onStop: {
 					stopGenerating()
@@ -432,6 +495,7 @@ struct ChatView: View {
 				onSend: { text in
 					send(text, imageData: attachedImageData)
 					attachedImageData = nil
+					selectedImageItem = nil
 				}
 			)
 			.photosPicker(
@@ -442,8 +506,9 @@ struct ChatView: View {
 			)
 		}
 		.task(id: selectedImageItem) {
-			guard let selectedImageItem,
-				  let data = try? await selectedImageItem.loadTransferable(type: Data.self) else { return }
+			guard let selectedImageItem else { return }
+			defer { self.selectedImageItem = nil }
+			guard let data = try? await selectedImageItem.loadTransferable(type: Data.self) else { return }
 			attachedImageData = await Task.detached(priority: .userInitiated) {
 				Self.normalizedImageData(from: data)
 			}.value
@@ -470,7 +535,7 @@ struct ChatView: View {
 
 	private func send(_ text: String, imageData: Data? = nil) {
 		guard !isAssistantBusy else { return }
-		failedWebSearch = nil
+		failedResponse = nil
 		isPreparingResponse = true
 		pendingScrollMessageID = nil
 		dismissKeyboard()
@@ -478,11 +543,18 @@ struct ChatView: View {
 		UIImpactFeedbackGenerator(style: .medium).impactOccurred()
 		#endif
 		let displayText = text
-		let responseModel = imageData == nil ? selectedModel : visionModel ?? selectedModel
+		let responseModel = selectedModel
 		let conversationHistory = historyViewModel.currentMessages
 
 		let responseID = historyViewModel.appendUserMessage(displayText, imageData: imageData, modelName: responseModel.name)
-		if imageData != nil {
+		let userMessageID = historyViewModel.currentMessages.dropLast().last?.id
+		enteringUserMessageID = userMessageID
+		Task { @MainActor in
+			try? await Task.sleep(for: .milliseconds(400))
+			guard enteringUserMessageID == userMessageID else { return }
+			enteringUserMessageID = nil
+		}
+		if imageData != nil, ImageResponseRouting.usesVisionBridge(for: selectedModel) {
 			guard let visionModel, isDownloaded(visionModel) else {
 				historyViewModel.replaceMessage(responseID, with: "To read images, download the on-device vision model.")
 				historyViewModel.requireVisionModel(for: responseID)
@@ -501,18 +573,19 @@ struct ChatView: View {
 		)
 	}
 
-	private func retryWebSearch() {
-		guard !isAssistantBusy, let failedWebSearch else { return }
-		self.failedWebSearch = nil
+	private func retryResponse() {
+		guard !isAssistantBusy, let failedResponse else { return }
+		self.failedResponse = nil
 		isPreparingResponse = true
-		historyViewModel.replaceMessage(failedWebSearch.responseID, with: "")
-		historyViewModel.replaceAssistantSources([], for: failedWebSearch.responseID)
+		historyViewModel.replaceMessage(failedResponse.responseID, with: "")
+		historyViewModel.replaceAssistantSources([], for: failedResponse.responseID)
 		startResponse(
-			text: failedWebSearch.text,
-			model: failedWebSearch.model,
-			responseID: failedWebSearch.responseID,
-			conversationHistory: failedWebSearch.conversationHistory,
-			forceWebSearch: true
+			text: failedResponse.text,
+			imageData: failedResponse.imageData,
+			model: failedResponse.model,
+			responseID: failedResponse.responseID,
+			conversationHistory: failedResponse.conversationHistory,
+			forceWebSearch: failedResponse.forceWebSearch
 		)
 	}
 
@@ -525,15 +598,21 @@ struct ChatView: View {
 		forceWebSearch: Bool = false
 	) {
 		responseHaptics.start()
+		let attemptID = responseAttemptTracker.begin()
 
 		responseTask = Task {
 			do {
 				captureMemoryInBackground(from: text, imageData: imageData)
-				await ensureModelLoaded(model)
 				let prompt: String
-				if imageData != nil {
+				let responseImageData: Data?
+				if let imageData, ImageResponseRouting.usesVisionBridge(for: model) {
+					let visualAnalysis = try await analyzeImage(imageData, question: text)
+					prompt = ImageResponseRouting.responsePrompt(question: text, visualAnalysis: visualAnalysis)
+					responseImageData = nil
+				} else if imageData != nil {
 					let question = text.isEmpty ? "Describe this image." : text
 					prompt = "Analyze the attached image and answer the user's question using what you can see. User question: \(question)"
+					responseImageData = imageData
 				} else {
 					prompt = try await promptWithWebResultsIfNeeded(
 						for: text,
@@ -541,15 +620,18 @@ struct ChatView: View {
 						conversationHistory: conversationHistory,
 						forceWebSearch: forceWebSearch
 					)
+					responseImageData = nil
 				}
 				let hasWebSources = historyViewModel.currentMessages.first(where: { $0.id == responseID })?.sources.isEmpty == false
 				let additionalInstructions = responseInstructions(hasWebSources: hasWebSources)
 
+				// Web search can suspend long enough for the app to release an idle model.
+				try await ensureModelLoaded(model)
 				isPreparingResponse = false
 				try await runtime.streamResponse(
 					to: prompt,
-					imageData: imageData,
-					conversationHistory: conversationHistory,
+					imageData: responseImageData,
+					conversationHistory: hasWebSources ? [] : conversationHistory,
 					additionalInstructions: additionalInstructions
 				) { chunk in
 					historyViewModel.appendAssistantChunk(chunk, to: responseID)
@@ -563,28 +645,72 @@ struct ChatView: View {
 
 				responseHaptics.finish()
 			} catch is CancellationError {
-				if historyViewModel.currentMessages.first(where: { $0.id == responseID })?.text.isEmpty == true {
+				if responseAttemptTracker.owns(attemptID),
+				   historyViewModel.currentMessages.first(where: { $0.id == responseID })?.text.isEmpty == true {
 					historyViewModel.replaceMessage(responseID, with: "Stopped.")
 				}
 			} catch let error as WebSearchMCPClient.ClientError {
+				guard responseAttemptTracker.owns(attemptID) else { return }
 				isPreparingResponse = false
-				failedWebSearch = FailedWebSearch(
+				failedResponse = FailedResponse(
 					responseID: responseID,
 					text: text,
+					imageData: imageData,
 					model: model,
-					conversationHistory: conversationHistory
+					conversationHistory: conversationHistory,
+					forceWebSearch: true
 				)
 				historyViewModel.replaceMessage(responseID, with: "There was an error searching the web.")
 			} catch {
+				guard responseAttemptTracker.owns(attemptID) else { return }
 				isPreparingResponse = false
+				let usedWebSearch = historyViewModel.currentMessages.first(where: { $0.id == responseID })?.sources.isEmpty == false
+				failedResponse = FailedResponse(
+					responseID: responseID,
+					text: text,
+					imageData: imageData,
+					model: model,
+					conversationHistory: conversationHistory,
+					forceWebSearch: ResponseRetryPolicy.shouldForceWebSearch(
+						wasForced: forceWebSearch,
+						usedWebSearch: usedWebSearch
+					)
+				)
 				historyViewModel.replaceMessage(responseID, with: error.localizedDescription)
 			}
 
+			guard responseAttemptTracker.finish(attemptID) else { return }
 			isPreparingResponse = false
 			isSearchingWeb = false
+			isAnalyzingImage = false
 			responseHaptics.stop()
 			responseTask = nil
+			if scenePhase == .background {
+				_ = runtime.unloadIfIdle()
+			}
 		}
+	}
+
+	private func analyzeImage(_ imageData: Data, question: String) async throws -> String {
+		guard let visionModel else { throw BeaconModelRuntime.RuntimeError.imageModelRequired }
+		isAnalyzingImage = true
+		defer { isAnalyzingImage = false }
+
+		try await ensureModelLoaded(visionModel)
+		var analysis = ""
+		try await runtime.streamResponse(
+			to: ImageResponseRouting.analysisPrompt(for: question),
+			imageData: imageData,
+			conversationHistory: []
+		) { chunk in
+			analysis += chunk
+		}
+
+		let result = analysis.trimmingCharacters(in: .whitespacesAndNewlines)
+		guard !result.isEmpty else {
+			throw BeaconModelRuntime.RuntimeError.invalidImage
+		}
+		return result
 	}
 
 	private func captureMemoryInBackground(from text: String, imageData: Data?) {
@@ -657,10 +783,6 @@ struct ChatView: View {
 
 	private func stopGenerating() {
 		responseTask?.cancel()
-		responseTask = nil
-		isPreparingResponse = false
-		isSearchingWeb = false
-		responseHaptics.stop()
 	}
 
 	private func promptWithWebResultsIfNeeded(for text: String, responseID: ChatMessage.ID, conversationHistory: [ChatMessage], forceWebSearch: Bool = false) async throws -> String {
@@ -690,17 +812,26 @@ struct ChatView: View {
 			print("WebSearchPipeline generated search query: \(forcedQuery)")
 			#endif
 		} else {
-			do {
-				query = try await runtime.webSearchQuery(for: trimmed, conversationHistory: conversationHistory)
-			} catch is CancellationError {
-				throw CancellationError()
-			} catch {
-				query = BeaconModelRuntime.fallbackWebSearchQuery(for: trimmed)
+			if let directQuery = BeaconModelRuntime.fallbackWebSearchQuery(for: trimmed) {
+				query = directQuery
 				#if DEBUG
 				print("WebSearchPipeline original query: \(text)")
-				print("WebSearchPipeline router decision: unavailable (deterministic fallback)")
-				print("WebSearchPipeline generated search query: \(query ?? "none")")
+				print("WebSearchPipeline router decision: search_web (deterministic fast path)")
+				print("WebSearchPipeline generated search query: \(directQuery)")
 				#endif
+			} else {
+				do {
+					query = try await runtime.webSearchQuery(for: trimmed, conversationHistory: conversationHistory)
+				} catch is CancellationError {
+					throw CancellationError()
+				} catch {
+					query = nil
+					#if DEBUG
+					print("WebSearchPipeline original query: \(text)")
+					print("WebSearchPipeline router decision: unavailable")
+					print("WebSearchPipeline generated search query: none")
+					#endif
+				}
 			}
 		}
 		guard let query, !query.isEmpty else { return text }
@@ -745,13 +876,23 @@ struct ChatView: View {
 	}
 
 	private func ensureSelectedModelLoaded() async {
-		await ensureModelLoaded(selectedModel)
+		do {
+			try await ensureModelLoaded(selectedModel)
+		} catch {
+			// The runtime publishes loading errors for the model UI.
+		}
 	}
 
-	private func ensureModelLoaded(_ model: BeaconModel) async {
+	private func ensureModelLoaded(_ model: BeaconModel) async throws {
 		guard !runtime.isReady(for: model) else { return }
 
 		await runtime.load(model)
+		try Task.checkCancellation()
+		guard runtime.isReady(for: model) else {
+			throw BeaconModelRuntime.RuntimeError.modelLoadFailed(
+				runtime.errorMessage ?? "Beacon could not load \(model.name)."
+			)
+		}
 	}
 
 	private func scrollToPendingMessage(using scrollProxy: ScrollViewProxy) {
@@ -1014,27 +1155,36 @@ struct ChatView: View {
 
 	private func handleQuickAction(_ action: HomeScreenQuickAction) {
 		dismissKeyboard()
+		marketplacePresentationTask?.cancel()
+		quickActionPresentationTask?.cancel()
+		shouldOpenMarketplaceAfterModelSwitcherDismisses = false
+		isShowingHistory = false
+		isShowingSettings = false
+		isShowingModelSwitcher = false
+		isShowingAppIconPicker = false
+		isShowingModelMarketplace = false
+		isShowingPhotoPicker = false
+		safariViewModel.close()
 
 		switch action {
 		case .newChat:
-			isShowingHistory = false
-			isShowingSettings = false
-			isShowingAppIconPicker = false
-			isShowingModelMarketplace = false
+			stopGenerating()
 			historyViewModel.startNewChat()
 		case .changeAppIcon:
-			isShowingHistory = false
-			isShowingSettings = false
-			isShowingModelMarketplace = false
-			isShowingAppIconPicker = true
+			presentQuickActionDestination { isShowingAppIconPicker = true }
 		case .seeModels:
-			isShowingHistory = false
-			isShowingSettings = false
-			isShowingAppIconPicker = false
-			isShowingModelMarketplace = true
+			presentQuickActionDestination { isShowingModelMarketplace = true }
 		}
 
 		notificationRouter.consumeQuickActionRequest()
+	}
+
+	private func presentQuickActionDestination(_ present: @escaping @MainActor () -> Void) {
+		quickActionPresentationTask = Task { @MainActor in
+			try? await Task.sleep(for: .milliseconds(200))
+			guard !Task.isCancelled else { return }
+			present()
+		}
 	}
 
 	#if false // Web search is not currently available.
@@ -1097,12 +1247,14 @@ struct ChatView: View {
 	}
 
 	private func showMarketplace() {
+		marketplacePresentationTask?.cancel()
 		withAnimation(screenSpring) {
 			isShowingHistory = false
 		}
 
-		Task { @MainActor in
+		marketplacePresentationTask = Task { @MainActor in
 			try? await Task.sleep(for: .milliseconds(120))
+			guard !Task.isCancelled else { return }
 			isShowingModelMarketplace = true
 		}
 	}
@@ -1115,9 +1267,11 @@ struct ChatView: View {
 		guard shouldOpenMarketplaceAfterModelSwitcherDismisses else { return }
 		shouldOpenMarketplaceAfterModelSwitcherDismisses = false
 
-		Task { @MainActor in
+		marketplacePresentationTask?.cancel()
+		marketplacePresentationTask = Task { @MainActor in
 			try? await Task.sleep(for: .milliseconds(180))
-			showMarketplace()
+			guard !Task.isCancelled else { return }
+			isShowingModelMarketplace = true
 		}
 	}
 
@@ -1143,7 +1297,7 @@ private struct ChatModelSwitcherSheet: View {
 					} label: {
 						HStack(spacing: 14) {
 							Text(model.supportsImages ? "\(model.name) (Image)" : model.name)
-								.font(.system(size: 16, weight: .medium))
+								.font(.openRunde(size: 16, weight: .medium))
 								.foregroundStyle(.primary)
 
 							Spacer()

@@ -57,7 +57,7 @@ struct SourceTag: View {
 		} label: {
 			HStack(spacing: 8) {
 				Text("From \(sources.count) Source\(sources.count == 1 ? "" : "s")")
-					.font(.system(size: 14, weight: .medium))
+					.font(.openRunde(size: 14, weight: .medium))
 
 				Image(systemName: "chevron.down")
 					.font(.system(size: 14, weight: .medium))
@@ -81,12 +81,12 @@ struct SourceTag: View {
 				} label: {
 					VStack(alignment: .leading, spacing: 3) {
 						Text("[\(index + 1)] \(source.displayHost)")
-							.font(.system(size: 16, weight: .semibold))
+							.font(.openRunde(size: 16, weight: .semibold))
 							.foregroundStyle(.secondary)
 
 						if !source.title.isEmpty {
 							Text(source.title)
-								.font(.system(size: 13))
+								.font(.openRunde(size: 13))
 								.foregroundStyle(.tertiary)
 								.lineLimit(2)
 						}

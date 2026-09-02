@@ -165,7 +165,7 @@ struct Input: View {
 
 	private var messageTextField: some View {
 		TextField(placeholder, text: $text, axis: .vertical)
-			.font(.system(size: 16))
+			.font(.openRunde(size: 16))
 			.id(resetID)
 			.focused($isTextFieldFocused)
 			.frame(maxWidth: .infinity, alignment: .leading)
@@ -246,7 +246,7 @@ struct Input: View {
 			}
 
 			TextField(placeholder, text: $text, axis: .vertical)
-				.font(.system(size: 16))
+				.font(.openRunde(size: 16))
 				.id(resetID)
 				.focused($isTextFieldFocused)
 				.frame(maxWidth: .infinity, alignment: .leading)
@@ -286,7 +286,7 @@ struct Input: View {
 							Image(systemName: "chevron.down")
 								.font(.system(size: 9, weight: .semibold))
 						}
-						.font(.system(size: 14, weight: .medium))
+						.font(.openRunde(size: 14, weight: .medium))
 						.foregroundStyle(.primary)
 						.padding(.horizontal, 11)
 						.frame(height: 32)

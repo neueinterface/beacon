@@ -17,7 +17,7 @@ struct MemorySettingsView: View {
 							.frame(width: 24, height: 24)
 
 						Text("Enable Memory")
-							.font(.system(size: 17, weight: .semibold))
+							.font(.openRunde(size: 17, weight: .semibold))
 							.foregroundStyle(.primary)
 
 						Spacer(minLength: 12)
@@ -28,7 +28,7 @@ struct MemorySettingsView: View {
 					}
 
 					Text("Allow Beacon to remember useful details from your conversations. Memories stay on this device and can be cleared at any time.")
-						.font(.system(size: 14, weight: .regular))
+						.font(.openRunde(size: 14, weight: .regular))
 						.foregroundStyle(.secondary)
 						.lineSpacing(3)
 				}
@@ -37,12 +37,12 @@ struct MemorySettingsView: View {
 
 				VStack(alignment: .leading, spacing: 10) {
 					Text("Memory Summary")
-						.font(.system(size: 18, weight: .semibold))
+						.font(.openRunde(size: 18, weight: .semibold))
 						.foregroundStyle(Color(uiColor: .systemGray))
 
 					VStack(alignment: .leading, spacing: 18) {
 						Text(memoryStore.summary.isEmpty ? "Memory will be added here as you chat." : memoryStore.summary)
-							.font(.system(size: 16, weight: .regular))
+							.font(.openRunde(size: 16, weight: .regular))
 							.foregroundStyle(memoryStore.summary.isEmpty ? .secondary : .primary)
 							.lineSpacing(5)
 							.frame(maxWidth: .infinity, minHeight: 110, alignment: .topLeading)
@@ -53,7 +53,7 @@ struct MemorySettingsView: View {
 							Button("Clear Memory", role: .destructive) {
 								memoryStore.clearAll()
 							}
-							.font(.system(size: 15, weight: .semibold))
+							.font(.openRunde(size: 15, weight: .semibold))
 						}
 					}
 					.padding(18)
@@ -71,11 +71,19 @@ struct MemorySettingsView: View {
 		#endif
 		#if DEBUG
 		.toolbar {
+			#if os(macOS)
+			ToolbarItem(placement: .automatic) {
+				Button("Add Test Memory") {
+					memoryStore.add("The user is testing Beacon's local memory.")
+				}
+			}
+			#else
 			ToolbarItem(placement: .topBarTrailing) {
 				Button("Add Test Memory") {
 					memoryStore.add("The user is testing Beacon's local memory.")
 				}
 			}
+			#endif
 		}
 		#endif
 	}
@@ -86,11 +94,11 @@ struct ModelLicensesPlaceholderView: View {
 		ScrollView {
 			VStack(alignment: .leading, spacing: 16) {
 				Text("Model licenses will live here.")
-					.font(.system(size: 24, weight: .medium))
+					.font(.openRunde(size: 24, weight: .medium))
 					.foregroundStyle(.primary)
 
 				Text("Add license details, source links, and usage notes for each downloadable model before release.")
-					.font(.system(size: 16, weight: .regular))
+					.font(.openRunde(size: 16, weight: .regular))
 					.foregroundStyle(.secondary)
 					.lineSpacing(4)
 			}

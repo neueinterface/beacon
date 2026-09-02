@@ -66,12 +66,12 @@ struct WelcomeModelSelectView: View {
 	private var header: some View {
 		VStack(alignment: .leading, spacing: 12) {
 			Text("Choose a model for your iPhone.")
-				.font(.system(size: 28, weight: .medium))
+				.font(.openRunde(size: 28, weight: .medium))
 				.foregroundStyle(.primary)
 				.lineSpacing(2)
 
 			Text(hasUsableModel ? "Choose one marked Works with this iPhone. You can change it anytime." : "Beacon's models aren't supported on this iPhone yet.")
-				.font(.system(size: 16, weight: .regular))
+				.font(.openRunde(size: 16, weight: .regular))
 				.foregroundStyle(.secondary)
 				.lineSpacing(3)
 		}
@@ -92,11 +92,11 @@ private struct WelcomeModelSelectRow: View {
 		VStack(alignment: .leading, spacing: 16) {
 			VStack(alignment: .leading, spacing: 12) {
 				Text(model.name)
-					.font(.system(size: 18, weight: .medium))
+					.font(.openRunde(size: 18, weight: .medium))
 					.foregroundStyle(.primary)
 
 				Text(model.description)
-					.font(.system(size: 16, weight: .regular))
+					.font(.openRunde(size: 16, weight: .regular))
 					.foregroundStyle(.secondary)
 					.lineSpacing(3)
 			}
@@ -116,7 +116,7 @@ private struct WelcomeModelSelectRow: View {
 
 				if let message = compatibility.message {
 					Label(message, systemImage: compatibility.systemImage)
-						.font(.system(size: 13, weight: .regular))
+						.font(.openRunde(size: 13, weight: .regular))
 						.foregroundStyle(compatibility.tint)
 				}
 			}

@@ -14,6 +14,27 @@ import UIKit
 
 @Suite("Beacon app data")
 struct BeaconAppDataTests {
+	@Test("Home Screen quick-action identifiers map to the correct routes")
+	func homeScreenQuickActionMapping() {
+		#expect(HomeScreenQuickAction(rawValue: "com.beacon.new-chat") == .newChat)
+		#expect(HomeScreenQuickAction(rawValue: "com.beacon.change-app-icon") == .changeAppIcon)
+		#expect(HomeScreenQuickAction(rawValue: "com.beacon.see-models") == .seeModels)
+		#expect(HomeScreenQuickAction(rawValue: "com.beacon.unknown") == nil)
+	}
+
+	@Test("Consumed Home Screen actions can be requested again")
+	@MainActor
+	func repeatedHomeScreenQuickAction() {
+		let router = NotificationRouter()
+
+		router.openQuickAction(.seeModels)
+		#expect(router.quickActionToOpen == .seeModels)
+		router.consumeQuickActionRequest()
+		#expect(router.quickActionToOpen == nil)
+		router.openQuickAction(.seeModels)
+		#expect(router.quickActionToOpen == .seeModels)
+	}
+
 	@Test("Default model is available during onboarding")
 	func defaultModelIsAvailableDuringOnboarding() {
 		#expect(ModelCatalog.onboardingModels.contains(ModelCatalog.defaultModel))
@@ -60,6 +81,29 @@ struct BeaconAppDataTests {
 
 		#expect(model.supportsImages)
 		#expect(!model.isBuiltIn)
+	}
+
+	@Test("Text-only models route images through the vision bridge")
+	func imageResponseRouting() throws {
+		let textModel = try #require(ModelCatalog.model(id: "qwen3-0.6b-4bit"))
+		let visionModel = try #require(ModelCatalog.model(id: "qwen2-vl-2b-instruct-4bit"))
+
+		#expect(ImageResponseRouting.usesVisionBridge(for: textModel))
+		#expect(!ImageResponseRouting.usesVisionBridge(for: visionModel))
+	}
+
+	@Test("Vision bridge preserves the user request and private analysis")
+	func visionBridgePrompts() {
+		let analysisPrompt = ImageResponseRouting.analysisPrompt(for: "What color is the car?")
+		let responsePrompt = ImageResponseRouting.responsePrompt(
+			question: "What color is the car?",
+			visualAnalysis: "A blue car is parked beside a tree."
+		)
+
+		#expect(analysisPrompt.contains("What color is the car?"))
+		#expect(responsePrompt.contains("What color is the car?"))
+		#expect(responsePrompt.contains("A blue car is parked beside a tree."))
+		#expect(responsePrompt.contains("do not mention the analysis handoff"))
 	}
 
 	@Test("Model capability tags are additive")
@@ -259,6 +303,33 @@ struct LocalMemoryRoutingTests {
 
 @Suite("Model response filtering")
 struct ModelResponseFilteringTests {
+	@Test("Late response cleanup cannot finish a newer attempt")
+	func staleResponseAttemptCannotFinishCurrentAttempt() {
+		var tracker = ResponseAttemptTracker()
+		let first = tracker.begin()
+		let second = tracker.begin()
+
+		#expect(!tracker.finish(first))
+		#expect(tracker.activeID == second)
+		#expect(tracker.finish(second))
+		#expect(tracker.activeID == nil)
+	}
+
+	@Test("Retry repeats web search after a grounded generation failure")
+	func groundedResponseRetryPreservesWebSearch() {
+		#expect(ResponseRetryPolicy.shouldForceWebSearch(wasForced: false, usedWebSearch: true))
+		#expect(ResponseRetryPolicy.shouldForceWebSearch(wasForced: true, usedWebSearch: false))
+		#expect(!ResponseRetryPolicy.shouldForceWebSearch(wasForced: false, usedWebSearch: false))
+	}
+
+	@Test("Model loading failure preserves its useful error message")
+	@MainActor
+	func modelLoadFailureMessage() {
+		let error = BeaconModelRuntime.RuntimeError.modelLoadFailed("The model cache is unavailable.")
+
+		#expect(error.errorDescription == "The model cache is unavailable.")
+	}
+
 	@Test("Reasoning that repeats the user message is not emitted as the answer")
 	func reasoningIsSeparatedFromAnswer() {
 		var filter = ThinkingOutputFilter()
@@ -297,6 +368,7 @@ struct WebSearchRoutingTests {
 	@Test("Obvious live requests have a conservative fallback")
 	func highConfidenceFallback() {
 		#expect(BeaconModelRuntime.fallbackWebSearchQuery(for: "What is the weather in Berlin?") == "What is the weather in Berlin?")
+		#expect(BeaconModelRuntime.fallbackWebSearchQuery(for: "Recent Disney movies") == "Recent Disney movies")
 		#expect(BeaconModelRuntime.fallbackWebSearchQuery(for: "Search the web for Swift 6.2 changes") == "Search the web for Swift 6.2 changes")
 		#expect(BeaconModelRuntime.fallbackWebSearchQuery(for: "Find sources about new battery technology") == "Find sources about new battery technology")
 		#expect(BeaconModelRuntime.fallbackWebSearchQuery(for: "Who is the current CEO of Apple?") == "Who is the current CEO of Apple?")
@@ -330,6 +402,7 @@ struct WebSearchRoutingTests {
 		#expect(BeaconModelRuntime.shouldConsiderAutomaticWebSearch(for: "Tell me a joke", conversationHistory: []) == false)
 		#expect(BeaconModelRuntime.shouldConsiderAutomaticWebSearch(for: "Who wrote Pride and Prejudice?", conversationHistory: []) == false)
 		#expect(BeaconModelRuntime.shouldConsiderAutomaticWebSearch(for: "What's the weather today?", conversationHistory: []) == true)
+		#expect(BeaconModelRuntime.shouldConsiderAutomaticWebSearch(for: "Recent Disney movies", conversationHistory: []) == true)
 		#expect(BeaconModelRuntime.shouldConsiderAutomaticWebSearch(for: "Search the web for Swift updates", conversationHistory: []) == true)
 	}
 
@@ -337,18 +410,24 @@ struct WebSearchRoutingTests {
 	func automaticRoutingFollowUp() {
 		let currentHistory = [ChatMessage(text: "What is the weather in Berlin?", role: .user)]
 		let localHistory = [ChatMessage(text: "Explain photosynthesis", role: .user)]
+		let presidentHistory = [
+			ChatMessage(text: "How many presidents has the United States had?", role: .user),
+			ChatMessage(text: "The United States has had many presidents since George Washington.", role: .assistant)
+		]
 
 		#expect(BeaconModelRuntime.shouldConsiderAutomaticWebSearch(for: "What about tomorrow?", conversationHistory: currentHistory) == true)
 		#expect(BeaconModelRuntime.shouldConsiderAutomaticWebSearch(for: "What about that?", conversationHistory: localHistory) == false)
+		#expect(BeaconModelRuntime.shouldConsiderAutomaticWebSearch(for: "Who is the recent one?", conversationHistory: presidentHistory) == true)
 	}
 
 	@Test("Context-dependent fallback does not send an incomplete query")
 	func incompleteFallbackIsSkipped() {
 		#expect(BeaconModelRuntime.fallbackWebSearchQuery(for: "What about tomorrow?") == nil)
 		#expect(BeaconModelRuntime.fallbackWebSearchQuery(for: "Is it available now?") == nil)
+		#expect(BeaconModelRuntime.fallbackWebSearchQuery(for: "Who is the recent one?") == nil)
 	}
 
-	@Test("Router receives only relevant immediate user context")
+	@Test("Router receives only the relevant immediate exchange")
 	func routingContextIsMinimized() {
 		let history = [
 			ChatMessage(text: "My private account number is 1234", role: .user),
@@ -359,8 +438,18 @@ struct WebSearchRoutingTests {
 		#expect(BeaconModelRuntime.webSearchRoutingContext(for: "Who is the CEO of Apple?", conversationHistory: history) == nil)
 		#expect(
 			BeaconModelRuntime.webSearchRoutingContext(for: "What about tomorrow?", conversationHistory: history)
-				== "User: What is the weather in Berlin?"
+				== "User: What is the weather in Berlin?\nAssistant: It is sunny."
 		)
+
+		let presidentContext = BeaconModelRuntime.webSearchRoutingContext(
+			for: "Who is the recent one?",
+			conversationHistory: [
+				ChatMessage(text: "How many presidents has the United States had?", role: .user),
+				ChatMessage(text: "The United States has had many presidents since George Washington.", role: .assistant)
+			]
+		)
+		#expect(presidentContext?.contains("presidents has the United States") == true)
+		#expect(presidentContext?.contains("Assistant:") == true)
 	}
 
 	@Test("MCP event stream extracts JSON payload")
@@ -418,6 +507,7 @@ struct WebSearchRoutingTests {
 		#expect(prompt.contains("[1] Spain's 2010 World Cup win"))
 		#expect(prompt.contains("Spain won the FIFA World Cup in 2010."))
 		#expect(prompt.contains("Page excerpt: Spain defeated the Netherlands in the 2010 final."))
+		#expect(prompt.contains("Resolved search intent: Spain FIFA World Cup winning year"))
 	}
 
 }

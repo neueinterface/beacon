@@ -47,11 +47,11 @@ struct ModelDownloadView<Runtime: ModelDownloadRuntime>: View {
 
 				VStack(alignment: .leading, spacing: 12) {
 					Text(runtime.isLoading ? "Downloading model" : "Preparing model")
-						.font(.system(size: 24, weight: .medium))
+						.font(.openRunde(size: 24, weight: .medium))
 						.foregroundStyle(.primary)
 
 					Text(statusText)
-						.font(.system(size: 16, weight: .regular))
+						.font(.openRunde(size: 16, weight: .regular))
 						.foregroundStyle(.secondary)
 						.lineSpacing(3)
 				}
@@ -59,7 +59,7 @@ struct ModelDownloadView<Runtime: ModelDownloadRuntime>: View {
 				if let errorMessage = runtime.errorMessage {
 					VStack(alignment: .leading, spacing: 14) {
 						Text(errorMessage)
-							.font(.system(size: 16, weight: .regular))
+							.font(.openRunde(size: 16, weight: .regular))
 							.foregroundStyle(.red)
 
 						BeaconButton("Try again", variant: .secondary, size: .small) {
@@ -73,11 +73,11 @@ struct ModelDownloadView<Runtime: ModelDownloadRuntime>: View {
 				HStack(alignment: .top, spacing: 16) {
 					VStack(alignment: .leading, spacing: 8) {
 						Text(model.name)
-							.font(.system(size: 18, weight: .medium))
+							.font(.openRunde(size: 18, weight: .medium))
 							.foregroundStyle(.primary)
 
 						Text(downloadSizeText)
-							.font(.system(size: 14, weight: .medium))
+							.font(.openRunde(size: 14, weight: .medium))
 							.foregroundStyle(.secondary)
 					}
 

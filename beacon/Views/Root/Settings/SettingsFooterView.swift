@@ -9,12 +9,12 @@ struct SettingsFooterView: View {
 				.background(Color(uiColor: .systemGroupedBackground))
 
 			Text(appVersionText)
-				.font(.system(size: 16, weight: .medium))
+				.font(.openRunde(size: 16, weight: .medium))
 				.foregroundStyle(.secondary)
 
 			Button(action: onOpenWebsite) {
 				Text("Learn more")
-					.font(.system(size: 16, weight: .medium))
+					.font(.openRunde(size: 16, weight: .medium))
 					.underline()
 					.foregroundStyle(.secondary)
 			}

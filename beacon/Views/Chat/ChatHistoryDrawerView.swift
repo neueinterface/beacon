@@ -143,11 +143,11 @@ struct ChatHistoryDrawerView: View {
 	private var emptyState: some View {
 		VStack(alignment: .leading, spacing: 14) {
 			Text("No chat history yet.")
-				.font(.system(size: 24, weight: .medium))
+				.font(.openRunde(size: 24, weight: .medium))
 				.foregroundStyle(.primary)
 
 			Text("Your conversations will show up here after you send your first message.")
-				.font(.system(size: 16, weight: .regular))
+				.font(.openRunde(size: 16, weight: .regular))
 				.foregroundStyle(.secondary)
 				.lineSpacing(3)
 		}
@@ -177,14 +177,14 @@ private struct ChatHistoryRow: View {
 			VStack(alignment: .leading, spacing: 8) {
 				HStack(alignment: .firstTextBaseline, spacing: 14) {
 					Text(chat.historyTitle)
-						.font(.system(size: 14, weight: .medium))
+						.font(.openRunde(size: 14, weight: .medium))
 						.foregroundStyle(.primary)
 						.lineLimit(1)
 
 					Spacer(minLength: 12)
 
 					Text(timeText)
-						.font(.system(size: 12, weight: .medium))
+						.font(.openRunde(size: 12, weight: .medium))
 						.foregroundStyle(.secondary)
 						.lineLimit(1)
 				}
@@ -200,13 +200,13 @@ private struct ChatHistoryRow: View {
 							Image(systemName: "chevron.down")
 								.font(.system(size: 9, weight: .semibold))
 						}
-						.font(.system(size: 12, weight: .regular))
+						.font(.openRunde(size: 12, weight: .regular))
 						.foregroundStyle(.secondary)
 					}
 					.accessibilityLabel("Models used: \(usedModelNames.joined(separator: ", "))")
 				} else {
 					Text(modelSummary)
-						.font(.system(size: 12, weight: .regular))
+						.font(.openRunde(size: 12, weight: .regular))
 						.foregroundStyle(.secondary)
 						.lineLimit(1)
 				}

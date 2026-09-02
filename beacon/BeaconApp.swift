@@ -19,10 +19,13 @@ private struct AppAppearanceRoot<Content: View>: View {
 	}
 
 	var body: some View {
-		content.environment(\.colorScheme, resolvedColorScheme)
+		content
+			.environment(\.colorScheme, resolvedColorScheme)
+			.font(.openRunde(size: 17))
 	}
 }
 
+#if !os(macOS)
 @main
 struct BeaconApp: App {
 	#if canImport(UIKit)
@@ -34,6 +37,7 @@ struct BeaconApp: App {
 	@StateObject private var notificationRouter = NotificationRouter()
 
 	init() {
+		AppTypography.registerFonts()
 		UserDefaults.standard.removeObject(forKey: "userMemories")
 	}
 
@@ -57,3 +61,4 @@ struct BeaconApp: App {
 		}
 	}
 }
+#endif

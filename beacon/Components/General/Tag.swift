@@ -13,7 +13,7 @@ struct Tag: View {
 
 	var body: some View {
 		Text(title)
-			.font(.system(size: 12, weight: .semibold))
+			.font(.openRunde(size: 12, weight: .semibold))
 			.foregroundStyle(color)
 			.padding(.horizontal, 12)
 			.padding(.vertical, 8)
@@ -30,7 +30,7 @@ struct ModelSwitchToast: View {
 				.font(.system(size: 16, weight: .semibold))
 
 			Text("Switched to '\(modelName)'")
-				.font(.system(size: 14, weight: .semibold))
+				.font(.openRunde(size: 14, weight: .semibold))
 		}
 		.foregroundStyle(.primary)
 		.padding(.horizontal, 16)

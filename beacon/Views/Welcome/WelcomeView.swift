@@ -145,11 +145,11 @@ struct WelcomeView: View {
 	private var header: some View {
 		VStack(alignment: .leading, spacing: 10) {
 			Text("Chat with AI, locally.")
-				.font(.system(size: 32, weight: .medium))
+				.font(.openRunde(size: 32, weight: .medium))
 				.foregroundStyle(.primary)
 
 			Text("Beacon provides private, on-device AI that feels simple and approachable.")
-				.font(.system(size: 16, weight: .regular))
+				.font(.openRunde(size: 16, weight: .regular))
 				.foregroundStyle(.secondary)
 				.lineSpacing(3)
 		}
@@ -238,11 +238,11 @@ private struct FeatureRow: View {
 
 			VStack(alignment: .leading, spacing: 8) {
 				Text(title)
-					.font(.system(size: 16, weight: .medium))
+					.font(.openRunde(size: 16, weight: .medium))
 					.foregroundStyle(.primary)
 
 				Text(description)
-					.font(.system(size: 16, weight: .regular))
+					.font(.openRunde(size: 16, weight: .regular))
 					.foregroundStyle(.secondary)
 					.lineSpacing(3)
 			}

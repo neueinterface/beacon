@@ -49,11 +49,11 @@ struct FAQView: View {
 	private var header: some View {
 		VStack(alignment: .leading, spacing: 10) {
 				Text("FAQ")
-					.font(.system(size: 32, weight: .medium))
+					.font(.openRunde(size: 32, weight: .medium))
 					.foregroundStyle(.primary)
 
 			Text("A few simple answers before you start chatting locally.")
-				.font(.system(size: 16, weight: .regular))
+				.font(.openRunde(size: 16, weight: .regular))
 				.foregroundStyle(.secondary)
 				.lineSpacing(3)
 		}
@@ -86,11 +86,11 @@ private struct FAQRow: View {
 	var body: some View {
 		VStack(alignment: .leading, spacing: 10) {
 			Text(item.question)
-				.font(.system(size: 16, weight: .medium))
+				.font(.openRunde(size: 16, weight: .medium))
 				.foregroundStyle(.primary)
 
 			Text(item.answer)
-				.font(.system(size: 16, weight: .regular))
+				.font(.openRunde(size: 16, weight: .regular))
 				.foregroundStyle(.secondary)
 				.lineSpacing(4)
 		}

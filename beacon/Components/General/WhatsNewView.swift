@@ -60,11 +60,11 @@ struct WhatsNewView: View {
 				VStack(alignment: .leading, spacing: 24) {
 				VStack(alignment: .leading, spacing: 10) {
 					Text(release.title)
-						.font(.system(size: 32, weight: .semibold))
+						.font(.openRunde(size: 32, weight: .semibold))
 						.foregroundStyle(.primary)
 
 					Text(release.subtitle)
-						.font(.system(size: 16, weight: .regular))
+						.font(.openRunde(size: 16, weight: .regular))
 						.foregroundStyle(.secondary)
 						.lineSpacing(3)
 				}
@@ -77,7 +77,7 @@ struct WhatsNewView: View {
 								.foregroundStyle(.primary)
 
 							Text(update)
-								.font(.system(size: 16, weight: .regular))
+								.font(.openRunde(size: 16, weight: .regular))
 								.foregroundStyle(.primary)
 								.lineSpacing(3)
 						}

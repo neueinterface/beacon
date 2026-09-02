@@ -47,11 +47,11 @@ struct AppearancePlaceholderView: View {
 			VStack(alignment: .leading, spacing: 26) {
 				VStack(alignment: .leading, spacing: 10) {
 					Text("Color Scheme")
-						.font(.system(size: 22, weight: .semibold))
+						.font(.openRunde(size: 22, weight: .semibold))
 						.foregroundStyle(.primary)
 
 					Text("Turn on dark mode, or let Beacon visually match your device settings.")
-						.font(.system(size: 15, weight: .regular))
+						.font(.openRunde(size: 15, weight: .regular))
 						.foregroundStyle(.secondary)
 						.lineSpacing(3)
 				}
@@ -99,7 +99,7 @@ private struct AppearanceSchemeCard: View {
 					.font(.system(size: 21, weight: .semibold))
 
 				Text(scheme.title)
-					.font(.system(size: 16, weight: .semibold))
+					.font(.openRunde(size: 16, weight: .semibold))
 					.minimumScaleFactor(0.85)
 			}
 			.foregroundStyle(isSelected ? Color.primary : Color(uiColor: .systemGray2))
@@ -135,7 +135,7 @@ private struct AppearanceChatPreview: View {
 	var body: some View {
 		VStack(alignment: .leading, spacing: 14) {
 			Text("Preview")
-				.font(.system(size: 18, weight: .semibold))
+				.font(.openRunde(size: 18, weight: .semibold))
 				.foregroundStyle(.primary)
 
 			VStack(spacing: 14) {

@@ -15,9 +15,9 @@ struct Tabs<Selection: Hashable, Content: View>: View {
 		var font: Font {
 			switch self {
 			case .regular:
-				.system(size: 17, weight: .medium)
+				.openRunde(size: 17, weight: .medium)
 			case .small:
-				.system(size: 13, weight: .semibold)
+				.openRunde(size: 13, weight: .semibold)
 			}
 		}
 
@@ -62,7 +62,7 @@ struct Tabs<Selection: Hashable, Content: View>: View {
 			case .regular:
 				.smooth(duration: 0.14)
 			case .small:
-				.easeOut(duration: 0.1)
+				.spring(response: 0.18, dampingFraction: 0.82)
 			}
 		}
 
@@ -71,7 +71,7 @@ struct Tabs<Selection: Hashable, Content: View>: View {
 			case .regular:
 				.opacity.combined(with: .move(edge: .bottom))
 			case .small:
-				.opacity.combined(with: .scale(scale: 0.985))
+				.opacity
 			}
 		}
 	}
@@ -111,7 +111,6 @@ struct Tabs<Selection: Hashable, Content: View>: View {
 				}
 				.fixedSize(horizontal: true, vertical: false)
 				.padding(.horizontal, horizontalScrollOverflow)
-				.animation(size == .small ? size.animation : nil, value: selection)
 			}
 			.scrollIndicators(.hidden)
 			.frame(maxWidth: .infinity, alignment: .leading)
@@ -129,12 +128,8 @@ struct Tabs<Selection: Hashable, Content: View>: View {
 		let isSelected = selection == option
 
 		return Button {
-			if size == .small {
+			withAnimation(size.animation) {
 				selection = option
-			} else {
-				withAnimation(size.animation) {
-					selection = option
-				}
 			}
 		} label: {
 			Text(title(option))
@@ -144,16 +139,30 @@ struct Tabs<Selection: Hashable, Content: View>: View {
 				.padding(.vertical, size.verticalPadding)
 				.background {
 					if isSelected {
-						Capsule(style: .continuous)
-							.fill(selectedBackground)
-							.matchedGeometryEffect(id: "selected-tab", in: selectionNamespace)
-							.shadow(color: selectedShadowColor, radius: 10, y: 4)
+						selectionBackground
 					}
 				}
 				.contentShape(Capsule(style: .continuous))
 		}
-		.buttonStyle(.plain)
+		.buttonStyle(SpringButtonStyle(pressedScale: size == .small ? 0.96 : 1))
 		.accessibilityAddTraits(isSelected ? .isSelected : [])
+	}
+
+	@ViewBuilder
+	private var selectionBackground: some View {
+		switch size {
+		case .regular:
+			Capsule(style: .continuous)
+				.fill(selectedBackground)
+				.matchedGeometryEffect(id: "selected-tab", in: selectionNamespace)
+		case .small:
+			Capsule(style: .continuous)
+				.fill(selectedBackground)
+				.transition(.asymmetric(
+					insertion: .scale(scale: 0.88).combined(with: .opacity),
+					removal: .opacity
+				))
+		}
 	}
 
 	private var selectedBackground: Color {
@@ -162,15 +171,6 @@ struct Tabs<Selection: Hashable, Content: View>: View {
 			Color(uiColor: .systemGray6)
 		case .small:
 			Color(uiColor: .systemGray6)
-		}
-	}
-
-	private var selectedShadowColor: Color {
-		switch size {
-		case .regular:
-			.clear
-		case .small:
-			.clear
 		}
 	}
 
@@ -207,7 +207,7 @@ extension Tabs where Selection == String {
 		selection: $selection
 	) { option in
 		Text("Content for \(option)")
-			.font(.system(size: 16, weight: .medium))
+			.font(.openRunde(size: 16, weight: .medium))
 			.padding(20)
 			.frame(maxWidth: .infinity, alignment: .leading)
 			.background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18, style: .continuous))

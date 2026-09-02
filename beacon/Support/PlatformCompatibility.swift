@@ -13,6 +13,7 @@ extension Color {
 extension NSColor {
 	static var systemBackground: NSColor { .windowBackgroundColor }
 	static var secondarySystemBackground: NSColor { .controlBackgroundColor }
+	static var tertiarySystemBackground: NSColor { .underPageBackgroundColor }
 	static var systemGroupedBackground: NSColor { .windowBackgroundColor }
 	static var secondarySystemGroupedBackground: NSColor { .controlBackgroundColor }
 	static var tertiarySystemGroupedBackground: NSColor { .underPageBackgroundColor }

@@ -129,7 +129,7 @@ struct WebSearchMCPClient: Sendable {
 				"arguments": [
 					"query": String(query.prefix(200)),
 					"limit": 3,
-					"includeContent": true,
+					"includeContent": false,
 					"maxContentLength": 3_000
 				]
 			]
@@ -239,8 +239,9 @@ struct WebSearchGrounding {
 		}.joined(separator: "\n\n")
 
 		return """
-		Question: \(question)
-		Search query: \(query)
+		Latest user message: \(question)
+		Resolved search intent: \(query)
+		Answer only this resolved intent. Ignore unrelated topics from older conversation turns.
 
 		Web evidence:
 		\(context)

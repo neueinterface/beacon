@@ -176,11 +176,11 @@ struct BeaconButton: View {
 	private var textFont: Font {
 		switch size {
 		case .small:
-			.system(size: 14, weight: .semibold)
+			.openRunde(size: 14, weight: .semibold)
 		case .default:
-			.system(size: 16, weight: .semibold)
+			.openRunde(size: 16, weight: .semibold)
 		case .large:
-			.system(size: 17, weight: .semibold)
+			.openRunde(size: 17, weight: .semibold)
 		}
 	}
 

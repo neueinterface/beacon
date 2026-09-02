@@ -43,13 +43,13 @@ struct ModelMarketPlaceView: View {
 			ScrollView {
 				VStack(alignment: .leading, spacing: 28) {
 					Text("Download, delete and learn more about the local models you use.")
-						.font(.system(size: 16, weight: .regular))
+						.font(.openRunde(size: 16, weight: .regular))
 						.foregroundStyle(.secondary)
 						.lineSpacing(3)
 
 					if let deleteErrorMessage {
 						Text(deleteErrorMessage)
-							.font(.system(size: 14, weight: .regular))
+							.font(.openRunde(size: 14, weight: .regular))
 							.foregroundStyle(.red)
 							.padding(16)
 							.frame(maxWidth: .infinity, alignment: .leading)
@@ -408,11 +408,11 @@ private struct ModelMarketPlaceRow: View {
 				VStack(alignment: .leading, spacing: 16) {
 					VStack(alignment: .leading, spacing: 12) {
 						Text(model.name)
-							.font(.system(size: 18, weight: .medium))
+							.font(.openRunde(size: 18, weight: .medium))
 							.foregroundStyle(.primary)
 
 						Text(model.description)
-							.font(.system(size: 16, weight: .regular))
+							.font(.openRunde(size: 16, weight: .regular))
 							.foregroundStyle(.secondary)
 							.lineSpacing(3)
 					}
@@ -421,12 +421,15 @@ private struct ModelMarketPlaceRow: View {
 						ForEach(model.marketplaceTags) { tag in
 							Tag(title: tag.title, color: tag.color)
 						}
+						if model.isBuiltIn {
+							Tag(title: "Built in", color: .indigo)
+						}
 						Tag(title: deviceCompatibility.tagTitle, color: deviceCompatibility.marketplaceTint)
 					}
 
 					if let compatibilityMessage = deviceCompatibility.message {
 						Label(compatibilityMessage, systemImage: deviceCompatibility.systemImage)
-							.font(.system(size: 13, weight: .regular))
+							.font(.openRunde(size: 13, weight: .regular))
 							.foregroundStyle(deviceCompatibility.marketplaceTint)
 					}
 				}
@@ -436,41 +439,39 @@ private struct ModelMarketPlaceRow: View {
 			.buttonStyle(SpringButtonStyle(pressedScale: 0.99))
 			.accessibilityIdentifier("model-details-\(model.id)")
 
-			VStack(alignment: .leading, spacing: 14) {
-				HStack(spacing: 10) {
-					if isDownloaded {
-						if model.isBuiltIn {
-							DownloadedModelButton(title: "Built in")
-						} else {
+			if !model.isBuiltIn {
+				VStack(alignment: .leading, spacing: 14) {
+					HStack(spacing: 10) {
+						if isDownloaded {
 							BeaconButton(isDeleting ? "Deleting" : "Delete", variant: .destructive, size: .small, trailingAssetIcon: "trash.icon", isLoading: isDeleting) {
 								onDelete()
 							}
-						}
-					} else {
-						BeaconButton(downloadButtonTitle, variant: .secondary, size: .small, trailingAssetIcon: "download.icon", isDisabled: !downloadAvailability.canDownload || !deviceCompatibility.canUse, isLoading: isDownloading) {
-							isDownloading = true
-							onDownload()
-						}
-					}
-				}
-
-				if isDownloaded {
-					VStack(alignment: .leading, spacing: 10) {
-						HStack(spacing: 10) {
-							if !isSelected {
-								BeaconButton("Use", variant: .secondary, size: .small, isDisabled: !deviceCompatibility.canUse) {
-									onSelect()
-								}
+						} else {
+							BeaconButton(downloadButtonTitle, variant: .secondary, size: .small, trailingAssetIcon: "download.icon", isDisabled: !downloadAvailability.canDownload || !deviceCompatibility.canUse, isLoading: isDownloading) {
+								isDownloading = true
+								onDownload()
 							}
 						}
-
 					}
-				}
 
-				if !isDownloaded, let unavailableMessage = downloadUnavailableMessage {
-					Text(unavailableMessage)
-						.font(.system(size: 14, weight: .regular))
-						.foregroundStyle(.secondary)
+					if isDownloaded {
+						VStack(alignment: .leading, spacing: 10) {
+							HStack(spacing: 10) {
+								if !isSelected {
+									BeaconButton("Use", variant: .secondary, size: .small, isDisabled: !deviceCompatibility.canUse) {
+										onSelect()
+									}
+								}
+							}
+
+						}
+					}
+
+					if !isDownloaded, let unavailableMessage = downloadUnavailableMessage {
+						Text(unavailableMessage)
+							.font(.openRunde(size: 14, weight: .regular))
+							.foregroundStyle(.secondary)
+					}
 				}
 			}
 		}

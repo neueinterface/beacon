@@ -139,7 +139,7 @@ struct SettingsView: View {
 						} label: {
 							HStack(spacing: 12) {
 								Text("Model Browser")
-									.font(.system(size: 16, weight: .medium))
+									.font(.openRunde(size: 16, weight: .medium))
 									.foregroundStyle(.primary)
 
 								Spacer(minLength: 12)
@@ -302,18 +302,18 @@ private struct ModelStorageUsagePill: View {
 			HStack(alignment: .firstTextBaseline) {
 				VStack(alignment: .leading, spacing: 4) {
 					Text("Model Storage")
-						.font(.system(size: 16, weight: .semibold))
+						.font(.openRunde(size: 16, weight: .semibold))
 						.foregroundStyle(.primary)
 
 					Text("Downloads are capped to protect device storage.")
-						.font(.system(size: 13, weight: .regular))
+						.font(.openRunde(size: 13, weight: .regular))
 						.foregroundStyle(.secondary)
 				}
 
 				Spacer(minLength: 12)
 
 				Text("\(ModelStorageLimit.formattedGB(usedGB)) / \(ModelStorageLimit.formattedGB(maxGB))")
-					.font(.system(size: 14, weight: .semibold))
+					.font(.openRunde(size: 14, weight: .semibold))
 					.foregroundStyle(Color(uiColor: .systemBlue))
 			}
 
@@ -383,11 +383,11 @@ private struct WhyLocalModelsView: View {
 	private var header: some View {
 		VStack(alignment: .leading, spacing: 10) {
 			Text("Why Local AI?")
-				.font(.system(size: 28, weight: .semibold))
+				.font(.openRunde(size: 28, weight: .semibold))
 				.foregroundStyle(.primary)
 
 			Text("A more private, reliable, and accessible direction for intelligent software.")
-				.font(.system(size: 16, weight: .regular))
+				.font(.openRunde(size: 16, weight: .regular))
 				.foregroundStyle(.secondary)
 				.lineSpacing(4)
 		}
@@ -395,7 +395,7 @@ private struct WhyLocalModelsView: View {
 
 	private func bodyText(_ text: String) -> some View {
 		Text(text)
-			.font(.system(size: 17, weight: .regular))
+			.font(.openRunde(size: 17, weight: .regular))
 			.foregroundStyle(.primary)
 			.lineSpacing(5)
 	}

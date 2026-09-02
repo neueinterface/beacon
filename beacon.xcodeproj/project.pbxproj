@@ -14,6 +14,13 @@
 		99BCFF932FDE3F4F00E1AF28 /* HuggingFace in Frameworks */ = {isa = PBXBuildFile; productRef = 99BCFF922FDE3F4F00E1AF28 /* HuggingFace */; };
 		99BCFF952FDE3F4F00E1AF28 /* Tokenizers in Frameworks */ = {isa = PBXBuildFile; productRef = 99BCFF942FDE3F4F00E1AF28 /* Tokenizers */; };
 		99BCFFA02FDE2A8F00E1AF28 /* MLXVLM in Frameworks */ = {isa = PBXBuildFile; productRef = 99BCFFA12FDE2A8F00E1AF28 /* MLXVLM */; };
+		AB0000010000000000000010 /* MLXHuggingFace in Frameworks */ = {isa = PBXBuildFile; productRef = 99BCFF8C2FDE2A8F00E1AF28 /* MLXHuggingFace */; };
+		AB0000010000000000000011 /* MLXLLM in Frameworks */ = {isa = PBXBuildFile; productRef = 99BCFF8E2FDE2A8F00E1AF28 /* MLXLLM */; };
+		AB0000010000000000000012 /* MLXLMCommon in Frameworks */ = {isa = PBXBuildFile; productRef = 99BCFF902FDE2A8F00E1AF28 /* MLXLMCommon */; };
+		AB0000010000000000000013 /* HuggingFace in Frameworks */ = {isa = PBXBuildFile; productRef = 99BCFF922FDE3F4F00E1AF28 /* HuggingFace */; };
+		AB0000010000000000000014 /* Tokenizers in Frameworks */ = {isa = PBXBuildFile; productRef = 99BCFF942FDE3F4F00E1AF28 /* Tokenizers */; };
+		AB0000010000000000000015 /* MLXVLM in Frameworks */ = {isa = PBXBuildFile; productRef = 99BCFFA12FDE2A8F00E1AF28 /* MLXVLM */; };
+		AB0000010000000000000016 /* MarkdownView in Frameworks */ = {isa = PBXBuildFile; productRef = 99BC002B2FDE4ED800E1AF28 /* MarkdownView */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -37,6 +44,7 @@
 		9933A7C92F5CB3DD009E269F /* beacon.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = beacon.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		9933A7D62F5CB3DE009E269F /* beaconTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = beaconTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		9933A7E02F5CB3DE009E269F /* beaconUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = beaconUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		AB0000010000000000000002 /* Beacon Mac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Beacon Mac.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -86,6 +94,20 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		AB0000010000000000000004 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AB0000010000000000000011 /* MLXLLM in Frameworks */,
+				AB0000010000000000000012 /* MLXLMCommon in Frameworks */,
+				AB0000010000000000000016 /* MarkdownView in Frameworks */,
+				AB0000010000000000000013 /* HuggingFace in Frameworks */,
+				AB0000010000000000000014 /* Tokenizers in Frameworks */,
+				AB0000010000000000000010 /* MLXHuggingFace in Frameworks */,
+				AB0000010000000000000015 /* MLXVLM in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -103,6 +125,7 @@
 			isa = PBXGroup;
 			children = (
 				9933A7C92F5CB3DD009E269F /* beacon.app */,
+				AB0000010000000000000002 /* Beacon Mac.app */,
 				9933A7D62F5CB3DE009E269F /* beaconTests.xctest */,
 				9933A7E02F5CB3DE009E269F /* beaconUITests.xctest */,
 			);
@@ -187,6 +210,35 @@
 			productReference = 9933A7E02F5CB3DE009E269F /* beaconUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
+		AB0000010000000000000001 /* Beacon Mac */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AB0000010000000000000006 /* Build configuration list for PBXNativeTarget "Beacon Mac" */;
+			buildPhases = (
+				AB0000010000000000000003 /* Sources */,
+				AB0000010000000000000004 /* Frameworks */,
+				AB0000010000000000000005 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				9933A7CB2F5CB3DD009E269F /* beacon */,
+			);
+			name = "Beacon Mac";
+			packageProductDependencies = (
+				99BCFF8C2FDE2A8F00E1AF28 /* MLXHuggingFace */,
+				99BCFFA12FDE2A8F00E1AF28 /* MLXVLM */,
+				99BCFF8E2FDE2A8F00E1AF28 /* MLXLLM */,
+				99BCFF902FDE2A8F00E1AF28 /* MLXLMCommon */,
+				99BCFF922FDE3F4F00E1AF28 /* HuggingFace */,
+				99BCFF942FDE3F4F00E1AF28 /* Tokenizers */,
+				99BC002B2FDE4ED800E1AF28 /* MarkdownView */,
+			);
+			productName = "Beacon Mac";
+			productReference = AB0000010000000000000002 /* Beacon Mac.app */;
+			productType = "com.apple.product-type.application";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -207,6 +259,9 @@
 					9933A7DF2F5CB3DE009E269F = {
 						CreatedOnToolsVersion = 26.3;
 						TestTargetID = 9933A7C82F5CB3DD009E269F;
+					};
+					AB0000010000000000000001 = {
+						CreatedOnToolsVersion = 26.3;
 					};
 				};
 			};
@@ -232,6 +287,7 @@
 			projectRoot = "";
 			targets = (
 				9933A7C82F5CB3DD009E269F /* beacon */,
+				AB0000010000000000000001 /* Beacon Mac */,
 				9933A7D52F5CB3DE009E269F /* beaconTests */,
 				9933A7DF2F5CB3DE009E269F /* beaconUITests */,
 			);
@@ -260,6 +316,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		AB0000010000000000000005 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -278,6 +341,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		9933A7DC2F5CB3DE009E269F /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AB0000010000000000000003 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -428,9 +498,14 @@
 				DEVELOPMENT_TEAM = QKJNPJ67XX;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_RESOURCE_ACCESS_PHOTO_LIBRARY = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
-				EXCLUDED_SOURCE_FILE_NAMES = ReleaseConfiguration.plist;
+				EXCLUDED_SOURCE_FILE_NAMES = (
+					ReleaseConfiguration.plist,
+					BeaconMacApp.swift,
+				);
 				"EXCLUDED_SOURCE_FILE_NAMES[sdk=macosx*]" = LaunchScreen.storyboard;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "Beacon Dev";
@@ -455,9 +530,9 @@
 				REGISTER_APP_GROUPS = YES;
 				SDKROOT = auto;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
 				SUPPORTS_MACCATALYST = NO;
-				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = YES;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -480,9 +555,14 @@
 				DEVELOPMENT_TEAM = QKJNPJ67XX;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_RESOURCE_ACCESS_PHOTO_LIBRARY = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
-				EXCLUDED_SOURCE_FILE_NAMES = LocalConfiguration.plist;
+				EXCLUDED_SOURCE_FILE_NAMES = (
+					LocalConfiguration.plist,
+					BeaconMacApp.swift,
+				);
 				"EXCLUDED_SOURCE_FILE_NAMES[sdk=macosx*]" = LaunchScreen.storyboard;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Beacon;
@@ -507,9 +587,9 @@
 				REGISTER_APP_GROUPS = YES;
 				SDKROOT = auto;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
 				SUPPORTS_MACCATALYST = NO;
-				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = YES;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -622,6 +702,78 @@
 			};
 			name = Release;
 		};
+		AB0000010000000000000007 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 5;
+				DEVELOPMENT_TEAM = QKJNPJ67XX;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SELECTED_FILES = readonly;
+				EXCLUDED_SOURCE_FILE_NAMES = (
+					BeaconApp.swift,
+					LaunchScreen.storyboard,
+					ReleaseConfiguration.plist,
+				);
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "Beacon Mac Dev";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Beacon uses your selected photos so its on-device vision model can answer questions about them.";
+				LD_RUNPATH_SEARCH_PATHS = "@executable_path/../Frameworks";
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0.3;
+				PRODUCT_BUNDLE_IDENTIFIER = "me.armond.beacon-macos.dev";
+				PRODUCT_NAME = "Beacon Mac";
+				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = macosx;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		AB0000010000000000000008 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 5;
+				DEVELOPMENT_TEAM = QKJNPJ67XX;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SELECTED_FILES = readonly;
+				EXCLUDED_SOURCE_FILE_NAMES = (
+					BeaconApp.swift,
+					LaunchScreen.storyboard,
+					LocalConfiguration.plist,
+				);
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "Beacon Mac";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Beacon uses your selected photos so its on-device vision model can answer questions about them.";
+				LD_RUNPATH_SEARCH_PATHS = "@executable_path/../Frameworks";
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0.3;
+				PRODUCT_BUNDLE_IDENTIFIER = "me.armond.beacon-macos";
+				PRODUCT_NAME = "Beacon Mac";
+				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = macosx;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -657,6 +809,15 @@
 			buildConfigurations = (
 				9933A7F12F5CB3DE009E269F /* Debug */,
 				9933A7F22F5CB3DE009E269F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		AB0000010000000000000006 /* Build configuration list for PBXNativeTarget "Beacon Mac" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AB0000010000000000000007 /* Debug */,
+				AB0000010000000000000008 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

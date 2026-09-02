@@ -1,6 +1,8 @@
 import SwiftUI
 #if canImport(UIKit)
 import UIKit
+#elseif canImport(AppKit)
+import AppKit
 #endif
 
 struct AttachedImagePreview: View {
@@ -12,6 +14,14 @@ struct AttachedImagePreview: View {
 			#if canImport(UIKit)
 			if let image = UIImage(data: data) {
 				Image(uiImage: image)
+					.resizable()
+					.scaledToFill()
+					.frame(width: 90, height: 90)
+					.clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+			}
+			#elseif canImport(AppKit)
+			if let image = NSImage(data: data) {
+				Image(nsImage: image)
 					.resizable()
 					.scaledToFill()
 					.frame(width: 90, height: 90)

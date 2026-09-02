@@ -33,6 +33,7 @@ final class BeaconModelRuntime: ModelDownloadRuntime {
 
 	enum RuntimeError: LocalizedError {
 		case modelNotLoaded
+		case modelLoadFailed(String)
 		case alreadyGenerating
 		case imageModelRequired
 		case invalidImage
@@ -42,6 +43,8 @@ final class BeaconModelRuntime: ModelDownloadRuntime {
 			switch self {
 			case .modelNotLoaded:
 				"Model is not loaded yet."
+			case let .modelLoadFailed(message):
+				message
 			case .alreadyGenerating:
 				"Beacon is already generating a response."
 			case .imageModelRequired:
@@ -79,6 +82,7 @@ final class BeaconModelRuntime: ModelDownloadRuntime {
 	private var foundationSession: LanguageModelSession?
 	private var progressObservations: [NSKeyValueObservation] = []
 	private var observedProgresses: [Progress] = []
+	private var loadWaiters: [CheckedContinuation<Void, Never>] = []
 
 	func isReady(for model: BeaconModel) -> Bool {
 		if model.isBuiltIn {
@@ -89,10 +93,17 @@ final class BeaconModelRuntime: ModelDownloadRuntime {
 	}
 
 	func load(_ model: BeaconModel) async {
-		guard !isReady(for: model), !isLoading else { return }
+		guard !Task.isCancelled else { return }
+		while isLoading {
+			await withCheckedContinuation { continuation in
+				loadWaiters.append(continuation)
+			}
+			guard !Task.isCancelled else { return }
+		}
+		guard !isReady(for: model) else { return }
 
 		isLoading = true
-		defer { isLoading = false }
+		defer { finishLoading() }
 		errorMessage = nil
 		progress = 0.02
 		completedUnitCount = nil
@@ -118,6 +129,7 @@ final class BeaconModelRuntime: ModelDownloadRuntime {
 					self.observe(progress)
 				}
 			}
+			try Task.checkCancellation()
 
 			modelContainer = container
 			session = ChatSession(
@@ -146,6 +158,13 @@ final class BeaconModelRuntime: ModelDownloadRuntime {
 
 		progressObservations.removeAll()
 		observedProgresses.removeAll()
+	}
+
+	private func finishLoading() {
+		isLoading = false
+		let waiters = loadWaiters
+		loadWaiters.removeAll()
+		waiters.forEach { $0.resume() }
 	}
 
 	@discardableResult
@@ -298,6 +317,10 @@ final class BeaconModelRuntime: ModelDownloadRuntime {
 		{"action":"answer_locally"}
 		User: help me rewrite this paragraph
 		{"action":"answer_locally"}
+		Previous user: How many presidents has the United States had?
+		Previous assistant: The United States has had many presidents since George Washington.
+		User: who is the recent one?
+		{"action":"search_web","query":"current president of the United States"}
 
 		Recent conversation:
 		\(recentContext ?? "None")
@@ -480,7 +503,10 @@ final class BeaconModelRuntime: ModelDownloadRuntime {
 
 	nonisolated static func shouldConsiderAutomaticWebSearch(for prompt: String, conversationHistory: [ChatMessage]) -> Bool {
 		if fallbackWebSearchQuery(for: prompt) != nil { return true }
-		guard requiresConversationContext(normalizedSearchText(prompt)),
+		let normalizedPrompt = normalizedSearchText(prompt)
+		guard requiresConversationContext(normalizedPrompt) else { return false }
+		if hasHighConfidenceWebSignal(in: normalizedPrompt) { return true }
+		guard
 			  let previousUserText = conversationHistory.reversed().first(where: { $0.role == .user })?.text else {
 			return false
 		}
@@ -489,12 +515,17 @@ final class BeaconModelRuntime: ModelDownloadRuntime {
 
 	nonisolated static func webSearchRoutingContext(for prompt: String, conversationHistory: [ChatMessage]) -> String? {
 		guard requiresConversationContext(normalizedSearchText(prompt)),
-			  let previousUserText = conversationHistory.reversed().first(where: { $0.role == .user })?.text else {
+			  let previousUserIndex = conversationHistory.lastIndex(where: { $0.role == .user }) else {
 			return nil
 		}
-		let normalizedContext = normalizedSearchText(previousUserText)
-		guard !normalizedContext.isEmpty else { return nil }
-		return "User: \(normalizedContext.prefix(300))"
+
+		let context = conversationHistory[previousUserIndex...].compactMap { message -> String? in
+			let text = normalizedSearchText(message.text)
+			guard !text.isEmpty else { return nil }
+			let role = message.role == .user ? "User" : "Assistant"
+			return "\(role): \(text.prefix(500))"
+		}.joined(separator: "\n")
+		return context.isEmpty ? nil : context
 	}
 
 	nonisolated private static func hasHighConfidenceWebSignal(in text: String) -> Bool {
@@ -514,6 +545,10 @@ final class BeaconModelRuntime: ModelDownloadRuntime {
 		if offlineTaskPhrases.contains(where: lowercased.contains) { return false }
 		let questionPrefixes = ["what ", "what's ", "whats ", "who ", "when ", "where ", "how ", "is ", "are ", "did ", "does ", "can ", "will ", "should "]
 		let timeSensitiveWords = ["today", "tonight", "tomorrow", "yesterday", "now", "currently", "latest", "recent", "live", "breaking"]
+		let standaloneFreshnessWords = ["currently", "latest", "recent", "breaking"]
+		if standaloneFreshnessWords.contains(where: words.contains) {
+			return true
+		}
 		if questionPrefixes.contains(where: lowercased.hasPrefix), timeSensitiveWords.contains(where: words.contains) {
 			return true
 		}
@@ -534,8 +569,8 @@ final class BeaconModelRuntime: ModelDownloadRuntime {
 	nonisolated private static func requiresConversationContext(_ text: String) -> Bool {
 		let lowercased = text.lowercased()
 		let words = Set(lowercased.split { !$0.isLetter && !$0.isNumber }.map(String.init))
-		let followUpPhrases = ["what about", "how about", "and tomorrow", "and today", "that one"]
-		let referenceWords = ["it", "they", "their", "them", "there", "that", "those", "these", "he", "she", "his", "her"]
+		let followUpPhrases = ["what about", "how about", "and tomorrow", "and today", "that one", "the recent one", "the latest one", "most recent one", "which one"]
+		let referenceWords = ["it", "they", "their", "them", "there", "that", "those", "these", "he", "she", "his", "her", "one", "ones"]
 		return followUpPhrases.contains(where: lowercased.contains) || referenceWords.contains(where: words.contains)
 	}
 

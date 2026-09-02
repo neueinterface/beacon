@@ -51,11 +51,11 @@ struct ModelDetailsView: View {
 			VStack(alignment: .leading, spacing: 26) {
 				VStack(alignment: .leading, spacing: 14) {
 					Text(model.name)
-						.font(.system(size: 30, weight: .medium))
+						.font(.openRunde(size: 30, weight: .medium))
 						.foregroundStyle(.primary)
 
 					Text(model.description)
-						.font(.system(size: 16, weight: .regular))
+						.font(.openRunde(size: 16, weight: .regular))
 						.foregroundStyle(.secondary)
 						.lineSpacing(4)
 				}
@@ -69,7 +69,7 @@ struct ModelDetailsView: View {
 
 				if let deleteErrorMessage {
 					Text(deleteErrorMessage)
-						.font(.system(size: 14, weight: .regular))
+						.font(.openRunde(size: 14, weight: .regular))
 						.foregroundStyle(Color(uiColor: .systemRed))
 				}
 
@@ -103,12 +103,25 @@ struct ModelDetailsView: View {
 		.background(Color(uiColor: .systemBackground))
 		.navigationBarBackButtonHidden(true)
 		.toolbar {
+			#if os(macOS)
+			ToolbarItemGroup(placement: .automatic) {
+				closeButton
+				if !isDownloaded, !model.isBuiltIn {
+					BeaconButton(
+						assetIcon: "download.icon",
+						isDisabled: !canDownload
+					) {
+						onDownload()
+					}
+				}
+			}
+			#else
 			ToolbarItem(placement: .topBarLeading) {
 				closeButton
 			}
 			ToolbarItem(placement: .principal) {
 				Text(model.name)
-					.font(.system(size: 18, weight: .semibold))
+					.font(.openRunde(size: 18, weight: .semibold))
 			}
 			if !isDownloaded, !model.isBuiltIn {
 				ToolbarItem(placement: .topBarTrailing) {
@@ -120,6 +133,7 @@ struct ModelDetailsView: View {
 					}
 				}
 			}
+			#endif
 		}
 		#if !os(macOS)
 		.navigationBarTitleDisplayMode(.inline)
@@ -181,17 +195,17 @@ struct ModelDetailsView: View {
 				.frame(width: 18, height: 18)
 			Text(title)
 		}
-		.font(.system(size: 14, weight: .medium))
+		.font(.openRunde(size: 14, weight: .medium))
 		.foregroundStyle(.primary)
 	}
 
 	private func readmeCard(_ readme: String) -> some View {
 		VStack(alignment: .leading, spacing: 16) {
 			Text("README")
-				.font(.system(size: 13, weight: .semibold))
+				.font(.openRunde(size: 13, weight: .semibold))
 
 			Text(readmeAttributedString(readme))
-				.font(.system(size: 15, weight: .regular))
+				.font(.openRunde(size: 15, weight: .regular))
 				.lineSpacing(3)
 				.foregroundStyle(.primary)
 				.environment(\.openURL, OpenURLAction { url in
@@ -237,7 +251,7 @@ struct ModelDetailsView: View {
 
 			if !isDownloaded, let message = downloadUnavailableMessage {
 				Text(message)
-					.font(.system(size: 14, weight: .regular))
+					.font(.openRunde(size: 14, weight: .regular))
 					.foregroundStyle(.secondary)
 			}
 		}
@@ -328,14 +342,14 @@ private struct ModelStatsCard: View {
 	private func stat(title: String, value: String, unit: String) -> some View {
 		VStack(alignment: .leading, spacing: 12) {
 			Text(title)
-				.font(.system(size: 14, weight: .medium))
+				.font(.openRunde(size: 14, weight: .medium))
 			Text(value)
-				.font(.system(size: 22, weight: .regular))
+				.font(.openRunde(size: 22, weight: .regular))
 				.lineLimit(1)
 				.minimumScaleFactor(0.7)
 				.frame(maxWidth: .infinity, alignment: .leading)
 			Text(unit)
-				.font(.system(size: 13, weight: .regular))
+				.font(.openRunde(size: 13, weight: .regular))
 				.foregroundStyle(.secondary)
 		}
 		.padding(.horizontal, 18)
@@ -462,7 +476,7 @@ struct DownloadedModelButton: View {
 	var body: some View {
 		HStack(spacing: 8) {
 			Text(title)
-				.font(.system(size: 14, weight: .semibold))
+				.font(.openRunde(size: 14, weight: .semibold))
 			Image("check.icon")
 				.renderingMode(.template)
 				.resizable()

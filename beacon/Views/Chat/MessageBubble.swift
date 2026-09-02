@@ -7,17 +7,19 @@ import AppKit
 #endif
 
 struct MessageBubble: View {
+	@Namespace private var attachmentTransition
 	let text: String
 	var imageData: Data?
 	var requiresVisionModel = false
 	var onDownloadVisionModel: () -> Void = {}
 	var sources: [Source] = []
 	let role: ChatMessage.Role
+	var animatesEntrance = false
 	var isWaitingForResponse = false
 	var waitingText = "Thinking"
 	var onOpenSource: (URL) -> Void = { _ in }
-	var showsWebSearchRetry = false
-	var onRetryWebSearch: () -> Void = {}
+	var showsRetry = false
+	var onRetry: () -> Void = {}
 
 	var body: some View {
 		HStack {
@@ -29,6 +31,7 @@ struct MessageBubble: View {
 			}
 		}
 		.frame(maxWidth: .infinity)
+		.modifier(UserMessageEntranceModifier(isEnabled: role == .user && animatesEntrance))
 		.contentShape(Rectangle())
 		.contextMenu {
 			Button {
@@ -54,14 +57,14 @@ struct MessageBubble: View {
 				EmptyView()
 			} else if !displayText.isEmpty {
 				MarkdownView(displayText)
-					.font(.system(size: 16), for: .body)
+					.font(.openRunde(size: 16), for: .body)
 					.lineSpacing(4)
-					.font(.system(size: 18, weight: .semibold), for: .h1)
-					.font(.system(size: 17, weight: .semibold), for: .h2)
-					.font(.system(size: 16, weight: .semibold), for: .h3)
-					.font(.system(size: 16, weight: .semibold), for: .h4)
-					.font(.system(size: 16, weight: .semibold), for: .h5)
-					.font(.system(size: 16, weight: .semibold), for: .h6)
+					.font(.openRunde(size: 18, weight: .semibold), for: .h1)
+					.font(.openRunde(size: 17, weight: .semibold), for: .h2)
+					.font(.openRunde(size: 16, weight: .semibold), for: .h3)
+					.font(.openRunde(size: 16, weight: .semibold), for: .h4)
+					.font(.openRunde(size: 16, weight: .semibold), for: .h5)
+					.font(.openRunde(size: 16, weight: .semibold), for: .h6)
 					.font(.system(size: 14, design: .monospaced), for: .codeBlock)
 					.foregroundStyle(.primary)
 					.tint(.secondary, for: .inlineCodeBlock)
@@ -71,11 +74,14 @@ struct MessageBubble: View {
 				SourceTag(sources: sources, onOpen: onOpenSource)
 			}
 
-			if showsWebSearchRetry, !isWaitingForResponse {
-				Button(action: onRetryWebSearch) {
-					Label("Retry", systemImage: "arrow.clockwise")
-				}
-				.buttonStyle(.bordered)
+			if showsRetry, !isWaitingForResponse {
+				BeaconButton(
+					"Retry",
+					variant: .secondary,
+					size: .small,
+					trailingIcon: "arrow.clockwise",
+					action: onRetry
+				)
 			}
 
 			if requiresVisionModel, !isWaitingForResponse {
@@ -92,18 +98,23 @@ struct MessageBubble: View {
 	}
 
 	private var userBubble: some View {
-		VStack(alignment: .trailing, spacing: 16) {
-			if let imageData {
-				ChatAttachedImage(data: imageData)
-			}
-
+		VStack(alignment: .trailing) {
 			if !text.isEmpty {
 				Text(text)
-					.font(.system(size: 16))
+					.font(.openRunde(size: 16))
 					.foregroundStyle(.primary)
 					.padding(.horizontal, 14)
 					.padding(.vertical, 14)
 					.background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+					.overlay(alignment: .topTrailing) {
+						if let imageData {
+							ChatAttachedImage(data: imageData, transitionNamespace: attachmentTransition)
+								.offset(x: -14, y: -116)
+						}
+					}
+					.padding(.top, imageData == nil ? 0 : 116)
+			} else if let imageData {
+				ChatAttachedImage(data: imageData, transitionNamespace: attachmentTransition)
 			}
 		}
 		.frame(maxWidth: .infinity, alignment: .trailing)
@@ -111,25 +122,80 @@ struct MessageBubble: View {
 }
 
 private struct ChatAttachedImage: View {
+	private let transitionID = "attached-image"
 	let data: Data
+	let transitionNamespace: Namespace.ID
 
 	var body: some View {
+		NavigationLink {
+			#if os(macOS)
+			AttachedImageViewer(data: data)
+			#else
+			AttachedImageViewer(data: data)
+				.navigationTransition(.zoom(sourceID: transitionID, in: transitionNamespace))
+			#endif
+		} label: {
+			thumbnail
+				.matchedTransitionSource(id: transitionID, in: transitionNamespace)
+		}
+		.buttonStyle(.plain)
+		.accessibilityLabel("Open attached image")
+	}
+
+	@ViewBuilder
+	private var thumbnail: some View {
 		#if canImport(UIKit)
 		if let image = UIImage(data: data) {
 			Image(uiImage: image)
 				.resizable()
-				.scaledToFit()
-				.frame(maxWidth: 220, maxHeight: 320)
-				.clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+				.scaledToFill()
+				.frame(width: 96, height: 116)
+				.clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+				.padding(4)
+				.background(Color(uiColor: .systemBackground), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+				.rotationEffect(.degrees(4))
 		}
 		#elseif canImport(AppKit)
 		if let image = NSImage(data: data) {
 			Image(nsImage: image)
 				.resizable()
-				.scaledToFit()
-				.frame(maxWidth: 320, maxHeight: 400)
-				.clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+				.scaledToFill()
+				.frame(width: 96, height: 116)
+				.clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+				.padding(4)
+				.background(Color(nsColor: .windowBackgroundColor), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+				.rotationEffect(.degrees(4))
 		}
+		#endif
+	}
+}
+
+struct AttachedImageViewer: View {
+	let data: Data
+
+	var body: some View {
+		ZStack {
+			Color.black.ignoresSafeArea()
+
+			#if canImport(UIKit)
+			if let image = UIImage(data: data) {
+				Image(uiImage: image)
+					.resizable()
+					.scaledToFit()
+					.frame(maxWidth: .infinity, maxHeight: .infinity)
+			}
+			#elseif canImport(AppKit)
+			if let image = NSImage(data: data) {
+				Image(nsImage: image)
+					.resizable()
+					.scaledToFit()
+					.frame(maxWidth: .infinity, maxHeight: .infinity)
+			}
+			#endif
+		}
+		#if !os(macOS)
+		.toolbarBackground(.hidden, for: .navigationBar)
+		.toolbarColorScheme(.dark, for: .navigationBar)
 		#endif
 	}
 }
@@ -152,7 +218,7 @@ private struct ThinkingStatusText: View {
 
 			Text(displayText)
 		}
-			.font(.system(size: 16))
+			.font(.openRunde(size: 16))
 			.foregroundStyle(.secondary)
 			.shimmering()
 			.id(displayText)
@@ -197,7 +263,33 @@ private struct BlurFadeModifier: ViewModifier {
 	}
 }
 
-private extension AnyTransition {
+private struct UserMessageEntranceModifier: ViewModifier {
+	let isEnabled: Bool
+	@State private var isVisible = false
+
+	func body(content: Content) -> some View {
+		content
+			.scaleEffect(isEnabled && !isVisible ? 0.97 : 1, anchor: .bottomTrailing)
+			.offset(y: isEnabled && !isVisible ? 8 : 0)
+			.opacity(isEnabled && !isVisible ? 0 : 1)
+			.onAppear {
+				showIfNeeded()
+			}
+			.onChange(of: isEnabled) { _, enabled in
+				guard enabled else { return }
+				showIfNeeded()
+			}
+	}
+
+	private func showIfNeeded() {
+		guard isEnabled, !isVisible else { return }
+		withAnimation(.spring(duration: 0.32, bounce: 0.08)) {
+			isVisible = true
+		}
+	}
+}
+
+extension AnyTransition {
 	static var blurFade: AnyTransition {
 		.modifier(
 			active: BlurFadeModifier(radius: 8, opacity: 0),
@@ -241,7 +333,32 @@ private extension String {
 	}
 }
 
-#Preview {
+private var previewAttachmentData: Data? {
+	#if canImport(UIKit)
+	UIImage(named: "whylocal")?.jpegData(compressionQuality: 0.8)
+	#elseif canImport(AppKit)
+	NSImage(named: NSImage.Name("whylocal"))?.tiffRepresentation
+	#endif
+}
+
+#Preview("Image attachment") {
+	NavigationStack {
+		VStack {
+			Spacer()
+			MessageBubble(
+				text: "What can you tell me about this library?",
+				imageData: previewAttachmentData,
+				role: .user
+			)
+			Spacer()
+		}
+		.padding(20)
+		.background(Color(uiColor: .systemBackground))
+	}
+	.frame(width: 390, height: 420)
+}
+
+#Preview("Conversation") {
 	VStack(spacing: 12) {
 		MessageBubble(text: "", role: .assistant, isWaitingForResponse: true)
 		MessageBubble(text: """

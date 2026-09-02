@@ -68,8 +68,14 @@ struct ContentView: View {
 				})
 			}
 		}
+		.onChange(of: notificationRouter.quickActionToOpen) { _, action in
+			if action != nil {
+				isShowingWhatsNew = false
+			}
+		}
 		.task {
 			ModelIDMigration.migrate()
+			guard notificationRouter.quickActionToOpen == nil else { return }
 			presentWhatsNewIfNeeded()
 		}
 	}

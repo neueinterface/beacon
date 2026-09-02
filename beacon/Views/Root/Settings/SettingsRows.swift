@@ -9,7 +9,7 @@ struct SettingsSectionTitle: View {
 
 	var body: some View {
 		Text(title)
-			.font(.system(size: 18, weight: .semibold))
+			.font(.openRunde(size: 18, weight: .semibold))
 			.foregroundStyle(Color(uiColor: .systemGray))
 	}
 }
@@ -109,12 +109,12 @@ private struct SettingsRowLabel<Trailing: View>: View {
 
 			VStack(alignment: .leading, spacing: 2) {
 				Text(title)
-					.font(.system(size: 16, weight: .medium))
+					.font(.openRunde(size: 16, weight: .medium))
 					.foregroundStyle(.primary)
 
 				if let subtitle {
 					Text(subtitle)
-						.font(.system(size: 13, weight: .regular))
+						.font(.openRunde(size: 13, weight: .regular))
 						.foregroundStyle(.secondary)
 						.lineSpacing(2)
 				}

@@ -108,7 +108,7 @@ struct Pill: View {
 			}
 
 			Text(title)
-				.font(.system(size: textSize, weight: .semibold))
+				.font(.openRunde(size: textSize, weight: .semibold))
 
 			if let trailingSystemImage {
 				Image(systemName: trailingSystemImage)
