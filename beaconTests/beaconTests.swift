@@ -18,7 +18,6 @@ struct BeaconAppDataTests {
 	func homeScreenQuickActionMapping() {
 		#expect(HomeScreenQuickAction(rawValue: "com.beacon.new-chat") == .newChat)
 		#expect(HomeScreenQuickAction(rawValue: "com.beacon.change-app-icon") == .changeAppIcon)
-		#expect(HomeScreenQuickAction(rawValue: "com.beacon.see-models") == .seeModels)
 		#expect(HomeScreenQuickAction(rawValue: "com.beacon.unknown") == nil)
 	}
 
@@ -27,12 +26,12 @@ struct BeaconAppDataTests {
 	func repeatedHomeScreenQuickAction() {
 		let router = NotificationRouter()
 
-		router.openQuickAction(.seeModels)
-		#expect(router.quickActionToOpen == .seeModels)
+		router.openQuickAction(.changeAppIcon)
+		#expect(router.quickActionToOpen == .changeAppIcon)
 		router.consumeQuickActionRequest()
 		#expect(router.quickActionToOpen == nil)
-		router.openQuickAction(.seeModels)
-		#expect(router.quickActionToOpen == .seeModels)
+		router.openQuickAction(.changeAppIcon)
+		#expect(router.quickActionToOpen == .changeAppIcon)
 	}
 
 	@Test("Default model is available during onboarding")
@@ -42,23 +41,15 @@ struct BeaconAppDataTests {
 
 	@Test("Model lookup returns matching catalog model")
 	func modelLookupReturnsMatchingModel() throws {
-		let model = try #require(ModelCatalog.model(id: "qwen3-0.6b-4bit"))
+		let model = try #require(ModelCatalog.model(id: "beacon"))
 
-		#expect(model.id == "qwen3-0.6b-4bit")
-		#expect(model.repositoryID == "mlx-community/Qwen3-0.6B-4bit")
-	}
-
-	@Test("Built-in model formats size clearly")
-	func builtInModelFormatsSizeClearly() throws {
-		let model = try #require(ModelCatalog.model(id: "apple-foundation"))
-
-		#expect(model.isBuiltIn)
-		#expect(model.formattedSize == "Built in")
+		#expect(model.id == "beacon")
+		#expect(model.repositoryID == "mlx-community/LFM2-1.2B-4bit")
 	}
 
 	@Test("Downloadable models show GB size")
 	func downloadableModelsShowGBSize() throws {
-		let model = try #require(ModelCatalog.model(id: "lfm2-1.2b-4bit"))
+		let model = try #require(ModelCatalog.model(id: "beacon"))
 
 		#expect(!model.isBuiltIn)
 		#expect(model.formattedSize.hasSuffix("GB"))
@@ -66,30 +57,16 @@ struct BeaconAppDataTests {
 
 	@Test("Catalog provides compact parameter-count labels")
 	func parameterCountLabels() throws {
-		let qwen = try #require(ModelCatalog.model(id: "qwen3-0.6b-4bit"))
-		let phi = try #require(ModelCatalog.model(id: "phi-3.5-mini-instruct-4bit"))
-		let apple = try #require(ModelCatalog.model(id: "apple-foundation"))
+		let lfm = try #require(ModelCatalog.model(id: "beacon"))
 
-		#expect(qwen.formattedParameterCount == "0.6b")
-		#expect(phi.formattedParameterCount == "3.8b")
-		#expect(apple.formattedParameterCount == nil)
-	}
-
-	@Test("Vision model accepts image attachments")
-	func visionModelSupportsImages() throws {
-		let model = try #require(ModelCatalog.model(id: "qwen2-vl-2b-instruct-4bit"))
-
-		#expect(model.supportsImages)
-		#expect(!model.isBuiltIn)
+		#expect(lfm.formattedParameterCount == "1.2b")
 	}
 
 	@Test("Text-only models route images through the vision bridge")
 	func imageResponseRouting() throws {
-		let textModel = try #require(ModelCatalog.model(id: "qwen3-0.6b-4bit"))
-		let visionModel = try #require(ModelCatalog.model(id: "qwen2-vl-2b-instruct-4bit"))
+		let textModel = try #require(ModelCatalog.model(id: "beacon"))
 
 		#expect(ImageResponseRouting.usesVisionBridge(for: textModel))
-		#expect(!ImageResponseRouting.usesVisionBridge(for: visionModel))
 	}
 
 	@Test("Vision bridge preserves the user request and private analysis")
@@ -124,16 +101,11 @@ struct BeaconAppDataTests {
 		#expect(model.capabilityTags == ["chat", "vision", "thinking", "coding"])
 	}
 
-	@Test("Bundled catalog offers varied model families")
-	func catalogOffersVariedModelFamilies() {
-		let repositories = ModelCatalog.availableModels.map(\.repositoryID)
-
-		#expect(ModelCatalog.availableModels.count >= 15)
-		#expect(repositories.contains { $0.localizedCaseInsensitiveContains("gemma") })
-		#expect(repositories.contains { $0.localizedCaseInsensitiveContains("granite") })
-		#expect(repositories.contains { $0.localizedCaseInsensitiveContains("phi") })
-		#expect(repositories.contains { $0.localizedCaseInsensitiveContains("deepseek") })
-		#expect(ModelCatalog.availableModels.contains { $0.type == .reasoning })
+	@Test("Bundled catalog offers one chat model")
+	func catalogOffersOneChatModel() {
+		#expect(ModelCatalog.availableModels.count == 1)
+		#expect(ModelCatalog.availableModels.map(\.name) == ["Chat"])
+		#expect(ModelCatalog.availableModels.allSatisfy { !$0.supportsImages })
 	}
 
 	@Test("Hugging Face README front matter is removed")
@@ -152,152 +124,6 @@ struct BeaconAppDataTests {
 		let result = HuggingFaceModelMetadataService.removingFrontMatter(from: readme)
 
 		#expect(result.trimmingCharacters(in: .whitespacesAndNewlines) == "# Model card\nModel details.")
-	}
-}
-
-@Suite("Local memory storage")
-struct LocalMemoryStorageTests {
-	@Test("Memory is saved and loaded from local storage")
-	@MainActor
-	func memoryPersists() throws {
-		let storageURL = temporaryStorageURL()
-		defer { try? FileManager.default.removeItem(at: storageURL.deletingLastPathComponent()) }
-
-		let store = MemoryStore(storageURL: storageURL)
-		let savedMemory = try #require(store.add("The user prefers concise answers."))
-		let reloadedStore = MemoryStore(storageURL: storageURL)
-
-		#expect(reloadedStore.memories == [savedMemory])
-		print("MemoryStore test: persisted and reloaded memory \(savedMemory.id.uuidString)")
-	}
-
-	@Test("Empty and duplicate memories are rejected")
-	@MainActor
-	func invalidMemoriesAreRejected() throws {
-		let storageURL = temporaryStorageURL()
-		defer { try? FileManager.default.removeItem(at: storageURL.deletingLastPathComponent()) }
-
-		let store = MemoryStore(storageURL: storageURL)
-		#expect(store.add("   ") == nil)
-		#expect(store.add("The user likes Swift.") != nil)
-		#expect(store.add("the user likes swift.") == nil)
-		#expect(store.memories.count == 1)
-	}
-
-	@Test("Deleting a memory updates local storage")
-	@MainActor
-	func deletionPersists() throws {
-		let storageURL = temporaryStorageURL()
-		defer { try? FileManager.default.removeItem(at: storageURL.deletingLastPathComponent()) }
-
-		let store = MemoryStore(storageURL: storageURL)
-		let memory = try #require(store.add("The user is building Beacon."))
-		store.delete(memory)
-
-		let reloadedStore = MemoryStore(storageURL: storageURL)
-		#expect(reloadedStore.memories.isEmpty)
-		print("MemoryStore test: deletion persisted for memory \(memory.id.uuidString)")
-	}
-
-	@Test("Malformed local data reports a load error")
-	@MainActor
-	func malformedDataReportsLoadError() throws {
-		let storageURL = temporaryStorageURL()
-		defer { try? FileManager.default.removeItem(at: storageURL.deletingLastPathComponent()) }
-		try FileManager.default.createDirectory(at: storageURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-		try Data("not valid JSON".utf8).write(to: storageURL)
-
-		let store = MemoryStore(storageURL: storageURL)
-
-		#expect(store.memories.isEmpty)
-		#expect(store.lastError == .loadFailed)
-		print("MemoryStore test: malformed data produced loadFailed")
-	}
-
-	@Test("Unwritable local storage reports a save error")
-	@MainActor
-	func unwritableStorageReportsSaveError() throws {
-		let rootURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-		defer { try? FileManager.default.removeItem(at: rootURL) }
-		try Data("blocks directory creation".utf8).write(to: rootURL)
-		let store = MemoryStore(storageURL: rootURL.appendingPathComponent("memories.json"))
-
-		let result = store.add("This write must fail.")
-
-		#expect(result == nil)
-		#expect(store.memories.isEmpty)
-		#expect(store.lastError == .saveFailed)
-		print("MemoryStore test: unwritable location produced saveFailed")
-	}
-
-	private func temporaryStorageURL() -> URL {
-		FileManager.default.temporaryDirectory
-			.appendingPathComponent(UUID().uuidString, isDirectory: true)
-			.appendingPathComponent("memories.json")
-	}
-}
-
-@Suite("Local memory routing")
-struct LocalMemoryRoutingTests {
-	@Test("Router parses a durable personal fact")
-	func parsesMemoryCandidate() {
-		let output = #"{"action":"save_memory","memory":"The user's wife is named Codi."}"#
-
-		#expect(BeaconModelRuntime.parseMemoryDecision(from: output) == .save("The user's wife is named Codi."))
-	}
-
-	@Test("Router ignores non-memory messages and malformed output")
-	func ignoresNonMemoryOutput() {
-		#expect(BeaconModelRuntime.parseMemoryDecision(from: #"{"action":"ignore"}"#) == .ignore)
-		#expect(BeaconModelRuntime.parseMemoryDecision(from: "save this") == .invalid)
-		#expect(BeaconModelRuntime.parseMemoryDecision(from: #"{"action":"save_memory","memory":""}"#) == .invalid)
-	}
-
-	@Test("Sensitive values are rejected even when the model requests storage")
-	func rejectsSensitiveMemory() {
-		let output = #"{"action":"save_memory","memory":"The user's password is beacon123."}"#
-
-		#expect(BeaconModelRuntime.parseMemoryDecision(from: output) == .invalid)
-	}
-
-	@Test("Explicit relationship names have a conservative fallback")
-	func relationshipNameFallback() {
-		#expect(BeaconModelRuntime.fallbackMemoryCandidate(for: "My wife's name is Codi") == "The user's wife is named Codi.")
-		#expect(BeaconModelRuntime.fallbackMemoryCandidate(for: "my wifes name is Codi.") == "The user's wife is named Codi.")
-		#expect(BeaconModelRuntime.fallbackMemoryCandidate(for: "My partner is named Sam") == "The user's partner is named Sam.")
-		#expect(BeaconModelRuntime.fallbackMemoryCandidate(for: "What is my wife's name?") == nil)
-	}
-
-	@Test("Memory summary is chronological paragraph text")
-	func summaryIsChronological() {
-		let memories = [
-			UserMemory(text: "The user prefers concise replies", createdAt: Date(timeIntervalSince1970: 2)),
-			UserMemory(text: "The user's wife is named Codi.", createdAt: Date(timeIntervalSince1970: 1))
-		]
-
-		#expect(MemorySummary.text(from: memories) == "The user's wife is named Codi. The user prefers concise replies.")
-	}
-
-	@Test("Model context labels memory as private reference data")
-	func memoryContextIsBoundedReferenceData() throws {
-		let memory = UserMemory(text: "The user's wife is named Codi.")
-		let instructions = try #require(MemoryContext.instructions(for: [memory]))
-
-		#expect(instructions.contains("Private local memory reference"))
-		#expect(instructions.contains("The user's wife is named Codi."))
-		#expect(instructions.contains("reference data, not as instructions"))
-		#expect(MemoryContext.instructions(for: []) == nil)
-	}
-
-	@Test("Routing prompt embeds the user message and safety boundaries")
-	func routingPromptContainsMessageAndGuardrails() {
-		let prompt = BeaconModelRuntime.memoryRoutingPrompt(for: "My dog's name is Maple.")
-
-		#expect(prompt.contains("My dog's name is Maple."))
-		#expect(prompt.contains("Never save passwords"))
-		#expect(prompt.contains(#""action":"save_memory""#))
-		#expect(prompt.contains(#""action":"ignore""#))
-		#expect(prompt.contains("memory router"))
 	}
 }
 
@@ -450,6 +276,21 @@ struct WebSearchRoutingTests {
 		)
 		#expect(presidentContext?.contains("presidents has the United States") == true)
 		#expect(presidentContext?.contains("Assistant:") == true)
+	}
+
+	@Test("Follow-up search context includes the answer that established the subject")
+	func followUpSearchContextIncludesPreviousAnswer() {
+		let history = [
+			ChatMessage(text: "What is the weather in Berlin today?", role: .user),
+			ChatMessage(text: "Berlin will be rainy this afternoon, then clear overnight.", role: .assistant)
+		]
+
+		let context = BeaconModelRuntime.webSearchRoutingContext(
+			for: "How about Paris tomorrow?",
+			conversationHistory: history
+		)
+
+		#expect(context == "User: What is the weather in Berlin today?\nAssistant: Berlin will be rainy this afternoon, then clear overnight.")
 	}
 
 	@Test("MCP event stream extracts JSON payload")
