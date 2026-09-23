@@ -4,13 +4,16 @@ import Foundation
 @MainActor
 final class ChatHistoryViewModel: ObservableObject {
 	@Published private(set) var conversations: [ChatConversation] {
-		didSet { saveConversations() }
+		didSet { scheduleConversationSave() }
 	}
 	@Published private(set) var currentMessages: [ChatMessage]
 	@Published var selectedChatID: ChatConversation.ID?
 
 	private static let storageKey = "chatConversations"
 	private static let readyMessageText = "Your model is ready."
+	private var conversationSaveTask: Task<Void, Never>?
+	private var pendingAssistantChunks: [ChatMessage.ID: String] = [:]
+	private var assistantChunkFlushTask: Task<Void, Never>?
 
 	private let timeFormatter: DateFormatter
 	private let calendar = Calendar.current
@@ -35,6 +38,7 @@ final class ChatHistoryViewModel: ObservableObject {
 	}
 
 	func select(_ chat: ChatConversation) {
+		flushAssistantChunks()
 		selectedChatID = chat.id
 		currentConversationID = chat.id
 		currentMessages = chat.messages
@@ -48,6 +52,7 @@ final class ChatHistoryViewModel: ObservableObject {
 	}
 
 	func startNewChat() {
+		flushAssistantChunks()
 		selectedChatID = nil
 		currentConversationID = nil
 		currentMessages = []
@@ -70,8 +75,9 @@ final class ChatHistoryViewModel: ObservableObject {
 		currentMessages = []
 	}
 
-	func appendUserMessage(_ text: String, imageData: Data? = nil, modelName: String) -> ChatMessage.ID {
-		let userMessage = ChatMessage(text: text, imageData: imageData, role: .user)
+	func appendUserMessage(_ text: String, imageDatas: [Data] = [], modelName: String) -> ChatMessage.ID {
+		flushAssistantChunks()
+		let userMessage = ChatMessage(text: text, imageDatas: imageDatas, role: .user)
 		let assistantMessage = ChatMessage(text: "", modelName: modelName, role: .assistant)
 
 		if let currentConversationID, let index = conversations.firstIndex(where: { $0.id == currentConversationID }) {
@@ -94,8 +100,13 @@ final class ChatHistoryViewModel: ObservableObject {
 	}
 
 	func appendAssistantChunk(_ chunk: String, to messageID: ChatMessage.ID) {
-		updateMessage(messageID) { message in
-			message.text += chunk
+		pendingAssistantChunks[messageID, default: ""] += chunk
+		guard assistantChunkFlushTask == nil else { return }
+
+		assistantChunkFlushTask = Task { @MainActor [weak self] in
+			try? await Task.sleep(for: .milliseconds(50))
+			guard !Task.isCancelled else { return }
+			self?.flushAssistantChunks()
 		}
 	}
 
@@ -111,9 +122,9 @@ final class ChatHistoryViewModel: ObservableObject {
 		}
 	}
 
-	func requireVisionModel(for messageID: ChatMessage.ID) {
+	func replaceAssistantInformationCard(_ card: InformationCardContent?, for messageID: ChatMessage.ID) {
 		updateMessage(messageID) { message in
-			message.requiresVisionModel = true
+			message.informationCard = card
 		}
 	}
 
@@ -168,6 +179,7 @@ final class ChatHistoryViewModel: ObservableObject {
 	}
 
 	private func updateMessage(_ messageID: ChatMessage.ID, mutate: (inout ChatMessage) -> Void) {
+		flushAssistantChunks()
 		guard let currentConversationID,
 			  let conversationIndex = conversations.firstIndex(where: { $0.id == currentConversationID }),
 			  let messageIndex = conversations[conversationIndex].messages.firstIndex(where: { $0.id == messageID }) else { return }
@@ -177,9 +189,35 @@ final class ChatHistoryViewModel: ObservableObject {
 		currentMessages = conversations[conversationIndex].messages
 	}
 
+	private func flushAssistantChunks() {
+		assistantChunkFlushTask?.cancel()
+		assistantChunkFlushTask = nil
+		guard !pendingAssistantChunks.isEmpty,
+			  let currentConversationID,
+			  let conversationIndex = conversations.firstIndex(where: { $0.id == currentConversationID }) else { return }
+
+		for (messageID, chunk) in pendingAssistantChunks {
+			guard let messageIndex = conversations[conversationIndex].messages.firstIndex(where: { $0.id == messageID }) else { continue }
+			conversations[conversationIndex].messages[messageIndex].text += chunk
+		}
+
+		pendingAssistantChunks.removeAll()
+		conversations[conversationIndex].updatedAt = .now
+		currentMessages = conversations[conversationIndex].messages
+	}
+
 	private func saveConversations() {
 		guard let data = try? JSONEncoder().encode(conversations) else { return }
 		UserDefaults.standard.set(data, forKey: Self.storageKey)
+	}
+
+	private func scheduleConversationSave() {
+		conversationSaveTask?.cancel()
+		conversationSaveTask = Task { @MainActor [weak self] in
+			try? await Task.sleep(for: .milliseconds(250))
+			guard !Task.isCancelled else { return }
+			self?.saveConversations()
+		}
 	}
 
 	private static func loadConversations() -> [ChatConversation] {

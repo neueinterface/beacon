@@ -11,7 +11,7 @@ import UIKit
 private struct FailedResponse {
 	let responseID: ChatMessage.ID
 	let text: String
-	let imageData: Data?
+	let imageDatas: [Data]
 	let model: BeaconModel
 	let conversationHistory: [ChatMessage]
 	let forceWebSearch: Bool
@@ -76,34 +76,28 @@ enum ImageResponseRouting {
 struct ChatView: View {
 	@Environment(\.scenePhase) private var scenePhase
 	@ObservedObject var runtime: BeaconModelRuntime
-	@ObservedObject var memoryStore: MemoryStore
 	let models: [BeaconModel]
-	@ObservedObject var notificationRouter = NotificationRouter()
 	var onDownloadModel: (BeaconModel) -> Void = { _ in }
+	@ObservedObject var notificationRouter = NotificationRouter()
 	@StateObject private var historyViewModel = ChatHistoryViewModel()
 	@AppStorage("selectedModelID") private var selectedModelID = ""
-	@AppStorage("downloadedModelIDs") private var downloadedModelIDs = ""
 	@AppStorage("notificationsEnabled") private var notificationsEnabled = false
-	@AppStorage("memoryEnabled") private var memoryEnabled = false
 	#if false // Web search is not currently available.
 	// Web search is not part of the current release.
 	private let webSearchEnabled = false
 	#endif
 	@State private var inputText = ""
-	@State private var selectedImageItem: PhotosPickerItem?
-	@State private var attachedImageData: Data?
+	@State private var selectedImageItem: [PhotosPickerItem] = []
+	@State private var attachedImageData: [Data] = []
 	@State private var isShowingPhotoPicker = false
 	@State private var isShowingPhotoAccessAlert = false
 	#if false // Web search is not currently available.
 	@State private var isWebSearchTagged = false
 	#endif
 	@State private var isShowingHistory = false
-	@State private var isShowingModelMarketplace = false
-	@State private var isShowingModelSwitcher = false
 	@State private var isShowingSettings = false
+	@State private var isShowingModels = false
 	@State private var isShowingAppIconPicker = false
-	@State private var shouldOpenMarketplaceAfterModelSwitcherDismisses = false
-	@State private var marketplacePresentationTask: Task<Void, Never>?
 	@State private var quickActionPresentationTask: Task<Void, Never>?
 	@State private var pendingScrollMessageID: ChatMessage.ID?
 	@State private var enteringUserMessageID: ChatMessage.ID?
@@ -115,6 +109,8 @@ struct ChatView: View {
 	@State private var failedResponse: FailedResponse?
 	@State private var switchedModelName: String?
 	@State private var modelSwitchToastTask: Task<Void, Never>?
+	@State private var actionToastText: String?
+	@State private var actionToastTask: Task<Void, Never>?
 	#if false // Web search is not currently available.
 	@State private var backendStatus: BackendStatus?
 	@State private var searchQuota: SearchQuota?
@@ -134,10 +130,6 @@ struct ChatView: View {
 
 	private var selectedModel: BeaconModel {
 		ModelCatalog.model(id: selectedModelID, in: models) ?? ModelCatalog.defaultModel(in: models)
-	}
-
-	private var downloadedModels: [BeaconModel] {
-		models.filter(isDownloaded)
 	}
 
 	private var isAssistantBusy: Bool {
@@ -186,24 +178,24 @@ struct ChatView: View {
 				if isShowingHistory {
 					ChatHistoryDrawerView(
 						viewModel: historyViewModel,
-						onClose: {
-							withAnimation(screenSpring) {
-								isShowingHistory = false
-							}
-						},
-						onNewChat: {
-							historyViewModel.startNewChat()
-							withAnimation(screenSpring) {
-								isShowingHistory = false
-							}
-						},
-						onOpenModels: {
-							showMarketplace()
-						},
-						onOpenSettings: {
-							isShowingSettings = true
-						}
-					) { chat in
+                        onClose: {
+                            withAnimation(screenSpring) {
+                                isShowingHistory = false
+                            }
+                        },
+                        onNewChat: {
+                            historyViewModel.startNewChat()
+                            withAnimation(screenSpring) {
+                                isShowingHistory = false
+                            }
+                        },
+                        onOpenSettings: {
+                            isShowingSettings = true
+                        },
+                        onOpenModels: {
+                            isShowingModels = true
+                        }
+                    ) { chat in
 						pendingScrollMessageID = historyViewModel.lastUserMessageID(in: chat) ?? historyViewModel.firstMessageID(in: chat)
 						withAnimation(screenSpring) {
 							isShowingHistory = false
@@ -217,7 +209,7 @@ struct ChatView: View {
 			}
 			.animation(screenSpring, value: isShowingHistory)
 		}
-		.background(Color(uiColor: .systemBackground))
+		.background(Color(uiColor: .systemGray6).opacity(0.5))
 		.overlay(alignment: .bottom) {
 			if let switchedModelName {
 				ModelSwitchToast(modelName: switchedModelName)
@@ -225,23 +217,27 @@ struct ChatView: View {
 					.transition(.opacity.combined(with: .scale(scale: 0.96)))
 			}
 		}
-		.sheet(isPresented: $isShowingModelSwitcher, onDismiss: openMarketplaceAfterModelSwitcherDismissesIfNeeded) {
-			ChatModelSwitcherSheet(
-				models: downloadedModels,
-				selectedModelID: selectedModel.id,
-				onSelect: { model in
-					select(model)
-				},
-				onOpenMarketplace: {
-					shouldOpenMarketplaceAfterModelSwitcherDismisses = true
-					isShowingModelSwitcher = false
-				}
-			)
-			.presentationDetents([.medium, .large])
-			.presentationDragIndicator(.visible)
+		.overlay(alignment: .top) {
+			if let actionToastText {
+				ActionToast(text: actionToastText, onDismiss: dismissActionToast)
+					.padding(.top, 12)
+					.transition(.scale(scale: 0.9, anchor: .top).combined(with: .move(edge: .top)).combined(with: .opacity))
+					.zIndex(10)
+			}
 		}
 		.sheet(isPresented: $isShowingSettings) {
-			SettingsView(chatHistoryViewModel: historyViewModel, memoryStore: memoryStore, models: models, onDownloadModel: onDownloadModel)
+			SettingsView(chatHistoryViewModel: historyViewModel)
+		}
+		.sheet(isPresented: $isShowingModels) {
+			ModelMarketPlaceView(
+				models: models,
+				onClose: { isShowingModels = false },
+				onDownload: { model in
+					isShowingModels = false
+					onDownloadModel(model)
+				},
+				onSelect: select
+			)
 		}
 		.sheet(isPresented: $isShowingAppIconPicker) {
 			NavigationStack {
@@ -253,31 +249,6 @@ struct ChatView: View {
 		} message: {
 			Text("Allow photo access in Settings to attach an image to your message.")
 		}
-		#if os(macOS)
-		.sheet(isPresented: $isShowingModelMarketplace) {
-			ModelMarketPlaceView(
-				models: models,
-				onClose: {
-					hideMarketplace()
-				},
-				onDownload: { model in
-					onDownloadModel(model)
-				}
-			)
-		}
-		#else
-		.fullScreenCover(isPresented: $isShowingModelMarketplace) {
-			ModelMarketPlaceView(
-				models: models,
-				onClose: {
-					hideMarketplace()
-				},
-				onDownload: { model in
-					onDownloadModel(model)
-				}
-			)
-		}
-		#endif
 		.sheet(item: $safariViewModel.page) { page in
 			SafariView(url: page.url)
 		}
@@ -297,7 +268,7 @@ struct ChatView: View {
 		}
 		.onDisappear {
 			modelSwitchToastTask?.cancel()
-			marketplacePresentationTask?.cancel()
+			actionToastTask?.cancel()
 			quickActionPresentationTask?.cancel()
 		}
 		.onAppear {
@@ -354,21 +325,8 @@ struct ChatView: View {
 								ScrollView {
 									LazyVStack(alignment: .leading, spacing: 20) {
 										ForEach(historyViewModel.currentMessages) { message in
-										MessageBubble(
-											text: message.text,
-											imageData: message.imageData,
-											requiresVisionModel: message.requiresVisionModel,
-											onDownloadVisionModel: downloadVisionModel,
-											sources: message.sources,
-											role: message.role,
-											animatesEntrance: message.id == enteringUserMessageID,
-											isWaitingForResponse: isAssistantBusy && message == historyViewModel.currentMessages.last,
-											waitingText: isSearchingWeb ? "Searching the web" : isAnalyzingImage ? "Looking at the image" : "Thinking",
-											onOpenSource: safariViewModel.open,
-											showsRetry: failedResponse?.responseID == message.id,
-											onRetry: retryResponse
-											)
-											.id(message.id)
+											messageBubble(for: message)
+												.id(message.id)
 										}
 									}
 									.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -392,7 +350,7 @@ struct ChatView: View {
 					inputBar
 				}
 			}
-			.background(Color(uiColor: .systemBackground))
+			.background(Color(uiColor: .systemGray6).opacity(0.5))
 			.simultaneousGesture(
 				DragGesture(minimumDistance: 16)
 					.onEnded { value in
@@ -442,6 +400,24 @@ struct ChatView: View {
 		}
 	}
 
+	@ViewBuilder
+	private func messageBubble(for message: ChatMessage) -> some View {
+		MessageBubble(
+			text: message.text,
+			imageDatas: message.imageDatas,
+			informationCard: message.informationCard,
+			sources: message.sources,
+			role: message.role,
+			animatesEntrance: message.id == enteringUserMessageID,
+			isWaitingForResponse: isAssistantBusy && message == historyViewModel.currentMessages.last,
+			thinkingText: message.thinkingText,
+			onOpenSource: safariViewModel.open,
+			showsRetry: failedResponse?.responseID == message.id,
+			onRetry: retryResponse,
+			onCopy: { showActionToast("Copied message") },
+		)
+	}
+
 	#if os(macOS)
 	@ViewBuilder
 	private var chatToolbarButtons: some View {
@@ -473,29 +449,25 @@ struct ChatView: View {
 				text: $inputText,
 				placeholder: "Message",
 				isGenerating: isAssistantBusy,
-				hasAttachment: attachedImageData != nil,
+					hasAttachment: !attachedImageData.isEmpty,
 				attachmentData: attachedImageData,
 				onAttachImage: {
 					requestPhotoAccess()
 				},
-				canAttachImages: visionModel != nil,
-				selectedModelName: selectedModel.name,
-				onSelectModel: {
-					playHeaderHaptic()
-					dismissKeyboard()
-					isShowingModelSwitcher = true
-				},
-				onRemoveAttachment: {
-					attachedImageData = nil
-					selectedImageItem = nil
+				canAttachImages: false,
+				showsConversationStarters: historyViewModel.currentMessages.isEmpty,
+				onRemoveAttachment: { index in
+					guard attachedImageData.indices.contains(index) else { return }
+					attachedImageData.remove(at: index)
+					selectedImageItem = []
 				},
 				onStop: {
 					stopGenerating()
 				},
 				onSend: { text in
-					send(text, imageData: attachedImageData)
-					attachedImageData = nil
-					selectedImageItem = nil
+					send(text, imageDatas: attachedImageData)
+					attachedImageData = []
+					selectedImageItem = []
 				}
 			)
 			.photosPicker(
@@ -506,12 +478,15 @@ struct ChatView: View {
 			)
 		}
 		.task(id: selectedImageItem) {
-			guard let selectedImageItem else { return }
-			defer { self.selectedImageItem = nil }
-			guard let data = try? await selectedImageItem.loadTransferable(type: Data.self) else { return }
-			attachedImageData = await Task.detached(priority: .userInitiated) {
-				Self.normalizedImageData(from: data)
-			}.value
+			let items = selectedImageItem
+			selectedImageItem = []
+			for item in items {
+				guard let data = try? await item.loadTransferable(type: Data.self) else { continue }
+				let normalized = await Task.detached(priority: .userInitiated) {
+					Self.normalizedImageData(from: data)
+				}.value
+				attachedImageData.append(normalized)
+			}
 		}
 		.disabled(runtime.isLoading)
 		.opacity(runtime.isLoading ? 0.5 : 1)
@@ -520,8 +495,8 @@ struct ChatView: View {
 		.background(alignment: .top) {
 			LinearGradient(
 				colors: [
-					Color(uiColor: .systemBackground).opacity(0),
-					Color(uiColor: .systemBackground)
+					Color(uiColor: .systemGray6).opacity(0),
+					Color(uiColor: .systemGray6).opacity(0.5)
 				],
 				startPoint: .top,
 				endPoint: .bottom
@@ -530,14 +505,13 @@ struct ChatView: View {
 			.offset(y: -28)
 			.allowsHitTesting(false)
 		}
-		.background(Color(uiColor: .systemBackground))
+		.background(Color(uiColor: .systemGray6).opacity(0.5))
 	}
 
-	private func send(_ text: String, imageData: Data? = nil) {
+	private func send(_ text: String, imageDatas: [Data] = []) {
 		guard !isAssistantBusy else { return }
 		failedResponse = nil
 		isPreparingResponse = true
-		pendingScrollMessageID = nil
 		dismissKeyboard()
 		#if canImport(UIKit)
 		UIImpactFeedbackGenerator(style: .medium).impactOccurred()
@@ -546,27 +520,19 @@ struct ChatView: View {
 		let responseModel = selectedModel
 		let conversationHistory = historyViewModel.currentMessages
 
-		let responseID = historyViewModel.appendUserMessage(displayText, imageData: imageData, modelName: responseModel.name)
+		let responseID = historyViewModel.appendUserMessage(displayText, imageDatas: imageDatas, modelName: responseModel.name)
 		let userMessageID = historyViewModel.currentMessages.dropLast().last?.id
+		pendingScrollMessageID = userMessageID
 		enteringUserMessageID = userMessageID
 		Task { @MainActor in
 			try? await Task.sleep(for: .milliseconds(400))
 			guard enteringUserMessageID == userMessageID else { return }
 			enteringUserMessageID = nil
 		}
-		if imageData != nil, ImageResponseRouting.usesVisionBridge(for: selectedModel) {
-			guard let visionModel, isDownloaded(visionModel) else {
-				historyViewModel.replaceMessage(responseID, with: "To read images, download the on-device vision model.")
-				historyViewModel.requireVisionModel(for: responseID)
-				isPreparingResponse = false
-				return
-			}
-		}
-
 		scheduleChatReminder(for: displayText)
 		startResponse(
 			text: displayText,
-			imageData: imageData,
+			imageDatas: imageDatas,
 			model: responseModel,
 			responseID: responseID,
 			conversationHistory: conversationHistory
@@ -579,9 +545,10 @@ struct ChatView: View {
 		isPreparingResponse = true
 		historyViewModel.replaceMessage(failedResponse.responseID, with: "")
 		historyViewModel.replaceAssistantSources([], for: failedResponse.responseID)
+		historyViewModel.replaceAssistantInformationCard(nil, for: failedResponse.responseID)
 		startResponse(
 			text: failedResponse.text,
-			imageData: failedResponse.imageData,
+			imageDatas: failedResponse.imageDatas,
 			model: failedResponse.model,
 			responseID: failedResponse.responseID,
 			conversationHistory: failedResponse.conversationHistory,
@@ -591,7 +558,7 @@ struct ChatView: View {
 
 	private func startResponse(
 		text: String,
-		imageData: Data? = nil,
+		imageDatas: [Data] = [],
 		model: BeaconModel,
 		responseID: ChatMessage.ID,
 		conversationHistory: [ChatMessage],
@@ -602,14 +569,17 @@ struct ChatView: View {
 
 		responseTask = Task {
 			do {
-				captureMemoryInBackground(from: text, imageData: imageData)
 				let prompt: String
 				let responseImageData: Data?
-				if let imageData, ImageResponseRouting.usesVisionBridge(for: model) {
-					let visualAnalysis = try await analyzeImage(imageData, question: text)
+				if !imageDatas.isEmpty, ImageResponseRouting.usesVisionBridge(for: model) {
+					var analyses: [String] = []
+					for imageData in imageDatas {
+						analyses.append(try await analyzeImage(imageData, question: text))
+					}
+					let visualAnalysis = analyses.enumerated().map { "Image \($0.offset + 1):\n\($0.element)" }.joined(separator: "\n\n")
 					prompt = ImageResponseRouting.responsePrompt(question: text, visualAnalysis: visualAnalysis)
 					responseImageData = nil
-				} else if imageData != nil {
+				} else if let imageData = imageDatas.first {
 					let question = text.isEmpty ? "Describe this image." : text
 					prompt = "Analyze the attached image and answer the user's question using what you can see. User question: \(question)"
 					responseImageData = imageData
@@ -632,7 +602,9 @@ struct ChatView: View {
 					to: prompt,
 					imageData: responseImageData,
 					conversationHistory: hasWebSources ? [] : conversationHistory,
-					additionalInstructions: additionalInstructions
+					additionalInstructions: additionalInstructions,
+					// Keep model reasoning private; the UI shows only user-facing status text.
+					onThinking: { _ in }
 				) { chunk in
 					historyViewModel.appendAssistantChunk(chunk, to: responseID)
 					responseHaptics.tick(for: chunk)
@@ -655,7 +627,7 @@ struct ChatView: View {
 				failedResponse = FailedResponse(
 					responseID: responseID,
 					text: text,
-					imageData: imageData,
+					imageDatas: imageDatas,
 					model: model,
 					conversationHistory: conversationHistory,
 					forceWebSearch: true
@@ -668,7 +640,7 @@ struct ChatView: View {
 				failedResponse = FailedResponse(
 					responseID: responseID,
 					text: text,
-					imageData: imageData,
+					imageDatas: imageDatas,
 					model: model,
 					conversationHistory: conversationHistory,
 					forceWebSearch: ResponseRetryPolicy.shouldForceWebSearch(
@@ -713,38 +685,17 @@ struct ChatView: View {
 		return result
 	}
 
-	private func captureMemoryInBackground(from text: String, imageData: Data?) {
-		guard memoryEnabled, imageData == nil else { return }
-		let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-		guard !trimmed.isEmpty else { return }
-		let conversationID = historyViewModel.currentChatID
-
-		// Fire-and-forget: routing runs concurrently with the response stream via a
-		// dedicated Foundation Model session, so it never delays the response. The
-		// captured memory is for future conversations, not the current reply.
-		Task { @MainActor in
-			do {
-				guard let candidate = try await runtime.memoryCandidate(for: trimmed) else { return }
-				if let memory = memoryStore.add(candidate, sourceConversationID: conversationID) {
-					#if DEBUG
-					print("MemoryPipeline stored memory: \(memory.id.uuidString)")
-					#endif
-				}
-			} catch is CancellationError {
-				// generation stopped — drop the in-flight routing
-			} catch {
-				#if DEBUG
-				print("MemoryPipeline router unavailable: \(error.localizedDescription)")
-				#endif
-			}
-		}
-	}
-
 	private func responseInstructions(hasWebSources: Bool) -> String? {
-		var sections: [String] = []
-		if memoryEnabled, let memoryInstructions = MemoryContext.instructions(for: memoryStore.memories) {
-			sections.append(memoryInstructions)
-		}
+		var sections: [String] = ["""
+			Response length:
+			- Reply like a helpful person texting: direct, conversational, and concise.
+			- Usually use one or two short paragraphs and stay under 120 words.
+			- Do not add a closing question or suggestion unless it is useful.
+			Markdown:
+			- Use Markdown only when it improves clarity.
+			- Use **bold** sparingly for an important term or conclusion.
+			- Do not use headings or lists for a simple answer.
+			"""]
 		if hasWebSources {
 			sections.append(WebSearchGrounding.instructions)
 		}
@@ -785,6 +736,25 @@ struct ChatView: View {
 		responseTask?.cancel()
 	}
 
+	private func showActionToast(_ text: String) {
+		actionToastTask?.cancel()
+		withAnimation(.spring(response: 0.42, dampingFraction: 0.78)) {
+			actionToastText = text
+		}
+		actionToastTask = Task { @MainActor in
+			try? await Task.sleep(for: .seconds(2))
+			guard !Task.isCancelled else { return }
+			dismissActionToast()
+		}
+	}
+
+	private func dismissActionToast() {
+		actionToastTask?.cancel()
+		withAnimation(.spring(response: 0.34, dampingFraction: 0.8)) {
+			actionToastText = nil
+		}
+	}
+
 	private func promptWithWebResultsIfNeeded(for text: String, responseID: ChatMessage.ID, conversationHistory: [ChatMessage], forceWebSearch: Bool = false) async throws -> String {
 		let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
 		let lowercased = trimmed.lowercased()
@@ -800,7 +770,12 @@ struct ChatView: View {
 			: forceWebSearch ? trimmed : ""
 		if isForced && forcedQuery.isEmpty { return "Ask the user what they want to search for." }
 		guard webSearchClient.isConfigured else {
-			if isForced { throw WebSearchMCPClient.ClientError.notConfigured }
+			if isForced || BeaconModelRuntime.fallbackWebSearchQuery(for: trimmed) != nil {
+				#if DEBUG
+				print("WebSearchPipeline search requested but MCP endpoint is not configured in the app bundle")
+				#endif
+				throw WebSearchMCPClient.ClientError.notConfigured
+			}
 			return text
 		}
 		let query: String?
@@ -812,39 +787,39 @@ struct ChatView: View {
 			print("WebSearchPipeline generated search query: \(forcedQuery)")
 			#endif
 		} else {
-			if let directQuery = BeaconModelRuntime.fallbackWebSearchQuery(for: trimmed) {
-				query = directQuery
+			do {
+				query = try await runtime.webSearchQuery(for: trimmed, conversationHistory: conversationHistory)
+			} catch is CancellationError {
+				throw CancellationError()
+			} catch {
+				query = nil
 				#if DEBUG
 				print("WebSearchPipeline original query: \(text)")
-				print("WebSearchPipeline router decision: search_web (deterministic fast path)")
-				print("WebSearchPipeline generated search query: \(directQuery)")
+				print("WebSearchPipeline router decision: unavailable")
+				print("WebSearchPipeline generated search query: none")
 				#endif
-			} else {
-				do {
-					query = try await runtime.webSearchQuery(for: trimmed, conversationHistory: conversationHistory)
-				} catch is CancellationError {
-					throw CancellationError()
-				} catch {
-					query = nil
-					#if DEBUG
-					print("WebSearchPipeline original query: \(text)")
-					print("WebSearchPipeline router decision: unavailable")
-					print("WebSearchPipeline generated search query: none")
-					#endif
-				}
 			}
 		}
 		guard let query, !query.isEmpty else { return text }
+		let searchQuery = query
 
 		isSearchingWeb = true
+		historyViewModel.appendAssistantThinking("Searching web: \(searchQuery)\n", to: responseID)
 		defer { isSearchingWeb = false }
 		do {
-			let response = try await webSearchClient.search(query)
+			let response = try await webSearchClient.search(searchQuery)
 			let results = Array(response.results.filter { $0.url.scheme == "https" }.prefix(5))
 			guard !results.isEmpty else { throw WebSearchMCPClient.ClientError.invalidResponse }
 
 			let sources = results.map { Source(title: $0.title, url: $0.url, description: $0.snippet) }
 			historyViewModel.replaceAssistantSources(sources, for: responseID)
+			historyViewModel.replaceAssistantInformationCard(
+				InformationCardContent(
+					title: informationCardTitle(for: isForced ? forcedQuery : text),
+					imageURL: results.first?.imageURL
+				),
+				for: responseID
+			)
 			let groundedPrompt = WebSearchGrounding.prompt(
 				question: isForced ? forcedQuery : text,
 				query: query,
@@ -866,13 +841,24 @@ struct ChatView: View {
 		}
 	}
 
+	private func informationCardTitle(for query: String) -> String {
+		var topic = query
+			.trimmingCharacters(in: .whitespacesAndNewlines)
+			.trimmingCharacters(in: CharacterSet(charactersIn: "?.!"))
+		for prefix in ["why is ", "why are ", "what is ", "what are ", "who is ", "who was ", "how does ", "how did "] {
+			if topic.lowercased().hasPrefix(prefix) {
+				topic = String(topic.dropFirst(prefix.count))
+				break
+			}
+		}
+		topic = topic
+			.replacingOccurrences(of: #"\s+so\s+important$"#, with: "", options: .regularExpression)
+			.trimmingCharacters(in: .whitespacesAndNewlines)
+		let truncatedTopic = topic.isEmpty ? "this topic" : topic.prefix(80)
+		return "A closer look at \(truncatedTopic)"
+	}
 	private var visionModel: BeaconModel? {
 		models.first(where: \.supportsImages)
-	}
-
-	private func downloadVisionModel() {
-		guard let visionModel else { return }
-		onDownloadModel(visionModel)
 	}
 
 	private func ensureSelectedModelLoaded() async {
@@ -1147,7 +1133,6 @@ struct ChatView: View {
 
 		isShowingHistory = false
 		isShowingSettings = false
-		isShowingModelMarketplace = false
 		pendingScrollMessageID = historyViewModel.lastUserMessageID(in: chat) ?? historyViewModel.firstMessageID(in: chat)
 		UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [chatReminderNotificationID(for: chatID)])
 		notificationRouter.consumeChatOpenRequest()
@@ -1155,14 +1140,10 @@ struct ChatView: View {
 
 	private func handleQuickAction(_ action: HomeScreenQuickAction) {
 		dismissKeyboard()
-		marketplacePresentationTask?.cancel()
 		quickActionPresentationTask?.cancel()
-		shouldOpenMarketplaceAfterModelSwitcherDismisses = false
 		isShowingHistory = false
 		isShowingSettings = false
-		isShowingModelSwitcher = false
 		isShowingAppIconPicker = false
-		isShowingModelMarketplace = false
 		isShowingPhotoPicker = false
 		safariViewModel.close()
 
@@ -1172,8 +1153,6 @@ struct ChatView: View {
 			historyViewModel.startNewChat()
 		case .changeAppIcon:
 			presentQuickActionDestination { isShowingAppIconPicker = true }
-		case .seeModels:
-			presentQuickActionDestination { isShowingModelMarketplace = true }
 		}
 
 		notificationRouter.consumeQuickActionRequest()
@@ -1225,7 +1204,6 @@ struct ChatView: View {
 	private func select(_ model: BeaconModel) {
 		let didChange = selectedModelID != model.id
 		selectedModelID = model.id
-		isShowingModelSwitcher = false
 
 		if didChange {
 			showModelSwitchToast(for: model.name)
@@ -1246,85 +1224,6 @@ struct ChatView: View {
 		}
 	}
 
-	private func showMarketplace() {
-		marketplacePresentationTask?.cancel()
-		withAnimation(screenSpring) {
-			isShowingHistory = false
-		}
-
-		marketplacePresentationTask = Task { @MainActor in
-			try? await Task.sleep(for: .milliseconds(120))
-			guard !Task.isCancelled else { return }
-			isShowingModelMarketplace = true
-		}
-	}
-
-	private func hideMarketplace() {
-		isShowingModelMarketplace = false
-	}
-
-	private func openMarketplaceAfterModelSwitcherDismissesIfNeeded() {
-		guard shouldOpenMarketplaceAfterModelSwitcherDismisses else { return }
-		shouldOpenMarketplaceAfterModelSwitcherDismisses = false
-
-		marketplacePresentationTask?.cancel()
-		marketplacePresentationTask = Task { @MainActor in
-			try? await Task.sleep(for: .milliseconds(180))
-			guard !Task.isCancelled else { return }
-			isShowingModelMarketplace = true
-		}
-	}
-
-	private func isDownloaded(_ model: BeaconModel) -> Bool {
-		if model.isBuiltIn { return true }
-		let ids = Set(downloadedModelIDs.split(separator: ",").map(String.init))
-		return ids.contains(model.id)
-	}
-}
-
-private struct ChatModelSwitcherSheet: View {
-	let models: [BeaconModel]
-	let selectedModelID: String
-	var onSelect: (BeaconModel) -> Void
-	var onOpenMarketplace: () -> Void
-
-	var body: some View {
-		NavigationStack {
-			VStack(spacing: 0) {
-				List(models) { model in
-					Button {
-						onSelect(model)
-					} label: {
-						HStack(spacing: 14) {
-							Text(model.supportsImages ? "\(model.name) (Image)" : model.name)
-								.font(.openRunde(size: 16, weight: .medium))
-								.foregroundStyle(.primary)
-
-							Spacer()
-
-							if selectedModelID == model.id {
-								Image(systemName: "checkmark.circle.fill")
-									.font(.system(size: 20, weight: .semibold))
-									.foregroundStyle(.primary)
-							}
-						}
-						.padding(.vertical, 6)
-					}
-					.buttonStyle(.plain)
-				}
-
-				BeaconButton("Open Model Marketplace", variant: .secondary, leadingAssetIcon: "playground.icon", action: onOpenMarketplace)
-					.padding(.horizontal, 18)
-					.padding(.top, 12)
-					.padding(.bottom, 16)
-			}
-			.navigationTitle("Switch Model")
-			#if !os(macOS)
-			.navigationBarTitleDisplayMode(.inline)
-			.toolbarVisibility(.visible, for: .navigationBar)
-			#endif
-		}
-	}
 }
 
 @MainActor
@@ -1383,5 +1282,5 @@ private extension String {
 }
 
 #Preview {
-	ChatView(runtime: BeaconModelRuntime(), memoryStore: MemoryStore(), models: ModelCatalog.availableModels)
+	ChatView(runtime: BeaconModelRuntime(), models: ModelCatalog.availableModels)
 }

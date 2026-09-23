@@ -8,18 +8,22 @@ import AppKit
 
 struct MessageBubble: View {
 	@Namespace private var attachmentTransition
+	@State private var isShowingCopied = false
+	@State private var copyResetTask: Task<Void, Never>?
+	@State private var selectedSource: Source?
 	let text: String
 	var imageData: Data?
-	var requiresVisionModel = false
-	var onDownloadVisionModel: () -> Void = {}
+	var imageDatas: [Data] = []
+	var informationCard: InformationCardContent?
 	var sources: [Source] = []
 	let role: ChatMessage.Role
 	var animatesEntrance = false
 	var isWaitingForResponse = false
-	var waitingText = "Thinking"
+	var thinkingText = ""
 	var onOpenSource: (URL) -> Void = { _ in }
 	var showsRetry = false
 	var onRetry: () -> Void = {}
+	var onCopy: () -> Void = {}
 
 	var body: some View {
 		HStack {
@@ -35,12 +39,8 @@ struct MessageBubble: View {
 		.contentShape(Rectangle())
 		.contextMenu {
 			Button {
-				#if canImport(UIKit)
-				UIPasteboard.general.string = text
-				#elseif canImport(AppKit)
-				NSPasteboard.general.clearContents()
-				NSPasteboard.general.setString(text, forType: .string)
-				#endif
+				copyToClipboard(text)
+				onCopy()
 			} label: {
 				Label("Copy", systemImage: "doc.on.doc")
 			}
@@ -49,28 +49,42 @@ struct MessageBubble: View {
 
 	private var assistantText: some View {
 		VStack(alignment: .leading, spacing: 10) {
-			if isWaitingForResponse {
-				ThinkingStatusText(text: waitingText)
+			if isWaitingForResponse, text.isEmpty {
+				ThinkingStatusText(text: thinkingText.isEmpty ? "Thinking" : thinkingText)
 			}
 
-			if text.isEmpty, isWaitingForResponse {
-				EmptyView()
+			if let informationCard, !displayText.isEmpty {
+				InformationCardView(
+					title: informationCard.title,
+					text: displayText,
+					imageURL: informationCard.imageURL,
+					sources: sources,
+					onOpenSource: onOpenSource
+				)
 			} else if !displayText.isEmpty {
 				MarkdownView(displayText)
-					.font(.openRunde(size: 16), for: .body)
-					.lineSpacing(4)
-					.font(.openRunde(size: 18, weight: .semibold), for: .h1)
-					.font(.openRunde(size: 17, weight: .semibold), for: .h2)
-					.font(.openRunde(size: 16, weight: .semibold), for: .h3)
-					.font(.openRunde(size: 16, weight: .semibold), for: .h4)
-					.font(.openRunde(size: 16, weight: .semibold), for: .h5)
-					.font(.openRunde(size: 16, weight: .semibold), for: .h6)
-					.font(.system(size: 14, design: .monospaced), for: .codeBlock)
+					.font(.beaconFont(size: 16, weight: .medium), for: .body)
+					.lineSpacing(0)
+					.font(.beaconFont(size: 16, weight: .semibold), for: .h1)
+					.font(.beaconFont(size: 16, weight: .semibold), for: .h2)
+					.font(.beaconFont(size: 16, weight: .semibold), for: .h3)
+					.font(.beaconFont(size: 16, weight: .semibold), for: .h4)
+					.font(.beaconFont(size: 16, weight: .semibold), for: .h5)
+					.font(.beaconFont(size: 16, weight: .semibold), for: .h6)
+					.font(.system(size: 16, design: .monospaced), for: .codeBlock)
 					.foregroundStyle(.primary)
 					.tint(.secondary, for: .inlineCodeBlock)
+					.markdownElementRenderer(
+						.link(SourceReferenceLinkRenderer { selectSource(at: $0) }, urlScheme: "beacon-source")
+					)
 			}
 
-			if !isWaitingForResponse {
+			if let selectedSource {
+				InlineSourceCard(source: selectedSource, onOpen: onOpenSource)
+					.transition(.opacity.combined(with: .scale(scale: 0.98, anchor: .top)))
+			}
+
+			if informationCard == nil, !isWaitingForResponse {
 				SourceTag(sources: sources, onOpen: onOpenSource)
 			}
 
@@ -84,9 +98,33 @@ struct MessageBubble: View {
 				)
 			}
 
-			if requiresVisionModel, !isWaitingForResponse {
-				Button("Download vision model", action: onDownloadVisionModel)
-					.buttonStyle(.bordered)
+			if !isWaitingForResponse, !displayText.isEmpty {
+				Button {
+					copyToClipboard(displayText)
+					onCopy()
+					showCopiedState()
+				} label: {
+					ZStack {
+						if isShowingCopied {
+							Image(systemName: "checkmark")
+								.font(.system(size: 15, weight: .semibold))
+								.foregroundStyle(.green)
+								.transition(.blurFade.combined(with: .scale(scale: 0.8)))
+						} else {
+							Image("copy.icon")
+								.renderingMode(.template)
+								.resizable()
+								.scaledToFit()
+								.frame(width: 18, height: 18)
+								.foregroundStyle(.secondary)
+								.transition(.blurFade.combined(with: .scale(scale: 0.8)))
+						}
+					}
+					.frame(width: 32, height: 32)
+					.animation(.spring(response: 0.32, dampingFraction: 0.72), value: isShowingCopied)
+				}
+				.buttonStyle(.plain)
+				.accessibilityLabel("Copy message")
 			}
 		}
 		.frame(maxWidth: .infinity, alignment: .leading)
@@ -97,74 +135,108 @@ struct MessageBubble: View {
 		return text.removingRenderedSourceSection()
 	}
 
+	private func copyToClipboard(_ value: String) {
+		#if canImport(UIKit)
+		UIPasteboard.general.string = value
+		UIImpactFeedbackGenerator(style: .light).impactOccurred()
+		#elseif canImport(AppKit)
+		NSPasteboard.general.clearContents()
+		NSPasteboard.general.setString(value, forType: .string)
+		#endif
+	}
+
+	private func showCopiedState() {
+		copyResetTask?.cancel()
+		withAnimation(.spring(response: 0.32, dampingFraction: 0.72)) {
+			isShowingCopied = true
+		}
+
+		copyResetTask = Task { @MainActor in
+			try? await Task.sleep(for: .seconds(0.9))
+			guard !Task.isCancelled else { return }
+			withAnimation(.spring(response: 0.32, dampingFraction: 0.72)) {
+				isShowingCopied = false
+			}
+		}
+	}
+
+	private func selectSource(at index: Int) {
+		guard sources.indices.contains(index) else { return }
+		withAnimation(.smooth(duration: 0.2)) {
+			selectedSource = sources[index]
+		}
+	}
+
 	private var userBubble: some View {
-		VStack(alignment: .trailing) {
+		VStack(alignment: .trailing, spacing: 8) {
+			if !imageDatas.isEmpty || imageData != nil {
+				ChatAttachedImages(data: imageDatas.isEmpty ? [imageData].compactMap { $0 } : imageDatas, transitionNamespace: attachmentTransition)
+			}
+
 			if !text.isEmpty {
 				Text(text)
-					.font(.openRunde(size: 16))
+					.font(.beaconFont(size: 16, weight: .medium))
+					.lineSpacing(0)
 					.foregroundStyle(.primary)
-					.padding(.horizontal, 14)
+					.padding(.horizontal, 16)
 					.padding(.vertical, 14)
-					.background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-					.overlay(alignment: .topTrailing) {
-						if let imageData {
-							ChatAttachedImage(data: imageData, transitionNamespace: attachmentTransition)
-								.offset(x: -14, y: -116)
-						}
-					}
-					.padding(.top, imageData == nil ? 0 : 116)
-			} else if let imageData {
-				ChatAttachedImage(data: imageData, transitionNamespace: attachmentTransition)
+					.background(Color(uiColor: .systemGray5), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
 			}
 		}
 		.frame(maxWidth: .infinity, alignment: .trailing)
 	}
 }
 
-private struct ChatAttachedImage: View {
+private struct ChatAttachedImages: View {
 	private let transitionID = "attached-image"
-	let data: Data
+	let data: [Data]
 	let transitionNamespace: Namespace.ID
 
 	var body: some View {
-		NavigationLink {
-			#if os(macOS)
-			AttachedImageViewer(data: data)
-			#else
-			AttachedImageViewer(data: data)
-				.navigationTransition(.zoom(sourceID: transitionID, in: transitionNamespace))
-			#endif
-		} label: {
-			thumbnail
-				.matchedTransitionSource(id: transitionID, in: transitionNamespace)
+		Group {
+			if data.count >= 4 {
+				LazyVGrid(columns: Array(repeating: GridItem(.fixed(96), spacing: 8), count: 2), spacing: 8) {
+					imageLinks
+				}
+			} else {
+				HStack(spacing: 8) {
+					imageLinks
+				}
+			}
 		}
-		.buttonStyle(.plain)
-		.accessibilityLabel("Open attached image")
+		.accessibilityLabel("Attached images, \(data.count)")
 	}
 
 	@ViewBuilder
-	private var thumbnail: some View {
+	private var imageLinks: some View {
+		ForEach(Array(data.enumerated()), id: \.offset) { index, imageData in
+			NavigationLink {
+				AttachedImageViewer(data: imageData)
+			} label: {
+				thumbnail(imageData)
+					.matchedTransitionSource(id: "\(transitionID)-\(index)", in: transitionNamespace)
+			}
+			.buttonStyle(.plain)
+	}
+	}
+
+	@ViewBuilder
+	private func thumbnail(_ data: Data) -> some View {
 		#if canImport(UIKit)
 		if let image = UIImage(data: data) {
 			Image(uiImage: image)
 				.resizable()
 				.scaledToFill()
-				.frame(width: 96, height: 116)
-				.clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-				.padding(4)
-				.background(Color(uiColor: .systemBackground), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-				.rotationEffect(.degrees(4))
+				.frame(width: 96, height: 96)
+				.clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
 		}
 		#elseif canImport(AppKit)
 		if let image = NSImage(data: data) {
 			Image(nsImage: image)
 				.resizable()
 				.scaledToFill()
-				.frame(width: 96, height: 116)
-				.clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-				.padding(4)
-				.background(Color(nsColor: .windowBackgroundColor), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-				.rotationEffect(.degrees(4))
+				.frame(width: 96, height: 96)
+				.clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
 		}
 		#endif
 	}
@@ -202,9 +274,6 @@ struct AttachedImageViewer: View {
 
 private struct ThinkingStatusText: View {
 	let text: String
-	@State private var rotatingStatus = "Thinking"
-
-	private let rotatingStatuses = ["Thinking", "Tokenizing the thought", "Ummm...", "Pulling it together"]
 
 	var body: some View {
 		HStack(spacing: 7) {
@@ -215,40 +284,22 @@ private struct ThinkingStatusText: View {
 					.frame(width: 17, height: 17)
 					.accessibilityHidden(true)
 			}
-
 			Text(displayText)
 		}
-			.font(.openRunde(size: 16))
+			.font(.beaconFont(size: 16, weight: .medium))
 			.foregroundStyle(.secondary)
 			.shimmering()
 			.id(displayText)
 			.transition(.blurFade)
 			.frame(maxWidth: .infinity, alignment: .leading)
-			.task {
-				rotatingStatus = rotatingStatuses.randomElement() ?? "Thinking"
-
-				while !Task.isCancelled {
-					try? await Task.sleep(for: .seconds(3))
-					guard shouldRotate else { continue }
-
-					withAnimation(.smooth(duration: 0.22)) {
-						let nextStatuses = rotatingStatuses.filter { $0 != rotatingStatus }
-						rotatingStatus = (nextStatuses.randomElement() ?? rotatingStatuses.randomElement()) ?? "Thinking"
-					}
-				}
-			}
 	}
 
 	private var displayText: String {
-		shouldRotate ? rotatingStatus : text
-	}
-
-	private var shouldRotate: Bool {
-		text == "Thinking"
+		text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Thinking" : text.trimmingCharacters(in: .whitespacesAndNewlines)
 	}
 
 	private var isSearchingWeb: Bool {
-		text == "Searching the web"
+		text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased().hasPrefix("searching web:")
 	}
 }
 
@@ -341,6 +392,10 @@ private var previewAttachmentData: Data? {
 	#endif
 }
 
+private var previewAttachmentDatas: [Data] {
+	Array(repeating: previewAttachmentData, count: 3).compactMap { $0 }
+}
+
 #Preview("Image attachment") {
 	NavigationStack {
 		VStack {
@@ -348,6 +403,23 @@ private var previewAttachmentData: Data? {
 			MessageBubble(
 				text: "What can you tell me about this library?",
 				imageData: previewAttachmentData,
+				role: .user
+			)
+			Spacer()
+		}
+		.padding(20)
+		.background(Color(uiColor: .systemBackground))
+	}
+	.frame(width: 390, height: 420)
+}
+
+#Preview("Stacked image attachments") {
+	NavigationStack {
+		VStack {
+			Spacer()
+			MessageBubble(
+				text: "Can you compare these images?",
+				imageDatas: previewAttachmentDatas,
 				role: .user
 			)
 			Spacer()

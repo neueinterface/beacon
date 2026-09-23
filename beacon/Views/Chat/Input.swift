@@ -165,7 +165,7 @@ struct Input: View {
 
 	private var messageTextField: some View {
 		TextField(placeholder, text: $text, axis: .vertical)
-			.font(.openRunde(size: 16))
+			.font(.beaconFont(size: 16, weight: .medium))
 			.id(resetID)
 			.focused($isTextFieldFocused)
 			.frame(maxWidth: .infinity, alignment: .leading)
@@ -212,12 +212,11 @@ struct Input: View {
 	var placeholder: String = "Message"
 	var isGenerating = false
 	var hasAttachment = false
-	var attachmentData: Data?
+	var attachmentData: [Data] = []
 	var onAttachImage: (() -> Void)?
 	var canAttachImages = true
-	var selectedModelName: String?
-	var onSelectModel: (() -> Void)?
-	var onRemoveAttachment: () -> Void = {}
+	var showsConversationStarters = true
+	var onRemoveAttachment: (Int) -> Void = { _ in }
 	var onStop: () -> Void = {}
 	var onSend: (String) -> Void
 
@@ -239,14 +238,33 @@ struct Input: View {
 		return 30 - (multilineAmount * 14)
 	}
 
+	private var showsSuggestions: Bool {
+		showsConversationStarters && isTextFieldFocused && !hasTypedText && !hasAttachment && attachmentData.isEmpty && !isGenerating
+	}
+
 	var body: some View {
 		VStack(alignment: .leading, spacing: 12) {
-			if let attachmentData {
+			if showsSuggestions {
+				ChatSuggestionsView { suggestion in
+					text = suggestion
+					isTextFieldFocused = true
+				}
+				.transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .bottom)).combined(with: .move(edge: .bottom)))
+			}
+
+			inputControls
+		}
+		.animation(.smooth(duration: 0.24), value: showsSuggestions)
+	}
+
+	private var inputControls: some View {
+		VStack(alignment: .leading, spacing: 12) {
+			if !attachmentData.isEmpty {
 				AttachedImagePreview(data: attachmentData, onRemove: onRemoveAttachment)
 			}
 
 			TextField(placeholder, text: $text, axis: .vertical)
-				.font(.openRunde(size: 16))
+				.font(.beaconFont(size: 16, weight: .medium))
 				.id(resetID)
 				.focused($isTextFieldFocused)
 				.frame(maxWidth: .infinity, alignment: .leading)
@@ -265,36 +283,17 @@ struct Input: View {
 				}
 
 			HStack(spacing: 8) {
-				if attachmentData == nil, let onAttachImage {
+				if let onAttachImage {
 					Button(action: onAttachImage) {
 						Image(systemName: "plus")
 							.font(.system(size: 17, weight: .medium))
 							.foregroundStyle(canAttachImages ? .primary : .secondary)
 							.frame(width: 32, height: 32)
-							.background(Color(uiColor: .tertiarySystemBackground), in: Circle())
+						.background(Color(uiColor: .systemGray5), in: Circle())
 					}
 					.buttonStyle(.plain)
 					.disabled(!canAttachImages)
 					.accessibilityLabel("Attach image")
-				}
-
-				if let selectedModelName, let onSelectModel {
-					Button(action: onSelectModel) {
-						HStack(spacing: 5) {
-							Text(selectedModelName)
-								.lineLimit(1)
-							Image(systemName: "chevron.down")
-								.font(.system(size: 9, weight: .semibold))
-						}
-						.font(.openRunde(size: 14, weight: .medium))
-						.foregroundStyle(.primary)
-						.padding(.horizontal, 11)
-						.frame(height: 32)
-						.background(Color(uiColor: .tertiarySystemBackground), in: Capsule())
-					}
-					.buttonStyle(.plain)
-					.disabled(isGenerating)
-					.accessibilityLabel("Current model: \(selectedModelName). Switch model")
 				}
 
 				Spacer(minLength: 8)
@@ -312,8 +311,8 @@ struct Input: View {
 					Image(systemName: isGenerating ? "stop.fill" : "arrow.up")
 						.font(.system(size: 16, weight: .bold))
 						.frame(width: 32, height: 32)
-						.foregroundStyle((canSend || isGenerating) ? Color(uiColor: .systemBackground) : .secondary)
-						.background((canSend || isGenerating) ? Color.primary : Color(uiColor: .systemGray4), in: Circle())
+						.foregroundStyle((canSend || isGenerating) ? Color.white : Color.secondary)
+						.background((canSend || isGenerating) ? Color.black : Color(uiColor: .systemGray4), in: Circle())
 				}
 				.buttonStyle(.plain)
 				.disabled(!canSend && !isGenerating)
@@ -321,11 +320,67 @@ struct Input: View {
 		}
 		.padding(.horizontal, 14)
 		.padding(.vertical, 12)
-		.background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+		.glassEffect(.regular, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
 	}
 }
 
 #endif
+
+private struct ChatSuggestionsView: View {
+	private struct Suggestion: Identifiable {
+		let text: String
+
+		var id: String { text }
+	}
+
+	let onSelect: (String) -> Void
+	@State private var isVisible = false
+	@State private var displayedSuggestions: [Suggestion] = []
+
+	private let allSuggestions = [
+		Suggestion(text: "Tell me about hurricanes"),
+		Suggestion(text: "Teach me something new"),
+		Suggestion(text: "Give me a fun fact"),
+		Suggestion(text: "Explain black holes simply"),
+		Suggestion(text: "Help me plan my week"),
+		Suggestion(text: "Help me write a message")
+	]
+
+	var body: some View {
+		VStack(alignment: .leading, spacing: 8) {
+			ForEach(Array(displayedSuggestions.enumerated()), id: \.element.id) { index, suggestion in
+				Button {
+					onSelect(suggestion.text)
+				} label: {
+					Text(suggestion.text)
+						.font(.beaconFont(size: 16, weight: .medium))
+						.foregroundStyle(.primary)
+						.padding(.horizontal, 16)
+						.padding(.vertical, 12)
+						.background(Color.white.opacity(0.8), in: Capsule())
+						.glassEffect(.regular, in: Capsule())
+						.overlay {
+							Capsule()
+								.stroke(Color.white.opacity(0.8), lineWidth: 1)
+						}
+						.shadow(color: .black.opacity(0.06), radius: 12, y: 5)
+				}
+				.buttonStyle(.spring)
+				.opacity(isVisible ? 1 : 0)
+				.blur(radius: isVisible ? 0 : 10)
+				.offset(y: isVisible ? 0 : 12)
+				.animation(.smooth(duration: 0.32).delay(Double(index) * 0.05), value: isVisible)
+			}
+		}
+		.onAppear {
+			displayedSuggestions = Array(allSuggestions.shuffled().prefix(3))
+			isVisible = true
+		}
+		.onDisappear {
+			isVisible = false
+		}
+	}
+}
 
 #if false // Web search input triggers are not currently available.
 extension String {
@@ -358,9 +413,7 @@ private struct InputPreviewContainer: View {
 	var body: some View {
 		Input(
 			text: $previewText,
-			onAttachImage: {},
-			selectedModelName: "Qwen3 0.6B",
-			onSelectModel: {}
+			onAttachImage: {}
 		) { _ in }
 			.padding()
 			.background(Color(uiColor: .systemBackground))

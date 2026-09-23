@@ -1,5 +1,15 @@
 import Foundation
 
+struct InformationCardContent: Hashable, Codable {
+	let title: String
+	let imageURL: URL?
+
+	init(title: String, imageURL: URL? = nil) {
+		self.title = title
+		self.imageURL = imageURL
+	}
+}
+
 struct ChatMessage: Identifiable, Hashable, Codable {
 	enum Role: Hashable, Codable {
 		case user
@@ -11,17 +21,19 @@ struct ChatMessage: Identifiable, Hashable, Codable {
 	var thinkingText: String
 	var sources: [Source]
 	var imageData: Data?
-	var requiresVisionModel: Bool
+	var imageDatas: [Data]
+	var informationCard: InformationCardContent?
 	var modelName: String?
 	let role: Role
 
-	init(id: UUID = UUID(), text: String, thinkingText: String = "", sources: [Source] = [], imageData: Data? = nil, requiresVisionModel: Bool = false, modelName: String? = nil, role: Role) {
+	init(id: UUID = UUID(), text: String, thinkingText: String = "", sources: [Source] = [], imageData: Data? = nil, imageDatas: [Data] = [], informationCard: InformationCardContent? = nil, modelName: String? = nil, role: Role) {
 		self.id = id
 		self.text = text
 		self.thinkingText = thinkingText
 		self.sources = sources
 		self.imageData = imageData
-		self.requiresVisionModel = requiresVisionModel
+		self.imageDatas = imageDatas.isEmpty ? imageData.map { [$0] } ?? [] : imageDatas
+		self.informationCard = informationCard
 		self.modelName = modelName
 		self.role = role
 	}
@@ -32,7 +44,8 @@ struct ChatMessage: Identifiable, Hashable, Codable {
 		case thinkingText
 		case sources
 		case imageData
-		case requiresVisionModel
+		case imageDatas
+		case informationCard
 		case modelName
 		case role
 	}
@@ -44,7 +57,8 @@ struct ChatMessage: Identifiable, Hashable, Codable {
 		thinkingText = try container.decodeIfPresent(String.self, forKey: .thinkingText) ?? ""
 		sources = try container.decodeIfPresent([Source].self, forKey: .sources) ?? []
 		imageData = try container.decodeIfPresent(Data.self, forKey: .imageData)
-		requiresVisionModel = try container.decodeIfPresent(Bool.self, forKey: .requiresVisionModel) ?? false
+		imageDatas = try container.decodeIfPresent([Data].self, forKey: .imageDatas) ?? imageData.map { [$0] } ?? []
+		informationCard = try container.decodeIfPresent(InformationCardContent.self, forKey: .informationCard)
 		modelName = try container.decodeIfPresent(String.self, forKey: .modelName)
 		role = try container.decode(Role.self, forKey: .role)
 	}
