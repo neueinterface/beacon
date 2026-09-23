@@ -25,6 +25,7 @@ struct BeaconModel: Identifiable, Equatable, Decodable {
 	let isBuiltIn: Bool
 	let supportsImages: Bool
 	let parameterCountInBillions: Decimal?
+	let updatedAt: String?
 
 	init(
 		id: String,
@@ -37,7 +38,8 @@ struct BeaconModel: Identifiable, Equatable, Decodable {
 		isAvailableDuringOnboarding: Bool,
 		isBuiltIn: Bool,
 		supportsImages: Bool = false,
-		parameterCountInBillions: Decimal? = nil
+		parameterCountInBillions: Decimal? = nil,
+		updatedAt: String? = nil
 	) {
 		self.id = id
 		self.name = name
@@ -50,6 +52,7 @@ struct BeaconModel: Identifiable, Equatable, Decodable {
 		self.isBuiltIn = isBuiltIn
 		self.supportsImages = supportsImages
 		self.parameterCountInBillions = parameterCountInBillions
+		self.updatedAt = updatedAt
 	}
 
 	var formattedSize: String {
@@ -265,6 +268,11 @@ enum ModelCatalog {
 		models.filter(\.isAvailableDuringOnboarding)
 	}
 
+	static func requiredOnboardingModels(in models: [BeaconModel]) -> [BeaconModel] {
+		let requiredIDs = ["beacon"]
+		return requiredIDs.compactMap { id in models.first { $0.id == id } }
+	}
+
 	static func defaultModel(in models: [BeaconModel]) -> BeaconModel {
 		onboardingModels(in: models).first ?? models.first ?? availableModels[0]
 	}
@@ -366,13 +374,19 @@ enum ModelStorageLimit {
 }
 
 enum ModelIDMigration {
-	private static let migrationKey = "hasMigratedBackendModelIDs"
+	private static let migrationKey = "hasMigratedBeaconModelIDsV3"
 	private static let modelIDMigrationMap = [
-		"semera-lite": "qwen3-0.6b-4bit",
-		"semera-plus": "lfm2-1.2b-4bit",
-		"semera-llama32-1b": "llama-3.2-1b-instruct-4bit",
-		"semera-qwen25-3b-instruct": "qwen2.5-3b-instruct-4bit",
-		"semera-llama32-3b": "llama-3.2-3b-instruct-4bit"
+		"semera-lite": "beacon",
+		"semera-plus": "beacon",
+		"semera-llama32-1b": "beacon",
+		"semera-qwen25-3b-instruct": "beacon",
+		"semera-llama32-3b": "beacon",
+		"qwen3-0.6b-4bit": "beacon",
+		"lfm2-1.2b-4bit": "beacon",
+		"qwen2-vl-2b-instruct-4bit": "beacon",
+		"llama-3.2-1b-instruct-4bit": "beacon",
+		"qwen2.5-3b-instruct-4bit": "beacon",
+		"llama-3.2-3b-instruct-4bit": "beacon"
 	]
 
 	static func migrate(defaults: UserDefaults = .standard) {

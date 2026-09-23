@@ -30,7 +30,6 @@ final class NotificationRouter: ObservableObject {
 enum HomeScreenQuickAction: String {
 	case newChat = "com.beacon.new-chat"
 	case changeAppIcon = "com.beacon.change-app-icon"
-	case seeModels = "com.beacon.see-models"
 }
 
 #if canImport(UIKit)
@@ -112,13 +111,6 @@ final class AppNotificationDelegate: NSObject, UIApplicationDelegate, UNUserNoti
 				icon: UIApplicationShortcutIcon(systemImageName: "app.badge"),
 				userInfo: nil
 			),
-			UIApplicationShortcutItem(
-				type: HomeScreenQuickAction.seeModels.rawValue,
-				localizedTitle: "See Models",
-				localizedSubtitle: nil,
-				icon: UIApplicationShortcutIcon(systemImageName: "square.stack.3d.up"),
-				userInfo: nil
-			)
 		]
 	}
 

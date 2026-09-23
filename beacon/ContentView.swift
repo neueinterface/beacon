@@ -13,17 +13,17 @@ struct ContentView: View {
 	@AppStorage("downloadedModelIDs") private var downloadedModelIDs = ""
 	@AppStorage("lastSeenWhatsNewRelease") private var lastSeenWhatsNewRelease = ""
 	@ObservedObject private var modelRuntime: BeaconModelRuntime
-	@ObservedObject private var memoryStore: MemoryStore
 	private let models = ModelCatalog.availableModels
 	@State private var isChoosingModel = false
 	@State private var downloadingModel: BeaconModel?
+	@State private var onboardingDownloadQueue: [BeaconModel] = []
+	@State private var isOnboardingSetup = false
 	@State private var downloadAlert: DownloadAlert?
 	@State private var isShowingWhatsNew = false
 	@ObservedObject private var notificationRouter: NotificationRouter
 
-	init(modelRuntime: BeaconModelRuntime, memoryStore: MemoryStore, notificationRouter: NotificationRouter) {
+	init(modelRuntime: BeaconModelRuntime, notificationRouter: NotificationRouter) {
 		self.modelRuntime = modelRuntime
-		self.memoryStore = memoryStore
 		self.notificationRouter = notificationRouter
 	}
 
@@ -32,22 +32,32 @@ struct ContentView: View {
 			if let downloadingModel {
 				ModelDownloadView(model: downloadingModel, runtime: modelRuntime, onComplete: {
 					downloadAlert = .completed(downloadingModel.name)
-					select(downloadingModel)
+					if isOnboardingSetup {
+						completeDownload(downloadingModel)
+					} else {
+						recordModelDownload(downloadingModel)
+						select(downloadingModel)
+					}
 				}, onCancel: {
 					cancelDownload(for: downloadingModel)
 					downloadAlert = .cancelled(downloadingModel.name)
+					onboardingDownloadQueue = []
+					isOnboardingSetup = false
 					self.downloadingModel = nil
 				}, onError: { message in
 					downloadAlert = .failed(downloadingModel.name, message)
 				})
 			} else if hasCompletedWelcome {
-				ChatView(runtime: modelRuntime, memoryStore: memoryStore, models: models, notificationRouter: notificationRouter) { model in
-					prepare(model)
-				}
+				ChatView(
+					runtime: modelRuntime,
+					models: models,
+					onDownloadModel: prepare,
+					notificationRouter: notificationRouter
+				)
 			} else if isChoosingModel {
-				WelcomeModelSelectView(models: ModelCatalog.onboardingModels(in: models)) { model in
-					prepare(model)
-				}
+				WelcomeModelSelectView(models: ModelCatalog.requiredOnboardingModels(in: models), onDownloadModels: {
+					prepareOnboardingModels()
+				})
 			} else {
 				WelcomeView(onGetStarted: {
 					isChoosingModel = true
@@ -127,6 +137,53 @@ struct ContentView: View {
 		}
 	}
 
+	private func prepareOnboardingModels() {
+		isOnboardingSetup = true
+		onboardingDownloadQueue = ModelCatalog.requiredOnboardingModels(in: models).compactMap { model in
+			guard !isDownloaded(model) else { return nil }
+			return model
+		}
+
+		guard let first = onboardingDownloadQueue.first else {
+			finishOnboarding()
+			return
+		}
+
+		onboardingDownloadQueue.removeFirst()
+		prepare(first)
+	}
+
+	private func completeDownload(_ model: BeaconModel) {
+		recordDownloaded(model)
+		recordModelDownload(model)
+		guard !onboardingDownloadQueue.isEmpty else {
+			finishOnboarding()
+			return
+		}
+
+		let next = onboardingDownloadQueue.removeFirst()
+		prepare(next)
+	}
+
+	private func recordModelDownload(_ model: BeaconModel) {
+		guard !model.isBuiltIn else { return }
+		Task {
+			await ModelDownloadAnalyticsClient().recordDownload(modelID: model.id)
+		}
+	}
+
+	private func finishOnboarding() {
+		onboardingDownloadQueue = []
+		isOnboardingSetup = false
+		selectedModelID = "beacon"
+		hasCompletedWelcome = true
+		downloadingModel = nil
+	}
+
+	private func isDownloaded(_ model: BeaconModel) -> Bool {
+		model.isBuiltIn || Set(downloadedModelIDs.split(separator: ",").map(String.init)).contains(model.id)
+	}
+
 	private func select(_ model: BeaconModel) {
 		if !model.isBuiltIn {
 			recordDownloaded(model)
@@ -184,5 +241,5 @@ private struct DownloadAlert: Identifiable {
 }
 
 #Preview {
-	ContentView(modelRuntime: BeaconModelRuntime(), memoryStore: MemoryStore(), notificationRouter: NotificationRouter())
+	ContentView(modelRuntime: BeaconModelRuntime(), notificationRouter: NotificationRouter())
 }

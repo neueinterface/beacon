@@ -12,7 +12,7 @@ import UIKit
 
 struct WelcomeModelSelectView: View {
 	let models: [BeaconModel]
-	var onSelect: (BeaconModel) -> Void
+	var onDownloadModels: () -> Void
 
 	@State private var hasAppeared = false
 
@@ -24,9 +24,7 @@ struct WelcomeModelSelectView: View {
 
 				VStack(alignment: .leading, spacing: 0) {
 					ForEach(Array(orderedModels.enumerated()), id: \.element.id) { index, model in
-						WelcomeModelSelectRow(model: model) {
-							onSelect(model)
-						}
+						WelcomeModelSelectRow(model: model)
 						.modelSelectEntrance(hasAppeared, delay: 0.12 + Double(index) * 0.06)
 
 						if index < orderedModels.count - 1 {
@@ -36,6 +34,8 @@ struct WelcomeModelSelectView: View {
 						}
 					}
 				}
+
+				BeaconButton("Download model", size: .large, trailingAssetIcon: "download.icon", action: onDownloadModels)
 			}
 			.padding(.horizontal, 20)
 			.padding(.top, 40)
@@ -65,12 +65,12 @@ struct WelcomeModelSelectView: View {
 
 	private var header: some View {
 		VStack(alignment: .leading, spacing: 12) {
-			Text("Choose a model for your iPhone.")
+			Text("Get Beacon ready for your iPhone.")
 				.font(.openRunde(size: 28, weight: .medium))
 				.foregroundStyle(.primary)
 				.lineSpacing(2)
 
-			Text(hasUsableModel ? "Choose one marked Works with this iPhone. You can change it anytime." : "Beacon's models aren't supported on this iPhone yet.")
+			Text(hasUsableModel ? "Beacon will download the models it needs for fast chat and image understanding. You can change your chat model anytime." : "Beacon's models aren't supported on this iPhone yet.")
 				.font(.openRunde(size: 16, weight: .regular))
 				.foregroundStyle(.secondary)
 				.lineSpacing(3)
@@ -80,9 +80,6 @@ struct WelcomeModelSelectView: View {
 
 private struct WelcomeModelSelectRow: View {
 	let model: BeaconModel
-	var onDownload: () -> Void
-
-	@State private var isDownloading = false
 
 	private var compatibility: ModelDeviceCompatibility {
 		.current(for: model)
@@ -121,21 +118,6 @@ private struct WelcomeModelSelectRow: View {
 				}
 			}
 
-			BeaconButton(
-				compatibility.canUse ? (model.isBuiltIn ? "Use" : "Download") : "Unavailable",
-				variant: .secondary,
-				size: .small,
-				trailingIcon: model.isBuiltIn ? "checkmark" : nil,
-				trailingAssetIcon: model.isBuiltIn ? nil : "download.icon",
-				isDisabled: !compatibility.canUse,
-				isLoading: isDownloading
-			) {
-				#if canImport(UIKit)
-				UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-				#endif
-				isDownloading = compatibility.canUse && !model.isBuiltIn
-				onDownload()
-			}
 		}
 		.frame(maxWidth: .infinity, alignment: .leading)
 	}
@@ -178,5 +160,5 @@ private extension View {
 }
 
 #Preview {
-	WelcomeModelSelectView(models: ModelCatalog.availableModels) { _ in }
+	WelcomeModelSelectView(models: ModelCatalog.availableModels, onDownloadModels: { })
 }

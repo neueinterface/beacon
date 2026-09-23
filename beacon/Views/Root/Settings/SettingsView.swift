@@ -8,9 +8,7 @@ import UIKit
 
 struct SettingsView: View {
 	@ObservedObject var chatHistoryViewModel: ChatHistoryViewModel
-	@ObservedObject var memoryStore: MemoryStore
 	var models = ModelCatalog.availableModels
-	var onDownloadModel: (BeaconModel) -> Void = { _ in }
 	@Environment(\.dismiss) private var dismiss
 	@Environment(\.openURL) private var openURL
 	@AppStorage("downloadedModelIDs") private var downloadedModelIDs = ""
@@ -20,10 +18,10 @@ struct SettingsView: View {
 	@AppStorage("hasSeenWebSearchInfo") private var hasSeenWebSearchInfo = false
 	#endif
 	@State private var isConfirmingDeleteAllChats = false
+	@State private var isConfirmingDeleteModel = false
 	#if false // Web search is not currently available.
 	@State private var isShowingWebSearchInfo = false
 	#endif
-	@State private var isShowingModelBrowser = false
 	@StateObject private var safariViewModel = SafariViewModel()
 
 	private var appVersion: String {
@@ -73,6 +71,40 @@ struct SettingsView: View {
 		ModelStorageLimit.downloadedSizeGB(downloadedModelIDs: downloadedModelIDs, in: models)
 	}
 
+	private var downloadedModel: BeaconModel? {
+		models.first { isDownloaded($0) }
+	}
+
+	private func isDownloaded(_ model: BeaconModel) -> Bool {
+		Set(downloadedModelIDs.split(separator: ",").map(String.init)).contains(model.id)
+	}
+
+	private func deleteDownloadedModel() {
+		guard let model = downloadedModel else { return }
+		let fileManager = FileManager.default
+		for url in cacheURLs(for: model) where fileManager.fileExists(atPath: url.path) {
+			try? fileManager.removeItem(at: url)
+		}
+		downloadedModelIDs = downloadedModelIDs
+			.split(separator: ",")
+			.map(String.init)
+			.filter { $0 != model.id }
+			.joined(separator: ",")
+	}
+
+	private func cacheURLs(for model: BeaconModel) -> [URL] {
+		let cacheDirectoryName = "models--\(model.repositoryID.replacingOccurrences(of: "/", with: "--"))"
+		let hubDirectory = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+			.appendingPathComponent("huggingface")
+			.appendingPathComponent("hub")
+
+		return [
+			hubDirectory.appendingPathComponent(cacheDirectoryName),
+			hubDirectory.appendingPathComponent(".metadata").appendingPathComponent(cacheDirectoryName),
+			hubDirectory.appendingPathComponent(".locks").appendingPathComponent(cacheDirectoryName)
+		]
+	}
+
 	var body: some View {
 		NavigationStack {
 			ScrollView {
@@ -80,11 +112,6 @@ struct SettingsView: View {
 					settingsSection("General") {
 						SettingsLinkRow(title: "Appearance", icon: "appearance.icon") {
 							AppearancePlaceholderView()
-						}
-						SettingsListDivider()
-
-						SettingsLinkRow(title: "Memory", icon: "memory") {
-							MemorySettingsView(memoryStore: memoryStore)
 						}
 						SettingsListDivider()
 
@@ -134,25 +161,15 @@ struct SettingsView: View {
 
 						ModelStorageUsagePill(usedGB: downloadedStorageGB, maxGB: ModelStorageLimit.maxGB)
 
-						Button {
-							isShowingModelBrowser = true
-						} label: {
-							HStack(spacing: 12) {
-								Text("Model Browser")
-									.font(.openRunde(size: 16, weight: .medium))
-									.foregroundStyle(.primary)
-
-								Spacer(minLength: 12)
-
-								Image(systemName: "chevron.right")
-									.font(.system(size: 14, weight: .semibold))
-									.foregroundStyle(.secondary)
-							}
-							.padding(.horizontal, 18)
-							.frame(height: 54)
-							.background(Color(uiColor: .secondarySystemGroupedBackground), in: Capsule())
+						BeaconButton(
+							"Delete Downloaded Model",
+							variant: .destructive,
+							size: .large,
+							isFullWidth: true,
+							isDisabled: downloadedModel == nil
+						) {
+							isConfirmingDeleteModel = true
 						}
-						.buttonStyle(.plain)
 
 						BeaconButton(
 							"Delete All Chats",
@@ -169,7 +186,7 @@ struct SettingsView: View {
 						safariViewModel.open(URL(string: "https://beacon.neueinterface.com")!)
 					}
 				}
-				.padding(.horizontal, 14)
+				.padding(.horizontal, 24)
 				.padding(.top, 16)
 				.padding(.bottom, 42)
 			}
@@ -201,6 +218,14 @@ struct SettingsView: View {
 			} message: {
 				Text("Are you sure you want to delete all saved chats? This cannot be undone.")
 			}
+			.alert("Delete downloaded model?", isPresented: $isConfirmingDeleteModel) {
+				Button("Cancel", role: .cancel) { }
+				Button("Delete Model", role: .destructive) {
+					deleteDownloadedModel()
+				}
+			} message: {
+				Text("You can download the model again later if needed.")
+			}
 			#if false // Web search is not currently available.
 			.alert("Web Search", isPresented: $isShowingWebSearchInfo) {
 				Button("Continue") { }
@@ -210,19 +235,6 @@ struct SettingsView: View {
 			#endif
 			.sheet(item: $safariViewModel.page) { page in
 				SafariView(url: page.url)
-			}
-			.fullScreenCover(isPresented: $isShowingModelBrowser) {
-				ModelMarketPlaceView(
-					models: models,
-					onClose: {
-						isShowingModelBrowser = false
-					},
-					onDownload: { model in
-						isShowingModelBrowser = false
-						dismiss()
-						onDownloadModel(model)
-					}
-				)
 			}
 		}
 	}
@@ -402,5 +414,5 @@ private struct WhyLocalModelsView: View {
 }
 
 #Preview {
-SettingsView(chatHistoryViewModel: ChatHistoryViewModel(conversations: []), memoryStore: MemoryStore())
+	SettingsView(chatHistoryViewModel: ChatHistoryViewModel(conversations: []))
 }

@@ -33,18 +33,16 @@ struct BeaconApp: App {
 	#endif
 	@Environment(\.scenePhase) private var scenePhase
 	@StateObject private var modelRuntime = BeaconModelRuntime()
-	@StateObject private var memoryStore = MemoryStore()
 	@StateObject private var notificationRouter = NotificationRouter()
 
 	init() {
 		AppTypography.registerFonts()
-		UserDefaults.standard.removeObject(forKey: "userMemories")
 	}
 
 	var body: some Scene {
 		WindowGroup {
 			AppAppearanceRoot(
-				content: ContentView(modelRuntime: modelRuntime, memoryStore: memoryStore, notificationRouter: notificationRouter)
+				content: ContentView(modelRuntime: modelRuntime, notificationRouter: notificationRouter)
 			)
 				.onAppear {
 					#if canImport(UIKit)
