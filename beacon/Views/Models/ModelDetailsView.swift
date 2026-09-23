@@ -498,6 +498,6 @@ struct DownloadedModelButton: View {
 
 #Preview("Downloaded model details") {
 	NavigationStack {
-		ModelDetailsView(model: ModelCatalog.availableModels[1], isDownloaded: true)
+		ModelDetailsView(model: ModelCatalog.availableModels[0], isDownloaded: true)
 	}
 }

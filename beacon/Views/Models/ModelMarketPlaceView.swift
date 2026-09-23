@@ -79,7 +79,7 @@ struct ModelMarketPlaceView: View {
 						)
 					}
 				}
-				.padding(.horizontal, 20)
+				.padding(.horizontal, 24)
 				.padding(.bottom, 96)
 			}
 			.scrollEdgeEffectStyle(.soft, for: .top)
@@ -176,7 +176,7 @@ struct ModelMarketPlaceView: View {
 	private var closeButton: some View {
 		Button(action: onClose) {
 			Image(systemName: "xmark")
-				.font(.system(size: 16, weight: .semibold))
+				.font(.system(size: 17, weight: .bold))
 				.foregroundStyle(.black)
 				.frame(width: 34, height: 34)
 		}

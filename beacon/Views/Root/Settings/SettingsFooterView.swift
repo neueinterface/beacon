@@ -36,7 +36,7 @@ struct SettingsCloseButton: View {
 	var body: some View {
 		Button(action: action) {
 			Image(systemName: "xmark")
-				.font(.system(size: 17, weight: .medium))
+				.font(.system(size: 17, weight: .bold))
 				.foregroundStyle(.primary)
 				.frame(width: 32, height: 32)
 				.contentShape(Circle())

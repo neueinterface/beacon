@@ -33,12 +33,12 @@ struct WhatsNewRelease {
 	)
 
 	static let modelMarketplace = WhatsNewRelease(
-		id: "2026-07-model-marketplace",
+		id: "2026-07-models",
 		heroImageName: "whatsnew",
 		title: "What's New",
 		subtitle: "The latest improvements in Beacon.",
 		updates: [
-			"Browse a larger collection of local models from the marketplace.",
+			"Choose from Beacon's three curated chat experiences.",
 			"Choose models that fit your device, download them, and switch whenever you need.",
 			"Keep every conversation and model on your device."
 		]

@@ -28,17 +28,16 @@ struct HuggingFaceModelMetadataService {
 		}
 
 		async let modelResponse = optionalRequest { try await fetchModel(repositoryID: repositoryID) }
-		async let readmeResponse = optionalRequest { try await fetchREADME(repositoryID: repositoryID) }
 		async let configResponse = optionalRequest { try await fetchConfig(repositoryID: repositoryID) }
 
-		let (model, readme, config) = try await (modelResponse, readmeResponse, configResponse)
-		guard model != nil || readme != nil || config != nil else {
+		let (model, config) = try await (modelResponse, configResponse)
+		guard model != nil || config != nil else {
 			throw HuggingFaceMetadataError.invalidResponse
 		}
 		let metadata = HuggingFaceModelMetadata(
 			downloads: model?.downloads,
 			lastModified: model?.lastModified.flatMap(Self.parseDate),
-			readme: readme,
+			readme: nil,
 			contextLength: config?.maxPositionEmbeddings
 		)
 		try Task.checkCancellation()
@@ -59,16 +58,6 @@ struct HuggingFaceModelMetadataService {
 	private func fetchModel(repositoryID: String) async throws -> ModelResponse {
 		let data = try await data(from: try endpoint(path: "/api/models/\(repositoryID)"))
 		return try JSONDecoder().decode(ModelResponse.self, from: data)
-	}
-
-	private func fetchREADME(repositoryID: String) async throws -> String {
-		let data = try await data(from: try endpoint(path: "/\(repositoryID)/raw/main/README.md"))
-		guard let readme = String(data: data, encoding: .utf8) else {
-			throw HuggingFaceMetadataError.invalidResponse
-		}
-		let normalized = Self.removingFrontMatter(from: readme).trimmingCharacters(in: .whitespacesAndNewlines)
-		guard !normalized.isEmpty else { throw HuggingFaceMetadataError.invalidResponse }
-		return normalized
 	}
 
 	private func fetchConfig(repositoryID: String) async throws -> ConfigResponse {
