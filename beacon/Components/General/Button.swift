@@ -8,8 +8,9 @@
 import SwiftUI
 
 struct BeaconButton: View {
-	enum Variant {
+		enum Variant {
 		case primary
+		case blue
 		case secondary
 		case subtle
 		case destructive
@@ -176,11 +177,11 @@ struct BeaconButton: View {
 	private var textFont: Font {
 		switch size {
 		case .small:
-			.openRunde(size: 14, weight: .semibold)
+			.beaconFont(size: 14, weight: .semibold)
 		case .default:
-			.openRunde(size: 16, weight: .semibold)
+			.beaconFont(size: 16, weight: .semibold)
 		case .large:
-			.openRunde(size: 17, weight: .semibold)
+			.beaconFont(size: 17, weight: .semibold)
 		}
 	}
 
@@ -241,7 +242,7 @@ struct BeaconButton: View {
 
 	private var foregroundStyle: Color {
 		switch variant {
-		case .primary:
+		case .primary, .blue:
 			Color(uiColor: .systemBackground)
 		case .secondary, .subtle:
 			.primary
@@ -254,6 +255,8 @@ struct BeaconButton: View {
 		switch variant {
 		case .primary:
 			.primary
+		case .blue:
+			Color.blue
 		case .secondary:
 			Color(uiColor: .secondarySystemBackground)
 		case .subtle:

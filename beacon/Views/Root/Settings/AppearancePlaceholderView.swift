@@ -150,9 +150,7 @@ private struct AppearanceChatPreview: View {
 					text: $previewText,
 					placeholder: "Message",
 					onAttachImage: {},
-					canAttachImages: false,
-					selectedModelName: "Qwen3 0.6B",
-					onSelectModel: {}
+					canAttachImages: false
 				) { _ in }
 				.allowsHitTesting(false)
 				.padding(.horizontal, 14)

@@ -129,14 +129,14 @@ private struct AppIconOption: Identifiable, CaseIterable {
 	var id: String { alternateIconName ?? "AppIcon" }
 
 	static let allCases: [AppIconOption] = [
-		AppIconOption(title: "Default", assetName: "AppIcons/icon", alternateIconName: nil),
-		AppIconOption(title: "Icon 2", assetName: "AppIcons/icon2", alternateIconName: "icon2"),
-		AppIconOption(title: "Icon 3", assetName: "AppIcons/icon3", alternateIconName: "icon3"),
-		AppIconOption(title: "Icon 4", assetName: "AppIcons/icon4", alternateIconName: "icon4"),
-		AppIconOption(title: "Icon 5", assetName: "AppIcons/icon5", alternateIconName: "icon5"),
-		AppIconOption(title: "Icon 6", assetName: "AppIcons/icon6", alternateIconName: "icon6"),
-		AppIconOption(title: "Icon 7", assetName: "AppIcons/icon7", alternateIconName: "icon7"),
-		AppIconOption(title: "Icon 8", assetName: "AppIcons/icon8", alternateIconName: "icon8")
+		AppIconOption(title: "Default", assetName: "icon-preview", alternateIconName: nil),
+		AppIconOption(title: "Icon 2", assetName: "icon2-preview", alternateIconName: "icon2"),
+		AppIconOption(title: "Icon 3", assetName: "icon3-preview", alternateIconName: "icon3"),
+		AppIconOption(title: "Icon 4", assetName: "icon4-preview", alternateIconName: "icon4"),
+		AppIconOption(title: "Icon 5", assetName: "icon5-preview", alternateIconName: "icon5"),
+		AppIconOption(title: "Icon 6", assetName: "icon6-preview", alternateIconName: "icon6"),
+		AppIconOption(title: "Icon 7", assetName: "icon7-preview", alternateIconName: "icon7"),
+		AppIconOption(title: "Icon 8", assetName: "icon8-preview", alternateIconName: "icon8")
 	]
 }
 

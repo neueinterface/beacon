@@ -6,10 +6,11 @@ import UIKit
 
 enum AppTypography {
 	private static let fontFiles = [
-		"OpenRunde-Regular",
-		"OpenRunde-Medium",
-		"OpenRunde-Semibold",
-		"OpenRunde-Bold"
+		"Neue-Regular",
+		"Neue-Medium",
+		"Neue-Bold",
+		"Neue-Heavy",
+		"Neue-Black"
 	]
 
 	static func registerFonts() {
@@ -21,8 +22,8 @@ enum AppTypography {
 		}
 
 		#if canImport(UIKit)
-		if let titleFont = UIFont(name: "OpenRunde-Semibold", size: 17),
-		   let largeTitleFont = UIFont(name: "OpenRunde-Bold", size: 34) {
+		if let titleFont = UIFont(name: "Neue-Medium", size: 17),
+		   let largeTitleFont = UIFont(name: "Neue-Bold", size: 34) {
 			UINavigationBar.appearance().titleTextAttributes = [.font: titleFont]
 			UINavigationBar.appearance().largeTitleTextAttributes = [.font: largeTitleFont]
 		}
@@ -31,18 +32,22 @@ enum AppTypography {
 }
 
 extension Font {
-	static func openRunde(size: CGFloat, weight: Font.Weight = .regular) -> Font {
+	static func beaconFont(size: CGFloat, weight: Font.Weight = .regular) -> Font {
 		let name: String
 		if weight == .bold {
-			name = "OpenRunde-Bold"
+			name = "Neue-Bold"
 		} else if weight == .semibold {
-			name = "OpenRunde-Semibold"
+			name = "Neue-Bold"
 		} else if weight == .medium {
-			name = "OpenRunde-Medium"
+			name = "Neue-Medium"
 		} else {
-			name = "OpenRunde-Regular"
+			name = "Neue-Medium"
 		}
 
 		return .custom(name, size: size)
+	}
+
+	static func openRunde(size: CGFloat, weight: Font.Weight = .regular) -> Font {
+		beaconFont(size: size, weight: weight)
 	}
 }
