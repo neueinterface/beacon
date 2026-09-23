@@ -9,6 +9,7 @@ export type SearchResult = {
   source: string;
   snippet: string;
   publishedDate?: string;
+  imageURL?: string;
   // Kept while older Beacon releases still decode this field.
   description: string;
   content?: string;
@@ -73,15 +74,17 @@ export async function searchWeb(browserBinding: BrowserWorker, options: SearchOp
       return selected.map(normalizeResult);
     }
 
-    const enhanced: SearchResult[] = [];
-    for (const result of selected) {
-      enhanced.push({
-        ...normalizeResult(result),
-        content: await extractPageText(page, result.url, options.maxContentLength).catch(() => "")
-      });
-    }
-
-    return enhanced;
+    return Promise.all(selected.map(async result => {
+      const resultPage = await context.newPage();
+      try {
+        return {
+          ...normalizeResult(result),
+          ...await extractPageData(resultPage, result.url, options.maxContentLength).catch(() => ({ content: "" }))
+        };
+      } finally {
+        await resultPage.close();
+      }
+    }));
   } finally {
     await browser?.close();
   }
@@ -217,21 +220,41 @@ async function searchDuckDuckGo(page: Page, query: string, limit: number): Promi
   return valid;
 }
 
-async function extractPageText(page: Page, url: string, maxLength: number): Promise<string> {
-  if (!isSafeExternalURL(url)) return "";
+async function extractPageData(page: Page, url: string, maxLength: number): Promise<{ content: string; imageURL?: string }> {
+  if (!isSafeExternalURL(url)) return { content: "" };
 
   await page.goto(url, { timeout: PAGE_TIMEOUT_MS, waitUntil: "domcontentloaded" });
-  if (!isSafeExternalURL(page.url())) return "";
+  if (!isSafeExternalURL(page.url())) return { content: "" };
 
   const primaryContent = page.locator("main, article").first();
   const target = await primaryContent.count() > 0 ? primaryContent : page.locator("body");
-  return target.evaluate((element, length) => {
+  const pageData = await page.evaluate(() => {
+    const rawImageURL = document.querySelector<HTMLMetaElement>('meta[property="og:image"]')?.content
+      ?? document.querySelector<HTMLMetaElement>('meta[name="twitter:image"]')?.content;
+    let imageURL: string | undefined;
+    if (rawImageURL) {
+      try {
+        imageURL = new URL(rawImageURL, window.location.href).href;
+      } catch {
+        imageURL = undefined;
+      }
+    }
+
+    return { imageURL };
+  });
+
+  const content = await target.evaluate((element, length) => {
     const text = (element as HTMLElement).innerText
       .replace(/\n{3,}/g, "\n\n")
       .replace(/[ \t]{2,}/g, " ")
       .trim();
     return text.slice(0, length);
   }, maxLength);
+
+  return {
+    content,
+    ...(pageData.imageURL && isSafeExternalURL(pageData.imageURL) ? { imageURL: pageData.imageURL } : {})
+  };
 }
 
 function unwrapDuckDuckGoURL(value: string): string {

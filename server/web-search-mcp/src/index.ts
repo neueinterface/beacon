@@ -2,9 +2,10 @@ import { McpServer } from "@modelcontextprotocol/server";
 import { createMcpHandler } from "agents/mcp/server";
 import { z } from "zod";
 import { SearchRateLimiter } from "./rate-limiter";
+import { ModelDownloadCounter } from "./model-downloads";
 import { searchWeb } from "./search";
 
-export { SearchRateLimiter };
+export { SearchRateLimiter, ModelDownloadCounter };
 
 const MAX_REQUEST_BYTES = 16_384;
 const PROTOCOL_VERSION = "2025-06-18";
@@ -51,6 +52,28 @@ export default {
     const url = new URL(request.url);
     if (url.pathname === "/health" && request.method === "GET") {
       return secureJSON({ ok: true, service: "beacon-web-search-mcp" });
+    }
+
+    if (url.pathname === "/model-downloads" && request.method === "GET") {
+      const counter = env.MODEL_DOWNLOADS.getByName("global");
+      return secureJSON({ counts: await counter.counts() });
+    }
+
+    if (url.pathname === "/model-downloads" && request.method === "POST") {
+      let body: unknown;
+      try {
+        body = await request.json();
+      } catch {
+        return secureJSON({ error: "Invalid JSON" }, 400);
+      }
+
+      const modelID = getModelID(body);
+      const installationID = getInstallationID(body);
+      if (!modelID || !installationID) return secureJSON({ error: "modelID and installationID are required" }, 400);
+
+      const counter = env.MODEL_DOWNLOADS.getByName("global");
+      await counter.record(modelID, installationID);
+      return secureJSON({ ok: true });
     }
 
     if (url.pathname !== "/mcp") return new Response("Not found", { status: 404 });
@@ -111,6 +134,22 @@ function isSearchToolCall(body: unknown): boolean {
   if (!body || typeof body !== "object") return false;
   const request = body as { method?: unknown; params?: { name?: unknown } };
   return request.method === "tools/call" && request.params?.name === "search_web";
+}
+
+function getModelID(body: unknown): string | null {
+  if (!body || typeof body !== "object") return null;
+  const modelID = (body as { modelID?: unknown }).modelID;
+  return typeof modelID === "string" && /^[a-z0-9][a-z0-9-]{0,63}$/.test(modelID)
+    ? modelID
+    : null;
+}
+
+function getInstallationID(body: unknown): string | null {
+  if (!body || typeof body !== "object") return null;
+  const installationID = (body as { installationID?: unknown }).installationID;
+  return typeof installationID === "string" && /^[a-f0-9-]{36}$/.test(installationID)
+    ? installationID
+    : null;
 }
 
 async function clientIdentity(request: Request): Promise<string> {

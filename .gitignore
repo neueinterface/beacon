@@ -45,6 +45,12 @@ beacon/Resources/ReleaseConfiguration.plist
 node_modules/
 .wrangler/
 worker-configuration.d.ts
+server/**/.dev.vars
+server/**/.dev.vars.*
+server/**/.env
+server/**/.env.*
+!server/**/.env.example
+server/**/.wrangler/
 
 # Local skills / team reference (not committed)
 .skills/

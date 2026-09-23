@@ -3,6 +3,8 @@
 This Cloudflare Worker exposes one bounded, stateless MCP tool at `/mcp`:
 
 - `search_web`: searches Bing with a DuckDuckGo fallback and optionally extracts limited text from up to five results.
+- `GET /model-downloads`: returns aggregate Beacon model download counts.
+- `POST /model-downloads`: records one completed model download per anonymous app installation with `{ "modelID": "chat-pro", "installationID": "..." }`.
 
 The service uses Cloudflare Browser Run and is designed to fail closed at the Workers Free plan limits. It does not use a search-provider API key.
 
@@ -37,5 +39,7 @@ npm run deploy
 ```
 
 After deployment, use `https://<worker>.<account>.workers.dev/mcp` as Beacon's MCP endpoint. Free plan exhaustion returns an error rather than creating a bill.
+
+The same Worker exposes `https://<worker>.<account>.workers.dev/model-downloads` for optional aggregate model download counts. Configure that URL separately in Beacon as `ModelDownloadsURL`.
 
 Put the deployed endpoint in Beacon's Git-ignored `beacon/Resources/LocalConfiguration.plist` under the `WebSearchMCPURL` key. A fresh clone intentionally has no production endpoint and leaves web search disabled.

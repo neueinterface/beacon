@@ -1,6 +1,6 @@
 # Beacon Web Search Routing
 
-Beacon answers locally by default. When a message needs current information, the already-loaded local model decides whether to call Beacon's Cloudflare-hosted MCP search tool. Search results return to the phone and the selected local model writes the final answer.
+Beacon answers locally by default. When a message needs current information, a deterministic on-device router decides whether to call Beacon's Cloudflare-hosted MCP search tool. Search results return to the phone and the selected local model writes the final answer.
 
 ## Request Flow
 
@@ -41,16 +41,15 @@ Local answer                 HTTPS POST /mcp
 
 ## 1. Local Routing
 
-`BeaconModelRuntime.webSearchQuery` first applies a deterministic gate for explicit search requests and current-information phrases such as `recent`, `latest`, `today`, `weather`, `score`, and `who won`. Messages without one of these strong signals stay local and do not run the search-routing generation. This prevents a small model from turning ordinary factual prompts into web searches.
+`BeaconModelRuntime.webSearchQuery` uses deterministic rules for explicit search requests and current-information phrases such as `recent`, `latest`, `today`, `weather`, `score`, and `who won`. Messages without one of these strong signals stay local. This avoids asking small chat models to make tool-routing decisions.
 
-For less obvious messages, Beacon runs a separate deterministic generation using the model that is already loaded for chat. Beacon does not download or keep a second routing model in memory.
+For a context-dependent follow-up, Beacon combines the latest message with the most recent user message when that earlier message clearly required current information. No routing model generation or additional model download is used.
 
 The router receives:
 
 - The latest user message.
 - Up to four recent conversation messages, truncated to 500 characters each.
-- Instructions to return exactly `NO_SEARCH` or `SEARCH: <standalone query>`.
-- A maximum of 64 output tokens and temperature `0` for MLX models.
+- Deterministic rules that return either no query or a bounded standalone query.
 
 Search is intended for current events, weather, prices, schedules, recent releases, requested sources, and other facts likely to change. Casual conversation, historical facts, creative work, rewriting, and timeless knowledge stay local.
 
@@ -76,7 +75,7 @@ The request calls only `search_web` and asks for:
 - At most three results.
 - At most 2,500 characters of extracted text per result.
 - A query no longer than 200 characters.
-- A 35-second client timeout.
+- A 45-second client timeout.
 
 The MCP endpoint can respond with JSON or Server-Sent Events. Beacon accepts both and extracts the JSON-RPC result from the SSE envelope when necessary.
 

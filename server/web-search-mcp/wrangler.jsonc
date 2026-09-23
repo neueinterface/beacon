@@ -13,13 +13,17 @@
       {
         "name": "SEARCH_RATE_LIMITER",
         "class_name": "SearchRateLimiter"
+      },
+      {
+        "name": "MODEL_DOWNLOADS",
+        "class_name": "ModelDownloadCounter"
       }
     ]
   },
   "migrations": [
     {
       "tag": "v1",
-      "new_sqlite_classes": ["SearchRateLimiter"]
+       "new_sqlite_classes": ["SearchRateLimiter", "ModelDownloadCounter"]
     }
   ],
   "observability": {
