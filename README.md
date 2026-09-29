@@ -16,17 +16,27 @@ The project explores what a polished, approachable interface for local AI can lo
 
 ## Included Models
 
-The bundled catalog contains 4-bit text models supported by the pinned MLX Swift LM runtime. Download sizes are approximate and exclude runtime memory required during generation.
+The bundled catalog contains 4-bit text and vision models supported by the pinned MLX Swift LM runtime. Download sizes are approximate and exclude runtime memory required during generation.
 
-| Model | Hugging Face repository | Download | Recommended device |
-| --- | --- | ---: | --- |
-| LFM2 1.2B | [`mlx-community/LFM2-1.2B-4bit`](https://huggingface.co/mlx-community/LFM2-1.2B-4bit) | 0.66 GB | iPhone 14+ |
-| Qwen3 0.6B | [`mlx-community/Qwen3-0.6B-4bit`](https://huggingface.co/mlx-community/Qwen3-0.6B-4bit) | 0.68 GB | iPhone 14+ |
-| Qwen3 1.7B | [`mlx-community/Qwen3-1.7B-4bit`](https://huggingface.co/mlx-community/Qwen3-1.7B-4bit) | 0.98 GB | iPhone 14+ |
-| Llama 3.2 1B Instruct | [`mlx-community/Llama-3.2-1B-Instruct-4bit`](https://huggingface.co/mlx-community/Llama-3.2-1B-Instruct-4bit) | 1.41 GB | iPhone 14+ |
-| SmolLM3 3B | [`mlx-community/SmolLM3-3B-4bit`](https://huggingface.co/mlx-community/SmolLM3-3B-4bit) | 1.75 GB | iPhone 15 Pro+ |
+| Company | Model | Hugging Face repository | Download | Recommended device |
+| --- | --- | --- | ---: | --- |
+| Liquid AI | LFM2 1.2B | [`mlx-community/LFM2-1.2B-4bit`](https://huggingface.co/mlx-community/LFM2-1.2B-4bit) | 0.66 GB | iPhone 14+ |
+| Liquid AI | LFM2.5 1.2B Instruct | [`mlx-community/LFM2.5-1.2B-Instruct-4bit`](https://huggingface.co/mlx-community/LFM2.5-1.2B-Instruct-4bit) | 0.66 GB | iPhone 14+ |
+| Alibaba | Qwen3 0.6B | [`mlx-community/Qwen3-0.6B-4bit`](https://huggingface.co/mlx-community/Qwen3-0.6B-4bit) | 0.35 GB | iPhone 14+ |
+| Alibaba | Qwen3 1.7B | [`mlx-community/Qwen3-1.7B-4bit`](https://huggingface.co/mlx-community/Qwen3-1.7B-4bit) | 0.98 GB | iPhone 14+ |
+| Alibaba | Qwen3 4B Instruct 2507 | [`mlx-community/Qwen3-4B-Instruct-2507-4bit`](https://huggingface.co/mlx-community/Qwen3-4B-Instruct-2507-4bit) | 2.28 GB | iPhone 15 Pro+ |
+| Alibaba | Qwen2.5 Coder 3B Instruct | [`mlx-community/Qwen2.5-Coder-3B-Instruct-4bit`](https://huggingface.co/mlx-community/Qwen2.5-Coder-3B-Instruct-4bit) | 1.75 GB | iPhone 15 Pro+ |
+| Google | Gemma 3 1B Instruct | [`mlx-community/gemma-3-1b-it-qat-4bit`](https://huggingface.co/mlx-community/gemma-3-1b-it-qat-4bit) | 0.77 GB | iPhone 14+ |
+| Meta | Llama 3.2 1B Instruct | [`mlx-community/Llama-3.2-1B-Instruct-4bit`](https://huggingface.co/mlx-community/Llama-3.2-1B-Instruct-4bit) | 0.71 GB | iPhone 14+ |
+| Hugging Face | SmolLM3 3B | [`mlx-community/SmolLM3-3B-4bit`](https://huggingface.co/mlx-community/SmolLM3-3B-4bit) | 1.75 GB | iPhone 15 Pro+ |
+| OpenBMB | MiniCPM5 2B | [`mlx-community/MiniCPM5-2B-mlx-4Bit`](https://huggingface.co/mlx-community/MiniCPM5-2B-mlx-4Bit) | 1.43 GB | iPhone 15 Pro+ |
+| IBM | Granite 3.3 2B Instruct | [`mlx-community/granite-3.3-2b-instruct-4bit`](https://huggingface.co/mlx-community/granite-3.3-2b-instruct-4bit) | 1.43 GB | iPhone 15 Pro+ |
+| DeepSeek | R1 Distill Qwen 1.5B | [`mlx-community/DeepSeek-R1-Distill-Qwen-1.5B-4bit`](https://huggingface.co/mlx-community/DeepSeek-R1-Distill-Qwen-1.5B-4bit) | 1.01 GB | iPhone 15 Pro+ |
+| Microsoft | Phi 3.5 Mini Instruct | [`mlx-community/Phi-3.5-mini-instruct-4bit`](https://huggingface.co/mlx-community/Phi-3.5-mini-instruct-4bit) | 2.15 GB | iPhone 15 Pro+ |
+| Hugging Face | SmolVLM2 500M (vision) | [`HuggingFaceTB/SmolVLM2-500M-Video-Instruct-mlx`](https://huggingface.co/mlx-community/SmolVLM2-500M-Video-Instruct-mlx) | 1.02 GB | iPhone 14+ |
+| Alibaba | Qwen2-VL 2B (vision) | [`mlx-community/Qwen2-VL-2B-Instruct-4bit`](https://huggingface.co/mlx-community/Qwen2-VL-2B-Instruct-4bit) | 1.26 GB | iPhone 15 Pro+ |
 
-Models are downloaded from Hugging Face and stored in the app cache. The marketplace prevents downloads when a model is unsuitable for the current device or would exceed Beacon's 10 GB model-storage limit.
+Onboarding offers a choice of one small chat model: LFM2 1.2B, Qwen3 0.6B, or Qwen3 1.7B. The marketplace can filter models by company. Each model’s details include expanded guidance on what it is best suited for. Attach an image to chat without a vision model installed and Beacon offers an inline download with progress. Models are downloaded from Hugging Face and stored in the app cache; Beacon prevents downloads when a model is unsuitable for the current device or would exceed its 10 GB model-storage limit.
 
 ## Architecture
 
