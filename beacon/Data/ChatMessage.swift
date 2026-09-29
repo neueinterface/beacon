@@ -10,6 +10,35 @@ struct InformationCardContent: Hashable, Codable {
 	}
 }
 
+enum InformationCardTitle {
+	static func summarize(query: String, resultTitle: String? = nil) -> String {
+		var topic = query.trimmingCharacters(in: .whitespacesAndNewlines)
+		if topic.isEmpty {
+			topic = resultTitle?
+				.components(separatedBy: .newlines).first?
+				.replacingOccurrences(of: #"\s+[|–—-]\s+[^|–—-]{2,50}$"#, with: "", options: .regularExpression) ?? ""
+		}
+		topic = topic.replacingOccurrences(of: #"(?i)^/web\s+"#, with: "", options: .regularExpression)
+		topic = topic.replacingOccurrences(of: #"(?i)^(?:can|could|would) you (?:please )?"#, with: "", options: .regularExpression)
+		topic = topic.replacingOccurrences(of: #"(?i)^please "#, with: "", options: .regularExpression)
+		topic = topic.replacingOccurrences(of: #"(?i)^(?:what can you tell me about|what do you know about|tell me about|give me information about|who is|who was|what is|what are) "#, with: "", options: .regularExpression)
+		topic = topic.replacingOccurrences(of: #"(?i)^(?:tell me|give me|share|show me) (?:a |an |some )?"#, with: "", options: .regularExpression)
+		topic = topic.trimmingCharacters(in: .whitespacesAndNewlines.union(CharacterSet(charactersIn: "?.!;:")))
+		guard !topic.isEmpty else { return "Search Results" }
+
+		let words = topic.split(whereSeparator: \.isWhitespace).map { word in
+			word.prefix(1).uppercased() + String(word.dropFirst())
+		}
+		var title = ""
+		for word in words {
+			let nextLength = title.count + (title.isEmpty ? 0 : 1) + word.count
+			guard nextLength <= 60 else { break }
+			title += (title.isEmpty ? "" : " ") + word
+		}
+		return title.isEmpty ? String(words[0].prefix(60)) : title
+	}
+}
+
 struct ChatMessage: Identifiable, Hashable, Codable {
 	enum Role: Hashable, Codable {
 		case user

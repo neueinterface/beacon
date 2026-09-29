@@ -26,6 +26,7 @@ struct BeaconModel: Identifiable, Equatable, Decodable {
 	let supportsImages: Bool
 	let parameterCountInBillions: Decimal?
 	let updatedAt: String?
+	let bestFor: String?
 
 	init(
 		id: String,
@@ -39,7 +40,8 @@ struct BeaconModel: Identifiable, Equatable, Decodable {
 		isBuiltIn: Bool,
 		supportsImages: Bool = false,
 		parameterCountInBillions: Decimal? = nil,
-		updatedAt: String? = nil
+		updatedAt: String? = nil,
+		bestFor: String? = nil
 	) {
 		self.id = id
 		self.name = name
@@ -53,6 +55,7 @@ struct BeaconModel: Identifiable, Equatable, Decodable {
 		self.supportsImages = supportsImages
 		self.parameterCountInBillions = parameterCountInBillions
 		self.updatedAt = updatedAt
+		self.bestFor = bestFor
 	}
 
 	var formattedSize: String {
@@ -268,11 +271,6 @@ enum ModelCatalog {
 		models.filter(\.isAvailableDuringOnboarding)
 	}
 
-	static func requiredOnboardingModels(in models: [BeaconModel]) -> [BeaconModel] {
-		let requiredIDs = ["beacon"]
-		return requiredIDs.compactMap { id in models.first { $0.id == id } }
-	}
-
 	static func defaultModel(in models: [BeaconModel]) -> BeaconModel {
 		onboardingModels(in: models).first ?? models.first ?? availableModels[0]
 	}
@@ -370,6 +368,31 @@ enum ModelStorageLimit {
 		}
 
 		return Double(bytes) / 1_000_000_000
+	}
+}
+
+enum DownloadedModelStorage {
+	static var defaultHubDirectory: URL {
+		FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+			.appendingPathComponent("huggingface")
+			.appendingPathComponent("hub")
+	}
+
+	static func cacheURLs(for model: BeaconModel, hubDirectory: URL = defaultHubDirectory) -> [URL] {
+		let name = "models--\(model.repositoryID.replacingOccurrences(of: "/", with: "--"))"
+		return [
+			hubDirectory.appendingPathComponent(name),
+			hubDirectory.appendingPathComponent(".metadata").appendingPathComponent(name),
+			hubDirectory.appendingPathComponent(".locks").appendingPathComponent(name)
+		]
+	}
+
+	static func delete(_ models: [BeaconModel], fileManager: FileManager = .default, hubDirectory: URL = defaultHubDirectory) throws {
+		for model in models {
+			for url in cacheURLs(for: model, hubDirectory: hubDirectory) where fileManager.fileExists(atPath: url.path) {
+				try fileManager.removeItem(at: url)
+			}
+		}
 	}
 }
 

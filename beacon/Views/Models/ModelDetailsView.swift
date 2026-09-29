@@ -62,7 +62,9 @@ struct ModelDetailsView: View {
 
 				HStack(spacing: 12) {
 					Tag(title: model.isBuiltIn ? "Built in" : model.compactDownloadSize, color: .indigo)
-					Tag(title: "chat", color: .orange)
+					ForEach(model.capabilityTags, id: \.self) { capability in
+						Tag(title: capability, color: capability == "vision" ? .purple : .orange)
+					}
 				}
 
 				modelActions
@@ -87,6 +89,8 @@ struct ModelDetailsView: View {
 					Divider()
 					readmeCard(readme)
 				}
+
+				modelGuidance
 
 				if !model.isBuiltIn {
 					BeaconButton("View on Hugging Face", variant: .secondary, trailingAssetIcon: "globe.icon") {
@@ -141,6 +145,34 @@ struct ModelDetailsView: View {
 		#endif
 		.task(id: model.repositoryID) {
 			await loadHuggingFaceMetadata()
+		}
+	}
+
+	@ViewBuilder
+	private var modelGuidance: some View {
+		if let bestFor = model.bestFor {
+			VStack(alignment: .leading, spacing: 14) {
+				Text("About this model")
+					.font(.openRunde(size: 17, weight: .semibold))
+					.foregroundStyle(.primary)
+
+				VStack(alignment: .leading, spacing: 5) {
+					Text("Good for")
+						.font(.openRunde(size: 14, weight: .semibold))
+						.foregroundStyle(.primary)
+					Text(bestFor)
+						.font(.openRunde(size: 14, weight: .regular))
+						.foregroundStyle(.secondary)
+						.lineSpacing(3)
+				}
+			}
+			.padding(18)
+			.frame(maxWidth: .infinity, alignment: .leading)
+			.background(Color.clear, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+			.overlay {
+				RoundedRectangle(cornerRadius: 14, style: .continuous)
+					.stroke(Color(uiColor: .systemGray5), lineWidth: 1)
+			}
 		}
 	}
 

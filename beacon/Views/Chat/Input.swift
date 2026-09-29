@@ -207,15 +207,28 @@ struct Input: View {
 
 #else
 
+struct InputModelOption: Identifiable, Equatable {
+	let id: String
+	let name: String
+}
+
 struct Input: View {
 	@Binding var text: String
+	@AppStorage("userMessageBubbleColor") private var userMessageBubbleColor = UserMessageBubbleColor.default.rawValue
 	var placeholder: String = "Message"
 	var isGenerating = false
 	var hasAttachment = false
 	var attachmentData: [Data] = []
 	var onAttachImage: (() -> Void)?
 	var canAttachImages = true
+	var canSendMessage = true
+	var selectedModelName: String?
+	var selectedModelID: String?
+	var modelOptions: [InputModelOption] = []
+	var onSelectModel: (String) -> Void = { _ in }
+	var onOpenModels: (() -> Void)?
 	var showsConversationStarters = true
+	var conversationStarters = ChatPersonality.generalSuggestedPrompts
 	var onRemoveAttachment: (Int) -> Void = { _ in }
 	var onStop: () -> Void = {}
 	var onSend: (String) -> Void
@@ -229,7 +242,12 @@ struct Input: View {
 	}
 
 	private var canSend: Bool {
-		hasTypedText || hasAttachment
+		canSendMessage && (hasTypedText || hasAttachment)
+	}
+
+	private var sendButtonColor: Color {
+		let selection = UserMessageBubbleColor(rawValue: userMessageBubbleColor) ?? .default
+		return selection == .default ? .black : selection.tintColor
 	}
 
 	private var cornerRadius: CGFloat {
@@ -245,9 +263,11 @@ struct Input: View {
 	var body: some View {
 		VStack(alignment: .leading, spacing: 12) {
 			if showsSuggestions {
-				ChatSuggestionsView { suggestion in
-					text = suggestion
-					isTextFieldFocused = true
+				ChatSuggestionsView(suggestions: conversationStarters) { suggestion in
+					guard canSendMessage else { return }
+					text = ""
+					isTextFieldFocused = false
+					onSend(suggestion)
 				}
 				.transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .bottom)).combined(with: .move(edge: .bottom)))
 			}
@@ -296,6 +316,40 @@ struct Input: View {
 					.accessibilityLabel("Attach image")
 				}
 
+				if let selectedModelName, let selectedModelID, let onOpenModels {
+					Menu {
+						if !modelOptions.isEmpty {
+							Picker("Model", selection: Binding(
+								get: { selectedModelID },
+								set: onSelectModel
+							)) {
+								ForEach(modelOptions) { model in
+									Text(model.name).tag(model.id)
+								}
+							}
+							Divider()
+						}
+						Button(action: onOpenModels) {
+							Label("Open Model Marketplace", systemImage: "square.grid.2x2")
+						}
+					} label: {
+						HStack(spacing: 5) {
+							Text(selectedModelName)
+								.lineLimit(1)
+							Image(systemName: "chevron.down")
+								.font(.system(size: 9, weight: .semibold))
+						}
+						.font(.beaconFont(size: 14, weight: .medium))
+						.foregroundStyle(.primary)
+						.padding(.horizontal, 11)
+						.frame(height: 32)
+						.background(Color(uiColor: .systemGray5), in: Capsule())
+					}
+					.buttonStyle(.plain)
+					.disabled(isGenerating)
+					.accessibilityLabel("Current model: \(selectedModelName). Switch model")
+				}
+
 				Spacer(minLength: 8)
 
 				Button {
@@ -312,7 +366,7 @@ struct Input: View {
 						.font(.system(size: 16, weight: .bold))
 						.frame(width: 32, height: 32)
 						.foregroundStyle((canSend || isGenerating) ? Color.white : Color.secondary)
-						.background((canSend || isGenerating) ? Color.black : Color(uiColor: .systemGray4), in: Circle())
+						.background((canSend || isGenerating) ? sendButtonColor : Color(uiColor: .systemGray4), in: Circle())
 				}
 				.buttonStyle(.plain)
 				.disabled(!canSend && !isGenerating)
@@ -327,32 +381,18 @@ struct Input: View {
 #endif
 
 private struct ChatSuggestionsView: View {
-	private struct Suggestion: Identifiable {
-		let text: String
-
-		var id: String { text }
-	}
-
+	let suggestions: [String]
 	let onSelect: (String) -> Void
 	@State private var isVisible = false
-	@State private var displayedSuggestions: [Suggestion] = []
-
-	private let allSuggestions = [
-		Suggestion(text: "Tell me about hurricanes"),
-		Suggestion(text: "Teach me something new"),
-		Suggestion(text: "Give me a fun fact"),
-		Suggestion(text: "Explain black holes simply"),
-		Suggestion(text: "Help me plan my week"),
-		Suggestion(text: "Help me write a message")
-	]
+	@State private var displayedSuggestions: [String] = []
 
 	var body: some View {
 		VStack(alignment: .leading, spacing: 8) {
-			ForEach(Array(displayedSuggestions.enumerated()), id: \.element.id) { index, suggestion in
+			ForEach(Array(displayedSuggestions.enumerated()), id: \.element) { index, suggestion in
 				Button {
-					onSelect(suggestion.text)
+					onSelect(suggestion)
 				} label: {
-					Text(suggestion.text)
+					Text(suggestion)
 						.font(.beaconFont(size: 16, weight: .medium))
 						.foregroundStyle(.primary)
 						.padding(.horizontal, 16)
@@ -373,12 +413,19 @@ private struct ChatSuggestionsView: View {
 			}
 		}
 		.onAppear {
-			displayedSuggestions = Array(allSuggestions.shuffled().prefix(3))
+			refreshSuggestions()
 			isVisible = true
+		}
+		.onChange(of: suggestions) { _, _ in
+			refreshSuggestions()
 		}
 		.onDisappear {
 			isVisible = false
 		}
+	}
+
+	private func refreshSuggestions() {
+		displayedSuggestions = Array(suggestions.shuffled().prefix(3))
 	}
 }
 
@@ -413,7 +460,11 @@ private struct InputPreviewContainer: View {
 	var body: some View {
 		Input(
 			text: $previewText,
-			onAttachImage: {}
+			onAttachImage: {},
+			selectedModelName: "LFM2 1.2B",
+			selectedModelID: "beacon",
+			modelOptions: [InputModelOption(id: "beacon", name: "LFM2 1.2B")],
+			onOpenModels: {}
 		) { _ in }
 			.padding()
 			.background(Color(uiColor: .systemBackground))

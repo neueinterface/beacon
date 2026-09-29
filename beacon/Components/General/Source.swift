@@ -136,14 +136,17 @@ struct SourceTag: View {
 }
 
 struct SourceReferenceLinkRenderer: MarkdownLinkRenderer {
+	typealias Configuration = MarkdownLinkRendererConfiguration
+	typealias Body = SourceReferenceLinkView
+
 	let onSelect: (Int) -> Void
 
-	func makeBody(configuration: Configuration) -> some View {
+	func makeBody(configuration: Configuration) -> Body {
 		SourceReferenceLinkView(configuration: configuration, onSelect: onSelect)
 	}
 }
 
-private struct SourceReferenceLinkView: View {
+struct SourceReferenceLinkView: View {
 	let configuration: MarkdownLinkRendererConfiguration
 	let onSelect: (Int) -> Void
 

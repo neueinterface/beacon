@@ -8,6 +8,7 @@ import UIKit
 
 struct SettingsView: View {
 	@ObservedObject var chatHistoryViewModel: ChatHistoryViewModel
+	@ObservedObject var memoryStore: MemoryStore
 	var models = ModelCatalog.availableModels
 	@Environment(\.dismiss) private var dismiss
 	@Environment(\.openURL) private var openURL
@@ -18,7 +19,7 @@ struct SettingsView: View {
 	@AppStorage("hasSeenWebSearchInfo") private var hasSeenWebSearchInfo = false
 	#endif
 	@State private var isConfirmingDeleteAllChats = false
-	@State private var isConfirmingDeleteModel = false
+	@State private var isConfirmingDeleteModels = false
 	#if false // Web search is not currently available.
 	@State private var isShowingWebSearchInfo = false
 	#endif
@@ -71,38 +72,17 @@ struct SettingsView: View {
 		ModelStorageLimit.downloadedSizeGB(downloadedModelIDs: downloadedModelIDs, in: models)
 	}
 
-	private var downloadedModel: BeaconModel? {
-		models.first { isDownloaded($0) }
+	private var downloadedModels: [BeaconModel] {
+		models.filter { isDownloaded($0) }
 	}
 
 	private func isDownloaded(_ model: BeaconModel) -> Bool {
 		Set(downloadedModelIDs.split(separator: ",").map(String.init)).contains(model.id)
 	}
 
-	private func deleteDownloadedModel() {
-		guard let model = downloadedModel else { return }
-		let fileManager = FileManager.default
-		for url in cacheURLs(for: model) where fileManager.fileExists(atPath: url.path) {
-			try? fileManager.removeItem(at: url)
-		}
-		downloadedModelIDs = downloadedModelIDs
-			.split(separator: ",")
-			.map(String.init)
-			.filter { $0 != model.id }
-			.joined(separator: ",")
-	}
-
-	private func cacheURLs(for model: BeaconModel) -> [URL] {
-		let cacheDirectoryName = "models--\(model.repositoryID.replacingOccurrences(of: "/", with: "--"))"
-		let hubDirectory = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
-			.appendingPathComponent("huggingface")
-			.appendingPathComponent("hub")
-
-		return [
-			hubDirectory.appendingPathComponent(cacheDirectoryName),
-			hubDirectory.appendingPathComponent(".metadata").appendingPathComponent(cacheDirectoryName),
-			hubDirectory.appendingPathComponent(".locks").appendingPathComponent(cacheDirectoryName)
-		]
+	private func deleteAllDownloadedModels() {
+		guard (try? DownloadedModelStorage.delete(downloadedModels)) != nil else { return }
+		downloadedModelIDs = ""
 	}
 
 	var body: some View {
@@ -110,11 +90,15 @@ struct SettingsView: View {
 			ScrollView {
 				VStack(alignment: .leading, spacing: 26) {
 					settingsSection("General") {
+						SettingsLinkRow(title: "Memory", icon: "memory") {
+							MemorySettingsView(memoryStore: memoryStore)
+						}
+						SettingsListDivider()
+
 						SettingsLinkRow(title: "Appearance", icon: "appearance.icon") {
 							AppearancePlaceholderView()
 						}
 						SettingsListDivider()
-
 						SettingsLinkRow(title: "App Icon", icon: "appicon.icon") {
 							AppIconPickerView()
 						}
@@ -138,11 +122,6 @@ struct SettingsView: View {
 						SettingsButtonRow(title: "Leave a rating on the App Store", icon: "review.icon") {
 							requestAppReview()
 						}
-						SettingsListDivider()
-
-						SettingsLinkRow(title: "Why Local Models", icon: "flower.icon") {
-							WhyLocalModelsView()
-						}
 					}
 
 					settingsSection("Legal") {
@@ -162,13 +141,13 @@ struct SettingsView: View {
 						ModelStorageUsagePill(usedGB: downloadedStorageGB, maxGB: ModelStorageLimit.maxGB)
 
 						BeaconButton(
-							"Delete Downloaded Model",
+							"Delete Downloaded Models",
 							variant: .destructive,
 							size: .large,
 							isFullWidth: true,
-							isDisabled: downloadedModel == nil
+							isDisabled: downloadedModels.isEmpty
 						) {
-							isConfirmingDeleteModel = true
+							isConfirmingDeleteModels = true
 						}
 
 						BeaconButton(
@@ -186,7 +165,7 @@ struct SettingsView: View {
 						safariViewModel.open(URL(string: "https://beacon.neueinterface.com")!)
 					}
 				}
-				.padding(.horizontal, 24)
+				.padding(.horizontal, 20)
 				.padding(.top, 16)
 				.padding(.bottom, 42)
 			}
@@ -218,13 +197,13 @@ struct SettingsView: View {
 			} message: {
 				Text("Are you sure you want to delete all saved chats? This cannot be undone.")
 			}
-			.alert("Delete downloaded model?", isPresented: $isConfirmingDeleteModel) {
+			.alert("Delete all downloaded models?", isPresented: $isConfirmingDeleteModels) {
 				Button("Cancel", role: .cancel) { }
-				Button("Delete Model", role: .destructive) {
-					deleteDownloadedModel()
+				Button("Delete Models (\(downloadedModels.count))", role: .destructive) {
+					deleteAllDownloadedModels()
 				}
 			} message: {
-				Text("You can download the model again later if needed.")
+				Text("This removes every downloaded model from Beacon. You can download them again later.")
 			}
 			#if false // Web search is not currently available.
 			.alert("Web Search", isPresented: $isShowingWebSearchInfo) {
@@ -314,18 +293,18 @@ private struct ModelStorageUsagePill: View {
 			HStack(alignment: .firstTextBaseline) {
 				VStack(alignment: .leading, spacing: 4) {
 					Text("Model Storage")
-						.font(.openRunde(size: 16, weight: .semibold))
+						.font(.beaconFont(size: 16, weight: .semibold))
 						.foregroundStyle(.primary)
 
 					Text("Downloads are capped to protect device storage.")
-						.font(.openRunde(size: 13, weight: .regular))
+						.font(.beaconFont(size: 13, weight: .regular))
 						.foregroundStyle(.secondary)
 				}
 
 				Spacer(minLength: 12)
 
 				Text("\(ModelStorageLimit.formattedGB(usedGB)) / \(ModelStorageLimit.formattedGB(maxGB))")
-					.font(.openRunde(size: 14, weight: .semibold))
+					.font(.beaconFont(size: 14, weight: .semibold))
 					.foregroundStyle(Color(uiColor: .systemBlue))
 			}
 
@@ -346,73 +325,6 @@ private struct ModelStorageUsagePill: View {
 	}
 }
 
-private struct WhyLocalModelsView: View {
-	private let openingParagraphs = [
-		"Artificial intelligence is quickly becoming one of the most powerful technologies of our time, but today much of it depends on cloud infrastructure, subscriptions, and a reliable internet connection. We believe AI should be available wherever people are, not just where powerful servers are.",
-		"Local models run directly on your device. That means they can continue working on a plane, while traveling, in classrooms with unreliable connectivity, or anywhere an internet connection isn’t guaranteed. It also gives people more control over their conversations and reduces the need to send personal information to external services.",
-		"As mobile hardware continues to improve, we’re entering a new era where capable AI can live alongside the apps we use every day. Instead of relying on distant servers for every interaction, our devices are becoming intelligent companions that are faster, more personal, and available the moment we need them."
-	]
-
-	private let closingParagraphs = [
-		"At Beacon, we don’t see local AI as a replacement for cloud intelligence. We see it as an important part of a future where people can choose the experience that best fits their needs. Some questions will benefit from the web. Others should stay entirely on your device. Great software should make that choice feel effortless.",
-		"Most importantly, local AI has the potential to make powerful technology more accessible. Students, educators, creators, travelers, healthcare workers, and communities with limited infrastructure shouldn’t be left behind because they lack a constant internet connection or the resources to pay for cloud services. As models become smaller, faster, and more capable, we believe AI can reach more people than ever before.",
-		"Our goal isn’t simply to bring AI onto your device. It’s to explore how on-device intelligence can create experiences that feel more private, more reliable, and ultimately more human."
-	]
-
-	var body: some View {
-		ScrollView {
-			VStack(alignment: .leading, spacing: 20) {
-				header
-
-				ForEach(openingParagraphs, id: \.self) { paragraph in
-					bodyText(paragraph)
-				}
-
-				Image("whylocal")
-					.resizable()
-					.scaledToFill()
-					.frame(maxWidth: .infinity)
-					.frame(height: 220)
-					.clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-					.clipped()
-
-				ForEach(closingParagraphs, id: \.self) { paragraph in
-					bodyText(paragraph)
-				}
-			}
-			.padding(.horizontal, 20)
-			.padding(.top, 18)
-			.padding(.bottom, 42)
-			.frame(maxWidth: .infinity, alignment: .leading)
-		}
-		.background(Color(uiColor: .systemGroupedBackground))
-		.navigationTitle("Why Local AI?")
-		#if !os(macOS)
-		.navigationBarTitleDisplayMode(.inline)
-		#endif
-	}
-
-	private var header: some View {
-		VStack(alignment: .leading, spacing: 10) {
-			Text("Why Local AI?")
-				.font(.openRunde(size: 28, weight: .semibold))
-				.foregroundStyle(.primary)
-
-			Text("A more private, reliable, and accessible direction for intelligent software.")
-				.font(.openRunde(size: 16, weight: .regular))
-				.foregroundStyle(.secondary)
-				.lineSpacing(4)
-		}
-	}
-
-	private func bodyText(_ text: String) -> some View {
-		Text(text)
-			.font(.openRunde(size: 17, weight: .regular))
-			.foregroundStyle(.primary)
-			.lineSpacing(5)
-	}
-}
-
 #Preview {
-	SettingsView(chatHistoryViewModel: ChatHistoryViewModel(conversations: []))
+	SettingsView(chatHistoryViewModel: ChatHistoryViewModel(conversations: []), memoryStore: MemoryStore())
 }

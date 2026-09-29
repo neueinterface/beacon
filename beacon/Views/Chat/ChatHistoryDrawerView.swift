@@ -5,10 +5,12 @@ import UIKit
 
 struct ChatHistoryDrawerView: View {
     @ObservedObject var viewModel: ChatHistoryViewModel
+    @AppStorage("userMessageBubbleColor") private var userMessageBubbleColor = UserMessageBubbleColor.default.rawValue
     var onClose: () -> Void
     var onNewChat: () -> Void
     var onOpenSettings: () -> Void
     var onOpenModels: () -> Void
+    var onSelectPersonality: (ChatPersonality) -> Void = { _ in }
     var onSelect: (ChatConversation) -> Void
 
     var body: some View {
@@ -16,7 +18,13 @@ struct ChatHistoryDrawerView: View {
             ZStack(alignment: .bottomTrailing) {
                 historyContent
 
-                BeaconButton("New Chat", variant: .blue, size: .large, leadingAssetIcon: "chat.icon", action: onNewChat)
+                BeaconButton(
+                    "New Chat",
+                    variant: selectedMessageColor.newChatButtonVariant,
+                    size: .large,
+                    leadingAssetIcon: "chat.icon",
+                    action: onNewChat
+                )
                     .padding(.trailing, 20)
                     .padding(.bottom, 24)
             }
@@ -45,13 +53,14 @@ struct ChatHistoryDrawerView: View {
                     }
 
                     ToolbarItem(placement: .topBarTrailing) {
-                        HStack(spacing: 16) {
+                        HStack(spacing: 8) {
                             Button {
                                 playHeaderHaptic()
                                 onOpenSettings()
                             } label: {
                                 Image("settings.icon")
                                     .renderingMode(.template)
+                                    .padding(.horizontal, 6)
                             }
                             .accessibilityLabel("Open settings")
 
@@ -61,6 +70,7 @@ struct ChatHistoryDrawerView: View {
                             } label: {
                                 Image("playground.icon")
                                     .renderingMode(.template)
+                                    .padding(.horizontal, 6)
                             }
                             .accessibilityLabel("Open model marketplace")
                         }
@@ -70,15 +80,40 @@ struct ChatHistoryDrawerView: View {
         }
     }
 
-    @ViewBuilder
+    private var selectedMessageColor: UserMessageBubbleColor {
+        UserMessageBubbleColor(rawValue: userMessageBubbleColor) ?? .default
+    }
+
     private var historyContent: some View {
-        if viewModel.chats.isEmpty {
-            ScrollView {
-                emptyState
-            }
-            .scrollEdgeEffectStyle(.soft, for: .top)
-        } else {
-            List {
+		List {
+			VStack(alignment: .leading, spacing: 10) {
+				Text("Chat with a personality")
+					.font(.beaconFont(size: 18, weight: .semibold))
+					.padding(.bottom, 2)
+				ForEach(ChatPersonality.allCases) { personality in
+					Button {
+						onSelectPersonality(personality)
+					} label: {
+						PersonalityCard(personality: personality)
+					}
+					.buttonStyle(.plain)
+				}
+			}
+			.padding(.vertical, 14)
+			.listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20))
+			.listRowSeparator(.hidden)
+
+			if viewModel.chats.isEmpty {
+				emptyState
+					.listRowInsets(EdgeInsets())
+					.listRowSeparator(.hidden)
+			} else {
+				Text("Recent chats")
+					.font(.beaconFont(size: 18, weight: .semibold))
+					.padding(.horizontal, 20)
+					.listRowInsets(EdgeInsets())
+					.listRowSeparator(.hidden)
+
                 ForEach(Array(viewModel.chats.enumerated()), id: \.element.id) { index, chat in
                     ChatHistoryRow(
                         chat: chat,
@@ -101,11 +136,11 @@ struct ChatHistoryDrawerView: View {
                         }
                     }
                 }
-            }
-            .listStyle(.plain)
-            .scrollContentBackground(.hidden)
-            .scrollEdgeEffectStyle(.soft, for: .top)
-        }
+			}
+		}
+		.listStyle(.plain)
+		.scrollContentBackground(.hidden)
+		.scrollEdgeEffectStyle(.soft, for: .top)
     }
 
     private func playHeaderHaptic() {
@@ -131,6 +166,7 @@ struct ChatHistoryDrawerView: View {
             } label: {
                 Image("settings.icon")
                     .renderingMode(.template)
+                    .padding(.horizontal, 6)
             }
             .accessibilityLabel("Open settings")
 
@@ -140,6 +176,7 @@ struct ChatHistoryDrawerView: View {
             } label: {
                 Image("playground.icon")
                     .renderingMode(.template)
+                    .padding(.horizontal, 6)
             }
             .accessibilityLabel("Open model marketplace")
         }
@@ -170,7 +207,14 @@ private struct ChatHistoryRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .firstTextBaseline, spacing: 14) {
+			HStack(alignment: .center, spacing: 14) {
+				if let personality = chat.personality {
+					Image(personality.avatarAsset)
+						.resizable()
+						.scaledToFit()
+						.frame(width: 30, height: 30)
+						.clipShape(Circle())
+				}
                 Text(chat.historyTitle)
                     .font(.beaconFont(size: 16, weight: .medium))
                     .foregroundStyle(.primary)

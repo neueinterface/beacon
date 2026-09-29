@@ -8,6 +8,7 @@ import AppKit
 
 struct MessageBubble: View {
 	@Namespace private var attachmentTransition
+	@AppStorage("userMessageBubbleColor") private var userMessageBubbleColor = UserMessageBubbleColor.default.rawValue
 	@State private var isShowingCopied = false
 	@State private var copyResetTask: Task<Void, Never>?
 	@State private var selectedSource: Source?
@@ -22,6 +23,10 @@ struct MessageBubble: View {
 	var thinkingText = ""
 	var onOpenSource: (URL) -> Void = { _ in }
 	var showsRetry = false
+	var showsVisionModelDownload = false
+	var isDownloadingVisionModel = false
+	var visionModelDownloadProgress = 0.0
+	var onDownloadVisionModel: () -> Void = {}
 	var onRetry: () -> Void = {}
 	var onCopy: () -> Void = {}
 
@@ -86,6 +91,35 @@ struct MessageBubble: View {
 
 			if informationCard == nil, !isWaitingForResponse {
 				SourceTag(sources: sources, onOpen: onOpenSource)
+			}
+
+			if showsVisionModelDownload, !isWaitingForResponse {
+				if isDownloadingVisionModel {
+					VStack(alignment: .leading, spacing: 9) {
+						HStack(spacing: 9) {
+							BeaconLoader(size: 16, lineWidth: 2, color: .primary)
+							Text("Downloading vision model…")
+								.font(.beaconFont(size: 14, weight: .medium))
+								.foregroundStyle(.secondary)
+						}
+
+						ProgressView(value: visionModelDownloadProgress)
+							.progressViewStyle(.linear)
+							.tint(.primary)
+					}
+					.frame(maxWidth: 260, alignment: .leading)
+					.padding(.vertical, 4)
+					.accessibilityElement(children: .combine)
+					.accessibilityLabel("Downloading vision model, \(Int(visionModelDownloadProgress * 100)) percent")
+				} else {
+					BeaconButton(
+						"Download vision model",
+						variant: .secondary,
+						size: .small,
+						trailingAssetIcon: "download.icon",
+						action: onDownloadVisionModel
+					)
+				}
 			}
 
 			if showsRetry, !isWaitingForResponse {
@@ -177,13 +211,23 @@ struct MessageBubble: View {
 				Text(text)
 					.font(.beaconFont(size: 16, weight: .medium))
 					.lineSpacing(0)
-					.foregroundStyle(.primary)
+					.foregroundStyle(userBubbleForeground)
 					.padding(.horizontal, 16)
 					.padding(.vertical, 14)
-					.background(Color(uiColor: .systemGray5), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+					.background(userBubbleBackground, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
 			}
 		}
 		.frame(maxWidth: .infinity, alignment: .trailing)
+	}
+
+	private var userBubbleBackground: Color {
+		let color = UserMessageBubbleColor(rawValue: userMessageBubbleColor) ?? .default
+		return color.bubbleBackground
+	}
+
+	private var userBubbleForeground: Color {
+		let color = UserMessageBubbleColor(rawValue: userMessageBubbleColor) ?? .default
+		return color.tintColor
 	}
 }
 
@@ -276,12 +320,13 @@ private struct ThinkingStatusText: View {
 	let text: String
 
 	var body: some View {
-		HStack(spacing: 7) {
+		HStack(alignment: .top, spacing: 7) {
 			if isSearchingWeb {
 				Image("websearch.icon")
 					.resizable()
 					.scaledToFit()
 					.frame(width: 17, height: 17)
+					.padding(.top, 3)
 					.accessibilityHidden(true)
 			}
 			Text(displayText)
@@ -299,7 +344,8 @@ private struct ThinkingStatusText: View {
 	}
 
 	private var isSearchingWeb: Bool {
-		text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased().hasPrefix("searching web:")
+		let status = displayText.lowercased()
+		return status.hasPrefix("searching:") || status.hasPrefix("reading results for:")
 	}
 }
 
@@ -386,9 +432,9 @@ private extension String {
 
 private var previewAttachmentData: Data? {
 	#if canImport(UIKit)
-	UIImage(named: "whylocal")?.jpegData(compressionQuality: 0.8)
+	UIImage(named: "personalitySpotlight")?.jpegData(compressionQuality: 0.8)
 	#elseif canImport(AppKit)
-	NSImage(named: NSImage.Name("whylocal"))?.tiffRepresentation
+	NSImage(named: NSImage.Name("personalitySpotlight"))?.tiffRepresentation
 	#endif
 }
 

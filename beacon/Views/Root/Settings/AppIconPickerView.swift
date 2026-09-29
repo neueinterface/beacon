@@ -14,11 +14,11 @@ struct AppIconPickerView: View {
 		ScrollView {
 			VStack(alignment: .leading, spacing: 20) {
 				Text("Choose an icon")
-					.font(.openRunde(size: 24, weight: .medium))
+					.font(.beaconFont(size: 24, weight: .medium))
 					.foregroundStyle(.primary)
 
 				Text("Pick the version of Beacon you want to show on your Home Screen.")
-					.font(.openRunde(size: 16, weight: .regular))
+					.font(.beaconFont(size: 16, weight: .regular))
 					.foregroundStyle(.secondary)
 					.lineSpacing(3)
 

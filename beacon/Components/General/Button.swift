@@ -11,6 +11,8 @@ struct BeaconButton: View {
 		enum Variant {
 		case primary
 		case blue
+		case pink
+		case green
 		case secondary
 		case subtle
 		case destructive
@@ -242,7 +244,7 @@ struct BeaconButton: View {
 
 	private var foregroundStyle: Color {
 		switch variant {
-		case .primary, .blue:
+		case .primary, .blue, .pink, .green:
 			Color(uiColor: .systemBackground)
 		case .secondary, .subtle:
 			.primary
@@ -256,7 +258,11 @@ struct BeaconButton: View {
 		case .primary:
 			.primary
 		case .blue:
-			Color.blue
+			Color(uiColor: .systemBlue)
+		case .pink:
+			Color(uiColor: .systemPink)
+		case .green:
+			Color(uiColor: .systemGreen)
 		case .secondary:
 			Color(uiColor: .secondarySystemBackground)
 		case .subtle:

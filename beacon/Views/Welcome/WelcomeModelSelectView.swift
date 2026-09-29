@@ -11,20 +11,36 @@ import UIKit
 #endif
 
 struct WelcomeModelSelectView: View {
+	@AppStorage("downloadedModelIDs") private var downloadedModelIDs = ""
 	let models: [BeaconModel]
-	var onDownloadModels: () -> Void
+	var onDownloadModel: (BeaconModel) -> Void
+	var onBack: () -> Void = { }
 
 	@State private var hasAppeared = false
+	@State private var selectedModelID = ModelCatalog.defaultModel.id
 
 	var body: some View {
 		ScrollView {
 			VStack(alignment: .leading, spacing: 40) {
+				Button(action: onBack) {
+					Label("Back", systemImage: "chevron.left")
+						.font(.beaconFont(size: 16, weight: .medium))
+				}
+				.buttonStyle(.plain)
+				.accessibilityLabel("Back to welcome")
+
 				header
 					.modelSelectEntrance(hasAppeared, delay: 0.04)
 
 				VStack(alignment: .leading, spacing: 0) {
 					ForEach(Array(orderedModels.enumerated()), id: \.element.id) { index, model in
-						WelcomeModelSelectRow(model: model)
+						Button {
+							selectedModelID = model.id
+						} label: {
+							WelcomeModelSelectRow(model: model, isSelected: selectedModelID == model.id)
+						}
+						.buttonStyle(.plain)
+						.disabled(!ModelDeviceCompatibility.current(for: model).canUse)
 						.modelSelectEntrance(hasAppeared, delay: 0.12 + Double(index) * 0.06)
 
 						if index < orderedModels.count - 1 {
@@ -35,7 +51,15 @@ struct WelcomeModelSelectView: View {
 					}
 				}
 
-				BeaconButton("Download model", size: .large, trailingAssetIcon: "download.icon", action: onDownloadModels)
+				BeaconButton(
+					selectedModel.map { isDownloaded($0) ? "Use \($0.name)" : "Download \($0.name)" } ?? "Choose a chat model",
+					size: .large,
+					trailingIcon: selectedModel.map { isDownloaded($0) ? "checkmark" : "arrow.down" },
+					isDisabled: selectedModel == nil,
+					action: {
+						if let selectedModel { onDownloadModel(selectedModel) }
+					}
+				)
 			}
 			.padding(.horizontal, 20)
 			.padding(.top, 40)
@@ -63,14 +87,24 @@ struct WelcomeModelSelectView: View {
 		models.contains { ModelDeviceCompatibility.current(for: $0).canUse }
 	}
 
+	private var selectedModel: BeaconModel? {
+		models.first { $0.id == selectedModelID && ModelDeviceCompatibility.current(for: $0).canUse }
+	}
+
+	private func isDownloaded(_ model: BeaconModel) -> Bool {
+		Set(downloadedModelIDs.split(separator: ",").map(String.init)).contains(model.id)
+	}
+
 	private var header: some View {
 		VStack(alignment: .leading, spacing: 12) {
-			Text("Get Beacon ready for your iPhone.")
+			Text("Choose your first chat model.")
 				.font(.openRunde(size: 28, weight: .medium))
 				.foregroundStyle(.primary)
 				.lineSpacing(2)
 
-			Text(hasUsableModel ? "Beacon will download the models it needs for fast chat and image understanding. You can change your chat model anytime." : "Beacon's models aren't supported on this iPhone yet.")
+			Text(hasUsableModel
+				? "Pick one small model to download now. You can explore more later; questions about images need a separate, optional vision model."
+				: "These chat models aren't supported on this iPhone. You can go back, but you can't complete setup on this device yet.")
 				.font(.openRunde(size: 16, weight: .regular))
 				.foregroundStyle(.secondary)
 				.lineSpacing(3)
@@ -80,6 +114,7 @@ struct WelcomeModelSelectView: View {
 
 private struct WelcomeModelSelectRow: View {
 	let model: BeaconModel
+	let isSelected: Bool
 
 	private var compatibility: ModelDeviceCompatibility {
 		.current(for: model)
@@ -88,9 +123,15 @@ private struct WelcomeModelSelectRow: View {
 	var body: some View {
 		VStack(alignment: .leading, spacing: 16) {
 			VStack(alignment: .leading, spacing: 12) {
-				Text(model.name)
-					.font(.openRunde(size: 18, weight: .medium))
-					.foregroundStyle(.primary)
+				HStack {
+					Text(model.name)
+						.font(.openRunde(size: 18, weight: .medium))
+						.foregroundStyle(.primary)
+					Spacer()
+					Image(systemName: isSelected ? "largecircle.fill.circle" : "circle")
+						.font(.system(size: 22))
+						.foregroundStyle(isSelected ? .primary : .secondary)
+				}
 
 				Text(model.description)
 					.font(.openRunde(size: 16, weight: .regular))
@@ -120,6 +161,9 @@ private struct WelcomeModelSelectRow: View {
 
 		}
 		.frame(maxWidth: .infinity, alignment: .leading)
+		.contentShape(Rectangle())
+		.accessibilityElement(children: .combine)
+		.accessibilityAddTraits(isSelected ? [.isSelected] : [])
 	}
 }
 
@@ -160,5 +204,5 @@ private extension View {
 }
 
 #Preview {
-	WelcomeModelSelectView(models: ModelCatalog.availableModels, onDownloadModels: { })
+	WelcomeModelSelectView(models: ModelCatalog.onboardingModels, onDownloadModel: { _ in })
 }

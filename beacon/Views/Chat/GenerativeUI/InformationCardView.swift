@@ -91,7 +91,7 @@ struct InformationCardView: View {
 
 #Preview {
 	InformationCardView(
-		title: "A little history on Mona Lisa",
+		title: "The Mona Lisa",
 		text: "Oh, the Mona Lisa has a much more interesting story than you might expect.Leonardo da Vinci started painting her around 1503, and she became famous through a strange mix of art, history, and one very dramatic theft.",
 		imageURL: URL(string: "https://upload.wikimedia.org/wikipedia/commons/6/6a/Mona_Lisa.jpg"),
 		sources: [Source(title: "The Louvre", url: URL(string: "https://www.louvre.fr")!)]

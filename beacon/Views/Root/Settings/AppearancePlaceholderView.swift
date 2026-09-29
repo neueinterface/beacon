@@ -32,6 +32,7 @@ enum AppearanceColorScheme: String, CaseIterable {
 
 struct AppearancePlaceholderView: View {
 	@AppStorage("appearanceColorScheme") private var selectedScheme = AppearanceColorScheme.system.rawValue
+	@AppStorage("userMessageBubbleColor") private var selectedBubbleColor = UserMessageBubbleColor.default.rawValue
 	@Environment(\.colorScheme) private var systemColorScheme
 
 	private var selection: AppearanceColorScheme {
@@ -42,16 +43,20 @@ struct AppearancePlaceholderView: View {
 		selection.preferredColorScheme ?? systemColorScheme
 	}
 
+	private var bubbleColorSelection: UserMessageBubbleColor {
+		UserMessageBubbleColor(rawValue: selectedBubbleColor) ?? .default
+	}
+
 	var body: some View {
 		ScrollView {
 			VStack(alignment: .leading, spacing: 26) {
 				VStack(alignment: .leading, spacing: 10) {
 					Text("Color Scheme")
-						.font(.openRunde(size: 22, weight: .semibold))
+						.font(.beaconFont(size: 22, weight: .semibold))
 						.foregroundStyle(.primary)
 
 					Text("Turn on dark mode, or let Beacon visually match your device settings.")
-						.font(.openRunde(size: 15, weight: .regular))
+						.font(.beaconFont(size: 15, weight: .regular))
 						.foregroundStyle(.secondary)
 						.lineSpacing(3)
 				}
@@ -67,7 +72,32 @@ struct AppearancePlaceholderView: View {
 					}
 				}
 
+				VStack(alignment: .leading, spacing: 12) {
+					VStack(alignment: .leading, spacing: 5) {
+						Text("Your message color")
+							.font(.beaconFont(size: 18, weight: .semibold))
+							.foregroundStyle(.primary)
+						Text("Choose an accent for your chat bubbles.")
+							.font(.beaconFont(size: 14, weight: .regular))
+							.foregroundStyle(.secondary)
+					}
+
+					HStack(spacing: 16) {
+						ForEach(UserMessageBubbleColor.allCases, id: \.self) { color in
+							AppearanceBubbleColorOption(
+								color: color,
+								isSelected: bubbleColorSelection == color
+							) {
+								withAnimation(.easeInOut(duration: 0.25)) {
+									selectedBubbleColor = color.rawValue
+								}
+							}
+						}
+					}
+				}
+
 				AppearanceChatPreview(colorScheme: previewColorScheme)
+					.animation(.easeInOut(duration: 0.25), value: selectedBubbleColor)
 			}
 			.padding(.horizontal, 20)
 			.padding(.top, 26)
@@ -87,6 +117,35 @@ struct AppearancePlaceholderView: View {
 	}
 }
 
+private struct AppearanceBubbleColorOption: View {
+	let color: UserMessageBubbleColor
+	let isSelected: Bool
+	let action: () -> Void
+
+	var body: some View {
+		Button(action: action) {
+			Circle()
+				.fill(color == .default ? Color(uiColor: .systemGray4) : color.tintColor)
+				.frame(width: 42, height: 42)
+				.overlay {
+					if isSelected {
+						Image(systemName: "checkmark")
+							.font(.system(size: 17, weight: .bold))
+							.foregroundStyle(color == .default ? Color.primary : Color.white)
+					}
+				}
+				.padding(5)
+				.overlay {
+					Circle()
+						.strokeBorder(isSelected ? Color.primary : Color.clear, lineWidth: 2)
+				}
+		}
+		.buttonStyle(.plain)
+		.accessibilityLabel("\(color.title) user message color")
+		.accessibilityAddTraits(isSelected ? .isSelected : [])
+	}
+}
+
 private struct AppearanceSchemeCard: View {
 	let scheme: AppearanceColorScheme
 	let isSelected: Bool
@@ -99,7 +158,7 @@ private struct AppearanceSchemeCard: View {
 					.font(.system(size: 21, weight: .semibold))
 
 				Text(scheme.title)
-					.font(.openRunde(size: 16, weight: .semibold))
+					.font(.beaconFont(size: 16, weight: .semibold))
 					.minimumScaleFactor(0.85)
 			}
 			.foregroundStyle(isSelected ? Color.primary : Color(uiColor: .systemGray2))
@@ -135,7 +194,7 @@ private struct AppearanceChatPreview: View {
 	var body: some View {
 		VStack(alignment: .leading, spacing: 14) {
 			Text("Preview")
-				.font(.openRunde(size: 18, weight: .semibold))
+				.font(.beaconFont(size: 18, weight: .semibold))
 				.foregroundStyle(.primary)
 
 			VStack(spacing: 14) {

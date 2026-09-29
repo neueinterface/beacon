@@ -7,6 +7,7 @@ final class ChatHistoryViewModel: ObservableObject {
 		didSet { scheduleConversationSave() }
 	}
 	@Published private(set) var currentMessages: [ChatMessage]
+	@Published private(set) var selectedPersonality: ChatPersonality?
 	@Published var selectedChatID: ChatConversation.ID?
 
 	private static let storageKey = "chatConversations"
@@ -30,6 +31,7 @@ final class ChatHistoryViewModel: ObservableObject {
 	init(conversations: [ChatConversation]? = nil) {
 		self.conversations = Self.sanitized(conversations ?? Self.loadConversations()).sorted { $0.updatedAt > $1.updatedAt }
 		self.currentMessages = []
+		self.selectedPersonality = nil
 
 		let formatter = DateFormatter()
 		formatter.dateStyle = .none
@@ -42,6 +44,7 @@ final class ChatHistoryViewModel: ObservableObject {
 		selectedChatID = chat.id
 		currentConversationID = chat.id
 		currentMessages = chat.messages
+		selectedPersonality = chat.personality
 	}
 
 	@discardableResult
@@ -56,6 +59,12 @@ final class ChatHistoryViewModel: ObservableObject {
 		selectedChatID = nil
 		currentConversationID = nil
 		currentMessages = []
+		selectedPersonality = nil
+	}
+
+	func startPersonalityChat(_ personality: ChatPersonality) {
+		startNewChat()
+		selectedPersonality = personality
 	}
 
 	func delete(_ chat: ChatConversation) {
@@ -65,6 +74,7 @@ final class ChatHistoryViewModel: ObservableObject {
 			selectedChatID = nil
 			currentConversationID = nil
 			currentMessages = []
+			selectedPersonality = nil
 		}
 	}
 
@@ -73,6 +83,7 @@ final class ChatHistoryViewModel: ObservableObject {
 		selectedChatID = nil
 		currentConversationID = nil
 		currentMessages = []
+		selectedPersonality = nil
 	}
 
 	func appendUserMessage(_ text: String, imageDatas: [Data] = [], modelName: String) -> ChatMessage.ID {
@@ -88,7 +99,8 @@ final class ChatHistoryViewModel: ObservableObject {
 		} else {
 			let conversation = ChatConversation(
 				modelName: modelName,
-				messages: [userMessage, assistantMessage]
+				messages: [userMessage, assistantMessage],
+				personality: selectedPersonality
 			)
 			conversations.insert(conversation, at: 0)
 			currentConversationID = conversation.id
@@ -113,6 +125,12 @@ final class ChatHistoryViewModel: ObservableObject {
 	func appendAssistantThinking(_ chunk: String, to messageID: ChatMessage.ID) {
 		updateMessage(messageID) { message in
 			message.thinkingText += chunk
+		}
+	}
+
+	func setAssistantThinkingStatus(_ status: String, for messageID: ChatMessage.ID) {
+		updateMessage(messageID) { message in
+			message.thinkingText = status
 		}
 	}
 

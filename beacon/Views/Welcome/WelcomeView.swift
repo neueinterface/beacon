@@ -179,7 +179,7 @@ struct WelcomeView: View {
 
 	private var actions: some View {
 		HStack(spacing: 12) {
-			BeaconButton("Choose model", trailingAssetIcon: "download.icon", action: onGetStarted)
+			BeaconButton("Get started", trailingAssetIcon: "download.icon", action: onGetStarted)
 			BeaconButton("Read FAQ", variant: .secondary) {
 				onReadFAQ()
 				isShowingFAQ = true
