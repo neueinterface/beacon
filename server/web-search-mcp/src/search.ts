@@ -1,5 +1,5 @@
 import { launch, type Browser, type BrowserContext, type BrowserWorker, type Page } from "@cloudflare/playwright";
-import { searchDuckDuckGoDirect } from "./direct-search";
+import { boundedResponseText, extractDirectPageData, searchDuckDuckGoDirect } from "./direct-search";
 import { refinedSearchQuery, selectBestResults } from "./search-query";
 import { isSafeExternalURL, sanitizeResults, sourceForURL, unwrapBingURL, type RawSearchResult } from "./url-safety";
 
@@ -22,8 +22,9 @@ export type SearchOptions = {
   maxContentLength: number;
 };
 
-const SEARCH_TIMEOUT_MS = 12_000;
-const PAGE_TIMEOUT_MS = 8_000;
+const SEARCH_TIMEOUT_MS = 8_000;
+const PAGE_TIMEOUT_MS = 5_000;
+const DIRECT_PAGE_TIMEOUT_MS = 3_500;
 const USER_AGENT = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Version/18.0 Mobile/15E148 Safari/604.1";
 
 export async function searchWeb(browserBinding: BrowserWorker, options: SearchOptions): Promise<SearchResult[]> {
@@ -50,6 +51,15 @@ export async function searchWeb(browserBinding: BrowserWorker, options: SearchOp
 
   if (selected.length >= minimumResults && !options.includeContent) {
     return selected.map(normalizeResult);
+  }
+
+  // Direct search already has enough relevant sources. Read bounded page HTML
+  // without launching a browser; keep snippets when a site blocks extraction.
+  if (selected.length >= minimumResults) {
+    return Promise.all(selected.map(async result => ({
+      ...normalizeResult(result),
+      ...await fetchDirectPageData(result.url, options.maxContentLength).catch(() => ({ content: "" }))
+    })));
   }
 
   let browser: Browser | undefined;
@@ -85,9 +95,47 @@ export async function searchWeb(browserBinding: BrowserWorker, options: SearchOp
         await resultPage.close();
       }
     }));
+  } catch (error) {
+    // Search-provider/browser capacity can be rate-limited. If direct search
+    // already produced usable results, prefer those to failing the whole query.
+    if (selected.length > 0) {
+      return Promise.all(selected.map(async result => ({
+        ...normalizeResult(result),
+        ...await fetchDirectPageData(result.url, options.maxContentLength).catch(() => ({ content: "" }))
+      })));
+    }
+    throw error;
   } finally {
     await browser?.close();
   }
+}
+
+async function fetchDirectPageData(url: string, maxLength: number): Promise<{ content: string; imageURL?: string }> {
+  if (!isSafeExternalURL(url)) return { content: "" };
+  const signal = AbortSignal.timeout(DIRECT_PAGE_TIMEOUT_MS);
+  let currentURL = url;
+  for (let redirect = 0; redirect <= 2; redirect++) {
+    const response = await fetch(currentURL, {
+      redirect: "manual",
+      headers: { Accept: "text/html", "User-Agent": USER_AGENT },
+      signal
+    });
+    if (response.status >= 300 && response.status < 400) {
+      const location = response.headers.get("location");
+      await response.body?.cancel();
+      if (!location) break;
+      const nextURL = new URL(location, currentURL).href;
+      if (!isSafeExternalURL(nextURL)) break;
+      currentURL = nextURL;
+      continue;
+    }
+    if (!response.ok || !response.headers.get("content-type")?.toLowerCase().includes("text/html")) {
+      await response.body?.cancel();
+      break;
+    }
+    return extractDirectPageData(await boundedResponseText(response, 256_000, true), currentURL, maxLength);
+  }
+  return { content: "" };
 }
 
 async function runSearchCandidates(page: Page, query: string, limit: number, minimumResults: number): Promise<RawSearchResult[]> {
@@ -229,8 +277,16 @@ async function extractPageData(page: Page, url: string, maxLength: number): Prom
   const primaryContent = page.locator("main, article").first();
   const target = await primaryContent.count() > 0 ? primaryContent : page.locator("body");
   const pageData = await page.evaluate(() => {
+    const pageImage = Array.from(document.querySelectorAll<HTMLImageElement>("main img, article img"))
+      .find(image => {
+        const source = image.currentSrc || image.getAttribute("src") || image.getAttribute("data-src");
+        return Boolean(source && !source.startsWith("data:"));
+      });
     const rawImageURL = document.querySelector<HTMLMetaElement>('meta[property="og:image"]')?.content
-      ?? document.querySelector<HTMLMetaElement>('meta[name="twitter:image"]')?.content;
+      ?? document.querySelector<HTMLMetaElement>('meta[name="twitter:image"]')?.content
+      ?? pageImage?.currentSrc
+      ?? pageImage?.getAttribute("src")
+      ?? pageImage?.getAttribute("data-src");
     let imageURL: string | undefined;
     if (rawImageURL) {
       try {

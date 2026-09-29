@@ -49,7 +49,12 @@ export function refinedSearchQuery(query: string, year = new Date().getUTCFullYe
     return `FIFA ${normalized} ${year}`.trim();
   }
 
-  return `${normalized || query} ${year}`.trim();
+  const focused = normalized
+    .replace(/\b(is|are|was|were|the|a|an)\b/gi, " ")
+    .replace(/[?!.]+$/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  return focused || query.trim();
 }
 
 function words(value: string): string[] {

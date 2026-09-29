@@ -1,4 +1,4 @@
-import { sanitizeResults, type RawSearchResult } from "./url-safety";
+import { isSafeExternalURL, sanitizeResults, type RawSearchResult } from "./url-safety";
 
 export async function searchDuckDuckGoDirect(query: string, limit: number, userAgent: string, timeout: number): Promise<RawSearchResult[]> {
   const response = await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`, {
@@ -34,7 +34,28 @@ export function parseDuckDuckGoHTML(html: string, limit: number): RawSearchResul
   return sanitizeResults(results, limit);
 }
 
-async function boundedResponseText(response: Response, maxBytes: number): Promise<string> {
+export function extractDirectPageData(html: string, url: string, maxLength: number): { content: string; imageURL?: string } {
+  const meta = html.match(/<meta\b[^>]*\b(?:property|name)=["'](?:og:image|twitter:image)["'][^>]*>/i)?.[0];
+  const rawImage = meta?.match(/\bcontent=["']([^"']+)["']/i)?.[1];
+  let imageURL: string | undefined;
+  if (rawImage) {
+    try {
+      const candidate = new URL(rawImage.replace(/&amp;/g, "&"), url).href;
+      if (isSafeExternalURL(candidate)) imageURL = candidate;
+    } catch {
+      // An invalid image URL does not prevent the page text from being used.
+    }
+  }
+
+  const body = html.match(/<main\b[^>]*>([\s\S]*?)(?:<\/main>|$)/i)?.[1]
+    ?? html.match(/<article\b[^>]*>([\s\S]*?)(?:<\/article>|$)/i)?.[1]
+    ?? html.match(/<body\b[^>]*>([\s\S]*)/i)?.[1]
+    ?? "";
+  const content = plainText(body.replace(/<(script|style|nav|header|footer|form)\b[^>]*>[\s\S]*?<\/\1>/gi, " ")).slice(0, maxLength);
+  return { content, ...(imageURL ? { imageURL } : {}) };
+}
+
+export async function boundedResponseText(response: Response, maxBytes: number, truncate = false): Promise<string> {
   if (!response.body) return "";
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
@@ -47,7 +68,9 @@ async function boundedResponseText(response: Response, maxBytes: number): Promis
     bytesRead += value.byteLength;
     if (bytesRead > maxBytes) {
       await reader.cancel();
-      throw new Error("Search response exceeded the size limit");
+      if (!truncate) throw new Error("Search response exceeded the size limit");
+      output += decoder.decode(value.subarray(0, value.byteLength - (bytesRead - maxBytes)), { stream: true });
+      break;
     }
     output += decoder.decode(value, { stream: true });
   }
@@ -55,7 +78,7 @@ async function boundedResponseText(response: Response, maxBytes: number): Promis
   return output + decoder.decode();
 }
 
-function plainText(value: string): string {
+export function plainText(value: string): string {
   return decodeHTMLEntities(value.replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ").trim();
 }
 

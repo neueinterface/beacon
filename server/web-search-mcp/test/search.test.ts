@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseDuckDuckGoHTML } from "../src/direct-search";
+import { extractDirectPageData, parseDuckDuckGoHTML } from "../src/direct-search";
 import { filterRelevantResults, hasRelevantResults, refinedSearchQuery, selectBestResults } from "../src/search-query";
 import { isSafeExternalURL, sanitizeResults, unwrapBingURL } from "../src/url-safety";
 
@@ -68,6 +68,16 @@ describe("search result safety", () => {
     expect(refinedSearchQuery("who won the most recent World Cup", 2026)).toBe("FIFA winner World Cup 2026");
   });
 
+	it("refines broad person questions without adding a misleading year", () => {
+		expect(refinedSearchQuery("Who is Donald trump?")).toBe("Donald trump");
+		const results = [{
+			title: "Donald Trump biography and presidency",
+			url: "https://example.com/donald-trump",
+			description: "Donald Trump is an American politician and former president."
+		}];
+		expect(selectBestResults(refinedSearchQuery("Who is Donald trump?"), results, 3)).toEqual(results);
+	});
+
 	it("removes individually irrelevant results from a mixed provider response", () => {
 		const results = [
 			{ title: "MANY Definition & Meaning", url: "https://example.com/many", description: "English dictionary entry" },
@@ -107,5 +117,17 @@ describe("search result safety", () => {
 			url: "https://inside.fifa.com/champions",
 			description: "Spain won 1-0."
 		}]);
+	});
+
+	it("enriches direct results with bounded page text and a safe image without a browser", () => {
+		const html = `<html><head><meta property="og:image" content="/photos/car.jpg"></head>
+			<body><nav>Ignore navigation</nav><main><h1>Small car door ding</h1>
+			<p>Minor dings with intact paint are often cosmetic.</p><script>Ignore script content</script></main></body></html>`;
+		const result = extractDirectPageData(html, "https://example.com/guide", 100);
+		expect(result).toEqual({
+			content: "Small car door ding Minor dings with intact paint are often cosmetic.",
+			imageURL: "https://example.com/photos/car.jpg"
+		});
+		expect(extractDirectPageData(`<meta property="og:image" content="http://localhost/private">`, "https://example.com/", 100).imageURL).toBeUndefined();
 	});
 });

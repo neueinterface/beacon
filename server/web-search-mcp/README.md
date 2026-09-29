@@ -2,7 +2,7 @@
 
 This Cloudflare Worker exposes one bounded, stateless MCP tool at `/mcp`:
 
-- `search_web`: searches Bing with a DuckDuckGo fallback and optionally extracts limited text from up to five results.
+- `search_web`: searches Bing with a DuckDuckGo fallback and optionally extracts limited text and a preview image from up to five results.
 - `GET /model-downloads`: returns aggregate Beacon model download counts.
 - `POST /model-downloads`: records one completed model download per anonymous app installation with `{ "modelID": "chat-pro", "installationID": "..." }`.
 
