@@ -2,207 +2,269 @@
 //  WelcomeModelSelectView.swift
 //  beacon
 //
-//  Created by Armond Schneider on 6/13/26.
-//
 
+import Foundation
 import SwiftUI
-#if canImport(UIKit)
-import UIKit
-#endif
 
 struct WelcomeModelSelectView: View {
+	@Environment(\.accessibilityReduceMotion) private var reduceMotion
 	@AppStorage("downloadedModelIDs") private var downloadedModelIDs = ""
+
 	let models: [BeaconModel]
-	var onDownloadModel: (BeaconModel) -> Void
+	var onDownloadModels: ([BeaconModel], BeaconModel) -> Void
+	var onChooseLater: () -> Void = { }
 	var onBack: () -> Void = { }
 
 	@State private var hasAppeared = false
-	@State private var selectedModelID = ModelCatalog.defaultModel.id
+	@State private var isShowingChooseLater = false
+	@State private var isDismissingConfirmation = false
+
+	private var bundledModels: [BeaconModel] {
+		models.filter { ModelDeviceCompatibility.current(for: $0).canUse }
+	}
+
+	private var primaryModel: BeaconModel? {
+		bundledModels.first(where: { $0.onboardingRole == .chatCore })
+			?? bundledModels.first(where: { $0.onboardingRole == .chatLight })
+			?? bundledModels.first
+	}
+
+	private var pendingModels: [BeaconModel] {
+		let downloadedIDs = Set(downloadedModelIDs.split(separator: ",").map(String.init))
+		return bundledModels.filter { !$0.isBuiltIn && !downloadedIDs.contains($0.id) }
+	}
+
+	private var bundleSize: String {
+		let size = bundledModels.filter { !$0.isBuiltIn }.reduce(Decimal(0)) { $0 + $1.sizeInGB }
+		return String(format: "%.2f GB", NSDecimalNumber(decimal: size).doubleValue)
+	}
 
 	var body: some View {
-		ScrollView {
-			VStack(alignment: .leading, spacing: 40) {
-				Button(action: onBack) {
-					Label("Back", systemImage: "chevron.left")
-						.font(.beaconFont(size: 16, weight: .medium))
-				}
-				.buttonStyle(.plain)
-				.accessibilityLabel("Back to welcome")
-
-				header
-					.modelSelectEntrance(hasAppeared, delay: 0.04)
-
-				VStack(alignment: .leading, spacing: 0) {
-					ForEach(Array(orderedModels.enumerated()), id: \.element.id) { index, model in
-						Button {
-							selectedModelID = model.id
-						} label: {
-							WelcomeModelSelectRow(model: model, isSelected: selectedModelID == model.id)
-						}
-						.buttonStyle(.plain)
-						.disabled(!ModelDeviceCompatibility.current(for: model).canUse)
-						.modelSelectEntrance(hasAppeared, delay: 0.12 + Double(index) * 0.06)
-
-						if index < orderedModels.count - 1 {
-							Divider()
-								.padding(.vertical, 20)
-								.modelSelectEntrance(hasAppeared, delay: 0.1 + Double(index) * 0.06)
-						}
-					}
-				}
-
-				BeaconButton(
-					selectedModel.map { isDownloaded($0) ? "Use \($0.name)" : "Download \($0.name)" } ?? "Choose a chat model",
-					size: .large,
-					trailingIcon: selectedModel.map { isDownloaded($0) ? "checkmark" : "arrow.down" },
-					isDisabled: selectedModel == nil,
-					action: {
-						if let selectedModel { onDownloadModel(selectedModel) }
-					}
-				)
+		VStack(alignment: .leading, spacing: 0) {
+			HStack {
+				BeaconButton(icon: "chevron.left", variant: .subtle, action: onBack)
+					.accessibilityLabel("Back to welcome")
+				Spacer()
 			}
 			.padding(.horizontal, 20)
-			.padding(.top, 40)
-			.padding(.bottom, 60)
+			.padding(.top, 12)
+
+			ScrollView(showsIndicators: false) {
+				VStack(alignment: .leading, spacing: 28) {
+					Text("Based on your hardware,\nhere’s your recommended setup.")
+						.font(.openRunde(size: 20, weight: .semibold))
+						.foregroundStyle(.primary)
+						.fixedSize(horizontal: false, vertical: true)
+
+					bundleCard
+
+					Text("One download to get started. Beacon installs the models in this bundle one at a time. You can manage them later in Settings.")
+						.font(.openRunde(size: 16, weight: .regular))
+						.foregroundStyle(.secondary)
+						.lineSpacing(3)
+						.fixedSize(horizontal: false, vertical: true)
+				}
+				.padding(.horizontal, 24)
+				.padding(.vertical, 24)
+			}
+			.scrollBounceBehavior(.basedOnSize)
+		}
+		.safeAreaInset(edge: .bottom, spacing: 0) {
+			VStack(spacing: 14) {
+				BeaconButton(
+					pendingModels.isEmpty ? "Use Chat Core" : "Download Chat Core",
+					size: .large,
+					isFullWidth: true,
+					trailingAssetIcon: "download.icon",
+					isDisabled: primaryModel == nil,
+					action: downloadBundle
+				)
+				BeaconButton("Choose later", variant: .secondary, size: .large, isFullWidth: true) {
+					withAnimation(confirmationAnimation) {
+						isShowingChooseLater = true
+					}
+				}
+			}
+			.padding(.horizontal, 24)
+			.padding(.vertical, 12)
+			.background(Color(uiColor: .systemBackground))
 		}
 		.background(Color(uiColor: .systemBackground))
 		.opacity(hasAppeared ? 1 : 0)
-		.blur(radius: hasAppeared ? 0 : 18)
-		.scaleEffect(hasAppeared ? 1 : 0.94)
-		.animation(.spring(response: 0.54, dampingFraction: 0.86, blendDuration: 0.1), value: hasAppeared)
-		.onAppear {
-			hasAppeared = true
-		}
-	}
+		.offset(y: hasAppeared || reduceMotion ? 0 : 14)
+		.animation(reduceMotion ? .easeOut(duration: 0.2) : .spring(response: 0.5, dampingFraction: 0.88), value: hasAppeared)
+		.onAppear { hasAppeared = true }
+		.accessibilityHidden(isShowingChooseLater)
+		.overlay {
+			GeometryReader { proxy in
+				ZStack(alignment: .bottom) {
+					if isShowingChooseLater {
+						Color.black.opacity(0.25)
+							.onTapGesture { dismissConfirmation() }
+							.accessibilityHidden(true)
 
-	private var orderedModels: [BeaconModel] {
-		models.enumerated().sorted { left, right in
-			let leftPriority = ModelDeviceCompatibility.current(for: left.element).sortPriority
-			let rightPriority = ModelDeviceCompatibility.current(for: right.element).sortPriority
-			return leftPriority == rightPriority ? left.offset < right.offset : leftPriority < rightPriority
-		}.map(\.element)
-	}
-
-	private var hasUsableModel: Bool {
-		models.contains { ModelDeviceCompatibility.current(for: $0).canUse }
-	}
-
-	private var selectedModel: BeaconModel? {
-		models.first { $0.id == selectedModelID && ModelDeviceCompatibility.current(for: $0).canUse }
-	}
-
-	private func isDownloaded(_ model: BeaconModel) -> Bool {
-		Set(downloadedModelIDs.split(separator: ",").map(String.init)).contains(model.id)
-	}
-
-	private var header: some View {
-		VStack(alignment: .leading, spacing: 12) {
-			Text("Choose your first chat model.")
-				.font(.openRunde(size: 28, weight: .medium))
-				.foregroundStyle(.primary)
-				.lineSpacing(2)
-
-			Text(hasUsableModel
-				? "Pick one small model to download now. You can explore more later; questions about images need a separate, optional vision model."
-				: "These chat models aren't supported on this iPhone. You can go back, but you can't complete setup on this device yet.")
-				.font(.openRunde(size: 16, weight: .regular))
-				.foregroundStyle(.secondary)
-				.lineSpacing(3)
-		}
-	}
-}
-
-private struct WelcomeModelSelectRow: View {
-	let model: BeaconModel
-	let isSelected: Bool
-
-	private var compatibility: ModelDeviceCompatibility {
-		.current(for: model)
-	}
-
-	var body: some View {
-		VStack(alignment: .leading, spacing: 16) {
-			VStack(alignment: .leading, spacing: 12) {
-				HStack {
-					Text(model.name)
-						.font(.openRunde(size: 18, weight: .medium))
-						.foregroundStyle(.primary)
-					Spacer()
-					Image(systemName: isSelected ? "largecircle.fill.circle" : "circle")
-						.font(.system(size: 22))
-						.foregroundStyle(isSelected ? .primary : .secondary)
-				}
-
-				Text(model.description)
-					.font(.openRunde(size: 16, weight: .regular))
-					.foregroundStyle(.secondary)
-					.lineSpacing(3)
-			}
-
-			VStack(alignment: .leading, spacing: 10) {
-				HStack(spacing: 10) {
-					Tag(title: model.formattedSize, color: .indigo)
-
-					if model.type == .reasoning {
-						Tag(title: "reasoning", color: .orange)
-					} else {
-						Tag(title: "chat", color: .gray)
+						ChooseLaterConfirmationView(
+							onDownload: { dismissConfirmation(download: true) },
+							onConfirm: { dismissConfirmation(confirmed: true) }
+						)
+						.frame(maxWidth: 560)
+						.frame(height: min(340, max(0, proxy.size.height - proxy.safeAreaInsets.top - 24)))
+						.clipShape(UnevenRoundedRectangle(
+							topLeadingRadius: 40,
+							bottomLeadingRadius: 52,
+							bottomTrailingRadius: 52,
+							topTrailingRadius: 40,
+							style: .continuous
+						))
+						.shadow(color: .black.opacity(0.12), radius: 24, y: 8)
+						.padding(.horizontal, 8)
+						.padding(.bottom, 8)
+						.accessibilityAddTraits(.isModal)
+						.accessibilityAction(.escape) { dismissConfirmation() }
+						.transition(confirmationTransition)
 					}
 				}
+				.frame(maxWidth: .infinity, maxHeight: .infinity)
+			}
+			.ignoresSafeArea()
+		}
+	}
 
-				Tag(title: compatibility.tagTitle, color: compatibility.tint)
+	private var confirmationAnimation: Animation {
+		reduceMotion ? .easeOut(duration: 0.16) : .spring(response: 0.32, dampingFraction: 0.84, blendDuration: 0.04)
+	}
 
-				if let message = compatibility.message {
-					Label(message, systemImage: compatibility.systemImage)
-						.font(.openRunde(size: 13, weight: .regular))
-						.foregroundStyle(compatibility.tint)
-				}
+	private var confirmationTransition: AnyTransition {
+		if reduceMotion {
+			return .move(edge: .bottom)
+		}
+
+		return .asymmetric(
+			insertion: .move(edge: .bottom).combined(with: .scale(scale: 0.94, anchor: .bottom)),
+			removal: .move(edge: .bottom).combined(with: .scale(scale: 0.98, anchor: .bottom))
+		)
+	}
+
+	private func dismissConfirmation(confirmed: Bool = false, download: Bool = false) {
+		guard isShowingChooseLater, !isDismissingConfirmation else { return }
+		isDismissingConfirmation = true
+		withAnimation(confirmationAnimation, completionCriteria: .removed) {
+			isShowingChooseLater = false
+		} completion: {
+			isDismissingConfirmation = false
+			if download {
+				downloadBundle()
+			} else if confirmed {
+				onChooseLater()
+			}
+		}
+	}
+
+	private var bundleCard: some View {
+		VStack(alignment: .leading, spacing: 20) {
+			HStack(alignment: .center, spacing: 8) {
+			Text("Chat Core")
+				.font(.openRunde(size: 20, weight: .semibold))
+				.fixedSize(horizontal: false, vertical: true)
+				WelcomeVerifiedBadge()
 			}
 
+			Text("A curated bundle of local models for your iPhone. Get help with everyday questions, writing, and planning—without choosing individual models.")
+				.font(.openRunde(size: 16, weight: .medium))
+				.lineSpacing(4)
+				.fixedSize(horizontal: false, vertical: true)
+
+			if bundledModels.contains(where: \.supportsImages) {
+				Text("Includes help with photos")
+					.font(.openRunde(size: 15, weight: .medium))
+					.fixedSize(horizontal: false, vertical: true)
+			}
+
+			ModelTagLayout(spacing: 8) {
+				Tag(title: "Selected for your iPhone", color: .green)
+				Tag(title: bundleSize, color: .indigo)
+			}
 		}
+		.foregroundStyle(.primary)
+		.padding(24)
 		.frame(maxWidth: .infinity, alignment: .leading)
-		.contentShape(Rectangle())
-		.accessibilityElement(children: .combine)
-		.accessibilityAddTraits(isSelected ? [.isSelected] : [])
+		.background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 26, style: .continuous))
+	}
+
+	private func downloadBundle() {
+		guard let primaryModel else { return }
+		onDownloadModels(bundledModels, primaryModel)
 	}
 }
 
-private extension ModelDeviceCompatibility {
-	var tint: Color {
-		switch self {
-		case .goodFit: .green
-		case .mayBeSlow: .orange
-		case .unavailable: .gray
+private struct ChooseLaterConfirmationView: View {
+	let onDownload: () -> Void
+	let onConfirm: () -> Void
+
+	var body: some View {
+		ScrollView(showsIndicators: false) {
+			VStack(spacing: 20) {
+				VStack(spacing: 12) {
+					Text("Set up later?")
+						.font(.openRunde(size: 24, weight: .semibold))
+					Text("To chat locally, Beacon needs an available model. You can skip this download and add a model later in Settings.")
+						.font(.openRunde(size: 16, weight: .medium))
+						.foregroundStyle(.secondary)
+						.lineSpacing(3)
+				}
+				.multilineTextAlignment(.center)
+				.fixedSize(horizontal: false, vertical: true)
+
+				VStack(spacing: 12) {
+					BeaconButton("Download Chat Core", variant: .black, size: .large, isFullWidth: true, action: onDownload)
+					BeaconButton("Yes, choose later", variant: .secondary, size: .large, isFullWidth: true, action: onConfirm)
+				}
+				.padding(.top, 4)
+			}
+			.padding(.horizontal, 24)
+			.padding(.top, 32)
+			.padding(.bottom, 24)
 		}
+		.scrollBounceBehavior(.basedOnSize)
+		.foregroundStyle(.primary)
+		.background(Color(uiColor: .systemBackground))
 	}
 }
 
-private struct ModelSelectEntranceModifier: ViewModifier {
-	let isVisible: Bool
-	let delay: Double
+private struct WelcomeVerifiedBadge: View {
+	@Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-	func body(content: Content) -> some View {
-		content
-			.opacity(isVisible ? 1 : 0)
-			.blur(radius: isVisible ? 0 : 14)
-			.scaleEffect(isVisible ? 1 : 0.965, anchor: .topLeading)
-			.rotation3DEffect(
-				.degrees(isVisible ? 0 : 2.5),
-				axis: (x: 1, y: -0.25, z: 0),
-				anchor: .topLeading,
-				perspective: 0.7
-			)
-			.offset(y: isVisible ? 0 : 12)
-			.animation(.smooth(duration: 0.62).delay(delay), value: isVisible)
-	}
-}
+	var body: some View {
+		TimelineView(.animation(minimumInterval: 1.0 / 30, paused: reduceMotion)) { context in
+			ZStack {
+				Image("badge.icon")
+					.renderingMode(.template)
+					.resizable()
+					.scaledToFit()
+					.foregroundStyle(.green)
+					.rotationEffect(.degrees(reduceMotion ? 0 : context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 8) / 8 * 360))
 
-private extension View {
-	func modelSelectEntrance(_ isVisible: Bool, delay: Double) -> some View {
-		modifier(ModelSelectEntranceModifier(isVisible: isVisible, delay: delay))
+				Image(systemName: "checkmark")
+					.font(.system(size: 11, weight: .black))
+					.foregroundStyle(.white)
+			}
+			.frame(width: 30, height: 30)
+		}
+		.accessibilityLabel("Recommended for your iPhone")
 	}
 }
 
 #Preview {
-	WelcomeModelSelectView(models: ModelCatalog.onboardingModels, onDownloadModel: { _ in })
+	WelcomeModelSelectView(
+		models: ModelCatalog.coreOnboardingModels(in: ModelCatalog.availableModels),
+		onDownloadModels: { _, _ in }
+	)
+}
+
+#Preview("Small model setup") {
+	WelcomeModelSelectView(
+		models: ModelCatalog.coreOnboardingModels(in: ModelCatalog.availableModels),
+		onDownloadModels: { _, _ in }
+	)
+	.previewLayout(.fixed(width: 320, height: 568))
 }

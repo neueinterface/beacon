@@ -10,6 +10,7 @@ struct SettingsView: View {
 	@ObservedObject var chatHistoryViewModel: ChatHistoryViewModel
 	@ObservedObject var memoryStore: MemoryStore
 	var models = ModelCatalog.availableModels
+	var onDownloadModel: (BeaconModel) -> Void = { _ in }
 	@Environment(\.dismiss) private var dismiss
 	@Environment(\.openURL) private var openURL
 	@AppStorage("downloadedModelIDs") private var downloadedModelIDs = ""
@@ -20,6 +21,7 @@ struct SettingsView: View {
 	#endif
 	@State private var isConfirmingDeleteAllChats = false
 	@State private var isConfirmingDeleteModels = false
+	@State private var isShowingModelManager = false
 	#if false // Web search is not currently available.
 	@State private var isShowingWebSearchInfo = false
 	#endif
@@ -140,6 +142,14 @@ struct SettingsView: View {
 
 						ModelStorageUsagePill(usedGB: downloadedStorageGB, maxGB: ModelStorageLimit.maxGB)
 
+						VStack(spacing: 0) {
+							SettingsButtonRow(title: "Manage Models", icon: "playground.icon") {
+								isShowingModelManager = true
+							}
+						}
+						.padding(.vertical, 6)
+						.background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+
 						BeaconButton(
 							"Delete Downloaded Models",
 							variant: .destructive,
@@ -214,6 +224,16 @@ struct SettingsView: View {
 			#endif
 			.sheet(item: $safariViewModel.page) { page in
 				SafariView(url: page.url)
+			}
+			.sheet(isPresented: $isShowingModelManager) {
+				ModelMarketPlaceView(
+					models: models,
+					onClose: { isShowingModelManager = false },
+					onDownload: { model in
+						isShowingModelManager = false
+						onDownloadModel(model)
+					}
+				)
 			}
 		}
 	}

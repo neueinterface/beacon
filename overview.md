@@ -54,7 +54,7 @@ Beacon should make good decisions on the user's behalf, explain choices clearly 
 
 Choice should create confidence, not anxiety.
 
-Beacon should favor curation over exhaustive lists. Models should be presented through clear purpose, quality, personality, and fit. The experience should help users answer simple questions: What is this good for? Why would I choose it? What can I do with it now?
+Beacon should favor curation over exhaustive lists. Models should be presented through clear purpose, quality, capability, and fit. The experience should help users answer simple questions: What is this good for? Why would I choose it? What can I do with it now?
 
 ### Beautiful by Default
 

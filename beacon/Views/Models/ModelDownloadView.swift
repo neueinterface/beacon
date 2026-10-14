@@ -26,6 +26,10 @@ protocol ModelDownloadRuntime: ObservableObject {
 struct ModelDownloadView<Runtime: ModelDownloadRuntime>: View {
 	let model: BeaconModel
 	@ObservedObject var runtime: Runtime
+	var downloadTitle: String?
+	var bundleModels: [BeaconModel]?
+	var completedBundleModelCount = 0
+	var completedBundleDownloadGB = 0.0
 	var onComplete: () -> Void = { }
 	var onCancel: () -> Void = { }
 	var onError: (String) -> Void = { _ in }
@@ -34,26 +38,29 @@ struct ModelDownloadView<Runtime: ModelDownloadRuntime>: View {
 	@State private var hasStarted = false
 	@State private var isCancelled = false
 	@State private var loadingTask: Task<Void, Never>?
-	@State private var estimatedProgressTask: Task<Void, Never>?
 	@State private var displayedProgress = 0.02
 	@State private var lastLoadingHapticProgress = 0.0
 
 	var body: some View {
+		GeometryReader { proxy in
+		ScrollView(showsIndicators: false) {
 		VStack(alignment: .leading, spacing: 0) {
 			Spacer()
 
 			VStack(alignment: .leading, spacing: 28) {
-				DownloadProgressBar(progress: displayedProgress, isLoading: isProgressActive)
+				DownloadProgressBar(progress: bundleProgress, isLoading: isProgressActive)
 
 				VStack(alignment: .leading, spacing: 12) {
-					Text(runtime.isLoading ? "Downloading model" : "Preparing model")
+					Text(runtime.isLoading ? "Downloading \(displayTitle)" : "Preparing \(displayTitle)")
 						.font(.openRunde(size: 24, weight: .medium))
 						.foregroundStyle(.primary)
+						.fixedSize(horizontal: false, vertical: true)
 
 					Text(statusText)
 						.font(.openRunde(size: 16, weight: .regular))
 						.foregroundStyle(.secondary)
 						.lineSpacing(3)
+						.fixedSize(horizontal: false, vertical: true)
 				}
 
 				if let errorMessage = runtime.errorMessage {
@@ -61,6 +68,7 @@ struct ModelDownloadView<Runtime: ModelDownloadRuntime>: View {
 						Text(errorMessage)
 							.font(.openRunde(size: 16, weight: .regular))
 							.foregroundStyle(.red)
+							.fixedSize(horizontal: false, vertical: true)
 
 						BeaconButton("Try again", variant: .secondary, size: .small) {
 							hasStarted = false
@@ -72,9 +80,10 @@ struct ModelDownloadView<Runtime: ModelDownloadRuntime>: View {
 
 				HStack(alignment: .top, spacing: 16) {
 					VStack(alignment: .leading, spacing: 8) {
-						Text(model.name)
+						Text(displayTitle)
 							.font(.openRunde(size: 18, weight: .medium))
 							.foregroundStyle(.primary)
+							.fixedSize(horizontal: false, vertical: true)
 
 						Text(downloadSizeText)
 							.font(.openRunde(size: 14, weight: .medium))
@@ -99,8 +108,11 @@ struct ModelDownloadView<Runtime: ModelDownloadRuntime>: View {
 			}
 		}
 		.padding(.horizontal, 20)
-		.padding(.bottom, 40)
-		.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+		.padding(.vertical, 24)
+		.frame(minHeight: proxy.size.height, alignment: .bottomLeading)
+		}
+		.scrollBounceBehavior(.basedOnSize)
+		}
 		.background(Color(uiColor: .systemBackground))
 		.onAppear {
 			guard startsAutomatically else { return }
@@ -111,9 +123,8 @@ struct ModelDownloadView<Runtime: ModelDownloadRuntime>: View {
 		}
 		.onChange(of: runtime.isLoading) { _, isLoading in
 			if isLoading {
-				startEstimatedProgressIfNeeded()
+				lastLoadingHapticProgress = 0
 			} else {
-				stopEstimatedProgress()
 				finishProgress(success: runtime.isReady(for: model))
 			}
 		}
@@ -135,16 +146,23 @@ struct ModelDownloadView<Runtime: ModelDownloadRuntime>: View {
 				isCancelled = true
 			}
 			loadingTask?.cancel()
-			estimatedProgressTask?.cancel()
 		}
 	}
 
 	private var statusText: String {
 		if runtime.errorMessage != nil {
-			return "Something went wrong while loading \(model.name)."
+			return "Something went wrong while preparing \(displayTitle)."
+		}
+
+		if let bundleModels {
+			return "Keep this screen open while Beacon downloads your bundle. \(completedBundleModelCount + 1) of \(bundleModels.count) is in progress."
 		}
 
 		return "Keep this screen open while \(model.name) downloads to your device. This only needs to happen once."
+	}
+
+	private var displayTitle: String {
+		downloadTitle ?? model.name
 	}
 
 	private var isProgressActive: Bool {
@@ -152,6 +170,10 @@ struct ModelDownloadView<Runtime: ModelDownloadRuntime>: View {
 	}
 
 	private var downloadSizeText: String {
+		if bundleModels != nil {
+			return "\(formattedGB(min(completedBundleDownloadGB + currentDownloadedGB, bundleTotalGB)))/\(formattedGB(bundleTotalGB)) GB"
+		}
+
 		if let completedUnitCount = runtime.completedUnitCount,
 		   let totalUnitCount = runtime.totalUnitCount,
 		   completedUnitCount >= 0,
@@ -176,6 +198,29 @@ struct ModelDownloadView<Runtime: ModelDownloadRuntime>: View {
 		return NSDecimalNumber(decimal: model.sizeInGB).doubleValue
 	}
 
+	private var currentDownloadedGB: Double {
+		if let completedUnitCount = runtime.completedUnitCount, completedUnitCount >= 0 {
+			return Double(completedUnitCount) / 1_000_000_000
+		}
+
+		return downloadTotalGB * displayedProgress
+	}
+
+	private var bundleTotalGB: Double {
+		guard let bundleModels, !bundleModels.isEmpty else { return downloadTotalGB }
+		let futureGB = bundleModels
+			.dropFirst(min(completedBundleModelCount + 1, bundleModels.count))
+			.reduce(0.0) { total, model in
+				total + NSDecimalNumber(decimal: model.sizeInGB).doubleValue
+			}
+		return max(completedBundleDownloadGB + downloadTotalGB + futureGB, 0.01)
+	}
+
+	private var bundleProgress: Double {
+		guard let bundleModels, !bundleModels.isEmpty else { return displayedProgress }
+		return min(max((completedBundleDownloadGB + currentDownloadedGB) / bundleTotalGB, 0.02), 1)
+	}
+
 	private func formattedGB(_ value: Double) -> String {
 		if value < 1 {
 			return String(format: "%.2f", value)
@@ -191,9 +236,7 @@ struct ModelDownloadView<Runtime: ModelDownloadRuntime>: View {
 		#if canImport(UIKit)
 		UIImpactFeedbackGenerator(style: .medium).impactOccurred()
 		#endif
-		startEstimatedProgressIfNeeded()
 		await runtime.load(model)
-		stopEstimatedProgress()
 		finishProgress(success: runtime.isReady(for: model))
 
 		if !isCancelled && !Task.isCancelled && runtime.isReady(for: model) {
@@ -208,7 +251,6 @@ struct ModelDownloadView<Runtime: ModelDownloadRuntime>: View {
 		isCancelled = true
 		loadingTask?.cancel()
 		loadingTask = nil
-		stopEstimatedProgress()
 		displayedProgress = 0.02
 		lastLoadingHapticProgress = 0
 		#if canImport(UIKit)
@@ -226,31 +268,6 @@ struct ModelDownloadView<Runtime: ModelDownloadRuntime>: View {
 		}
 
 		playLoadingHapticIfNeeded(for: clampedProgress)
-	}
-
-	private func startEstimatedProgressIfNeeded() {
-		guard estimatedProgressTask == nil else { return }
-
-		estimatedProgressTask = Task { @MainActor in
-			while !Task.isCancelled {
-				try? await Task.sleep(for: .milliseconds(350))
-				guard !Task.isCancelled, runtime.errorMessage == nil, !runtime.isReady(for: model) else { break }
-
-				let targetProgress = min(displayedProgress + estimatedProgressStep, 0.92)
-				guard targetProgress > displayedProgress else { continue }
-				updateDisplayedProgress(with: targetProgress)
-			}
-		}
-	}
-
-	private func stopEstimatedProgress() {
-		estimatedProgressTask?.cancel()
-		estimatedProgressTask = nil
-	}
-
-	private var estimatedProgressStep: Double {
-		let totalGB = max(downloadTotalGB, 0.2)
-		return min(max(0.006 / totalGB, 0.003), 0.018)
 	}
 
 	private func playLoadingHapticIfNeeded(for progress: Double) {

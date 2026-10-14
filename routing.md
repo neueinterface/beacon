@@ -11,9 +11,9 @@ User message
 Selected model loaded on the iPhone
     |
     v
-Local routing pass: NO_SEARCH or SEARCH: <query>
+Local routing pass: NO_SEARCH or SEARCH_PLAN: <objective + queries>
     |                              |
-    | NO_SEARCH                    | SEARCH
+    | NO_SEARCH                    | SEARCH_PLAN
     v                              v
 Local answer                 HTTPS POST /mcp
                                    |
@@ -41,15 +41,15 @@ Local answer                 HTTPS POST /mcp
 
 ## 1. Local Routing
 
-`BeaconModelRuntime.webSearchQuery` uses deterministic rules for explicit search requests and current-information phrases such as `recent`, `latest`, `today`, `weather`, `score`, and `who won`. Messages without one of these strong signals stay local. This avoids asking small chat models to make tool-routing decisions.
+`BeaconModelRuntime.webSearchPlan` uses deterministic rules for explicit search requests and current-information phrases such as `recent`, `latest`, `today`, `weather`, `score`, and `who won`. Messages without one of these strong signals stay local. For context-dependent follow-ups and image questions, the selected local model can resolve the subject into a bounded search plan.
 
-For a context-dependent follow-up, Beacon combines the latest message with the most recent user message when that earlier message clearly required current information. No routing model generation or additional model download is used.
+For a context-dependent follow-up, Beacon combines the latest message with the most recent user message when that earlier message clearly required current information. Direct current-information requests use deterministic fallback plans; contextual follow-ups and image questions may use one local routing pass, with no additional model download.
 
 The router receives:
 
 - The latest user message.
 - Up to four recent conversation messages, truncated to 500 characters each.
-- Deterministic rules that return either no query or a bounded standalone query.
+- Deterministic rules and, when needed, a local routing pass that return either no search or a bounded objective with one to three focused queries.
 
 Search is intended for current events, weather, prices, schedules, recent releases, requested sources, and other facts likely to change. Casual conversation, historical facts, creative work, rewriting, and timeless knowledge stay local.
 
@@ -58,7 +58,7 @@ Two explicit overrides are available:
 - `/web <query>` always searches.
 - `/noweb <message>` always skips search.
 
-Image requests currently skip web routing and use the vision-model path.
+Image requests use the vision model first. The chat model may then produce a visual search plan when an external fact would help verify the observations.
 
 ## 2. MCP Request
 
@@ -75,6 +75,7 @@ The request calls only `search_web` and asks for:
 - At most three results.
 - At most 2,500 characters of extracted text per result.
 - A query no longer than 200 characters.
+- A short search objective and one to three focused queries. The primary `query` field remains in the request for compatibility with older Beacon workers.
 - A 45-second client timeout.
 
 The MCP endpoint can respond with JSON or Server-Sent Events. Beacon accepts both and extracts the JSON-RPC result from the SSE envelope when necessary.
@@ -212,7 +213,7 @@ Beacon does not currently discover arbitrary tools. A replacement server must im
 - MCP protocol version `2025-06-18`.
 - JSON-RPC method `tools/call`.
 - Tool name `search_web`.
-- Arguments `query`, `limit`, `includeContent`, and `maxContentLength`.
+- Arguments `query`, optional `objective`, optional `queries`, `limit`, `includeContent`, and `maxContentLength`.
 - A JSON or Server-Sent Events response containing an MCP text content item.
 
 The text content must itself contain JSON in this shape:
@@ -220,6 +221,8 @@ The text content must itself contain JSON in this shape:
 ```json
 {
   "query": "standalone search query",
+  "objective": "the unresolved information need",
+  "queries": ["standalone search query", "alternate focused query"],
   "results": [
     {
       "title": "Result title",
@@ -231,7 +234,7 @@ The text content must itself contain JSON in this shape:
 }
 ```
 
-Result URLs must use HTTPS. Beacon requests at most three results and currently includes up to 2,500 characters of page text per result in the local answer prompt.
+Result URLs must use HTTPS. Beacon requests at most three results and currently includes up to 2,500 characters of page text per result in the local answer prompt. The Worker may search each planned query once, merge duplicates, and return the strongest bounded results.
 
 For compatible quota errors, return HTTP `429` with an optional ISO-8601 `resetsAt` value:
 

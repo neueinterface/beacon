@@ -14,6 +14,35 @@ struct BeaconModel: Identifiable, Equatable, Decodable {
 		case reasoning
 	}
 
+	enum OnboardingRole: String, Decodable {
+		case chatLight
+		case chatCore
+		case vision
+		case thinker
+
+		var title: String {
+			switch self {
+			case .chatLight: "Chat Light"
+			case .chatCore: "Chat Core"
+			case .vision: "Vision"
+			case .thinker: "Thinker"
+			}
+		}
+
+		var systemImage: String {
+			switch self {
+			case .chatLight: "bolt.fill"
+			case .chatCore: "bubble.left.and.bubble.right.fill"
+			case .vision: "eye.fill"
+			case .thinker: "sparkles"
+			}
+		}
+
+		var isOptional: Bool {
+			self == .thinker
+		}
+	}
+
 	let id: String
 	let name: String
 	let description: String
@@ -27,6 +56,7 @@ struct BeaconModel: Identifiable, Equatable, Decodable {
 	let parameterCountInBillions: Decimal?
 	let updatedAt: String?
 	let bestFor: String?
+	let onboardingRole: OnboardingRole?
 
 	init(
 		id: String,
@@ -41,7 +71,8 @@ struct BeaconModel: Identifiable, Equatable, Decodable {
 		supportsImages: Bool = false,
 		parameterCountInBillions: Decimal? = nil,
 		updatedAt: String? = nil,
-		bestFor: String? = nil
+		bestFor: String? = nil,
+		onboardingRole: OnboardingRole? = nil
 	) {
 		self.id = id
 		self.name = name
@@ -56,6 +87,30 @@ struct BeaconModel: Identifiable, Equatable, Decodable {
 		self.parameterCountInBillions = parameterCountInBillions
 		self.updatedAt = updatedAt
 		self.bestFor = bestFor
+		self.onboardingRole = onboardingRole
+	}
+
+	var onboardingName: String {
+		onboardingRole?.title ?? name
+	}
+
+	/// Presentation only: repository IDs and persisted model IDs stay unchanged.
+	var assistantName: String {
+		switch id {
+		case "qwen3-0.6b", "qwen3-1.7b", "qwen3-4b-instruct-2507": "Beacon Chat"
+		case "deepseek-r1-distill-qwen-1.5b": "Beacon Think"
+		case "smolvlm2-500m", "qwen2-vl-2b": "Beacon Vision"
+		default: name
+		}
+	}
+
+	var assistantDescription: String {
+		switch assistantName {
+		case "Beacon Chat": "Your everyday assistant for questions, writing, summaries, and planning."
+		case "Beacon Think": "Take more time with math, logic, and multi-step problems."
+		case "Beacon Vision": "Ask questions about photos, describe scenes, and read visible text."
+		default: description
+		}
 	}
 
 	var formattedSize: String {
@@ -271,12 +326,115 @@ enum ModelCatalog {
 		models.filter(\.isAvailableDuringOnboarding)
 	}
 
+	static func coreOnboardingModels(in models: [BeaconModel]) -> [BeaconModel] {
+		let onboarding = onboardingModels(in: models)
+		let nonVisionModels = onboarding.filter {
+			$0.onboardingRole == .chatLight || $0.onboardingRole == .chatCore
+		}
+		let visionModels = onboarding.filter { $0.onboardingRole == .vision }
+		let selectedVision = visionModels.first(where: { $0.id == "qwen2-vl-2b" && ModelDeviceCompatibility.current(for: $0).canUse })
+			?? visionModels.first(where: { ModelDeviceCompatibility.current(for: $0).canUse })
+			?? visionModels.first
+
+		return nonVisionModels + (selectedVision.map { [$0] } ?? [])
+	}
+
+	static func optionalOnboardingModels(in models: [BeaconModel]) -> [BeaconModel] {
+		onboardingModels(in: models).filter { $0.onboardingRole?.isOptional == true }
+	}
+
+	/// One curated option per capability. Prefer a good hardware fit over a
+	/// larger model that can only run with reduced performance.
+	static func marketplaceModels(
+		in models: [BeaconModel],
+		compatibility: (BeaconModel) -> ModelDeviceCompatibility = { ModelDeviceCompatibility.current(for: $0) }
+	) -> [BeaconModel] {
+		let choices = [
+			["qwen3-4b-instruct-2507", "qwen3-1.7b", "qwen3-0.6b"],
+			["deepseek-r1-distill-qwen-1.5b"],
+			["qwen2-vl-2b", "smolvlm2-500m"]
+		]
+		return choices.compactMap { ids in
+			let candidates = ids.compactMap { id in models.first { $0.id == id } }
+			return candidates.first(where: { compatibility($0) == .goodFit })
+				?? candidates.first(where: { compatibility($0).canUse })
+				?? candidates.first
+		}
+	}
+
 	static func defaultModel(in models: [BeaconModel]) -> BeaconModel {
-		onboardingModels(in: models).first ?? models.first ?? availableModels[0]
+		coreOnboardingModels(in: models).first(where: { $0.onboardingRole == .chatCore })
+			?? coreOnboardingModels(in: models).first
+			?? onboardingModels(in: models).first
+			?? models.first
+			?? availableModels[0]
 	}
 
 	static func model(id: String, in models: [BeaconModel]) -> BeaconModel? {
 		models.first { $0.id == id }
+	}
+}
+
+enum BeaconModelRouter {
+	private static let reasoningSignals = [
+		"step by step", "think through", "reason", "logic", "proof", "prove", "calculate",
+		"equation", "math", "solve", "compare", "analyze", "analysis", "tradeoff", "trade-off"
+	]
+	private static let lightSignals = [
+		"quick", "brief", "short answer", "in one sentence", "summarize", "summary", "rewrite", "fix the grammar"
+	]
+	private static let coreSignals = [
+		"write", "draft", "plan", "explain", "why", "compare", "analyze", "analysis", "code", "debug",
+		"detailed", "thorough", "deep", "complex", "multi-step", "research"
+	]
+
+	static func route(
+		text: String,
+		hasImages: Bool,
+		in models: [BeaconModel],
+		downloadedIDs: Set<String>,
+		compatibility: (BeaconModel) -> ModelDeviceCompatibility = { ModelDeviceCompatibility.current(for: $0) }
+	) -> BeaconModel {
+		let available = models.filter { model in
+			(model.isBuiltIn || downloadedIDs.contains(model.id)) && compatibility(model).canUse
+		}
+
+		if hasImages, let vision = available.first(where: \.supportsImages) {
+			return vision
+		}
+
+		let request = text.localizedLowercase
+		if containsAny(reasoningSignals, in: request),
+			let thinker = available.first(where: { $0.onboardingRole == .thinker || $0.assistantName == "Beacon Think" }) {
+			return thinker
+		}
+
+		if shouldPreferLight(request),
+			let light = available.first(where: { $0.onboardingRole == .chatLight }) {
+			return light
+		}
+
+		return preferredChatModel(in: available)
+			?? available.first
+			?? preferredChatModel(in: models)
+			?? models.first
+			?? ModelCatalog.defaultModel
+	}
+
+	private static func preferredChatModel(in models: [BeaconModel]) -> BeaconModel? {
+		let preferredIDs = ["qwen3-4b-instruct-2507", "qwen3-1.7b", "qwen3-0.6b"]
+		return preferredIDs.compactMap { id in models.first(where: { $0.id == id }) }.first
+			?? models.first(where: { $0.onboardingRole == .chatCore || $0.assistantName == "Beacon Chat" })
+	}
+
+	private static func containsAny(_ signals: [String], in text: String) -> Bool {
+		signals.contains { text.contains($0) }
+	}
+
+	private static func shouldPreferLight(_ text: String) -> Bool {
+		if containsAny(lightSignals, in: text) { return true }
+		let wordCount = text.split { !$0.isLetter && !$0.isNumber }.count
+		return wordCount <= 30 && !containsAny(coreSignals, in: text)
 	}
 }
 

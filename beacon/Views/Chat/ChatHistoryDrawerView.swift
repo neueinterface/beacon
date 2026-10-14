@@ -9,8 +9,6 @@ struct ChatHistoryDrawerView: View {
     var onClose: () -> Void
     var onNewChat: () -> Void
     var onOpenSettings: () -> Void
-    var onOpenModels: () -> Void
-    var onSelectPersonality: (ChatPersonality) -> Void = { _ in }
     var onSelect: (ChatConversation) -> Void
 
     var body: some View {
@@ -64,15 +62,6 @@ struct ChatHistoryDrawerView: View {
                             }
                             .accessibilityLabel("Open settings")
 
-                            Button {
-                                playHeaderHaptic()
-                                onOpenModels()
-                            } label: {
-                                Image("playground.icon")
-                                    .renderingMode(.template)
-                                    .padding(.horizontal, 6)
-                            }
-                            .accessibilityLabel("Open model marketplace")
                         }
                     }
                     #endif
@@ -86,23 +75,6 @@ struct ChatHistoryDrawerView: View {
 
     private var historyContent: some View {
 		List {
-			VStack(alignment: .leading, spacing: 10) {
-				Text("Chat with a personality")
-					.font(.beaconFont(size: 18, weight: .semibold))
-					.padding(.bottom, 2)
-				ForEach(ChatPersonality.allCases) { personality in
-					Button {
-						onSelectPersonality(personality)
-					} label: {
-						PersonalityCard(personality: personality)
-					}
-					.buttonStyle(.plain)
-				}
-			}
-			.padding(.vertical, 14)
-			.listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20))
-			.listRowSeparator(.hidden)
-
 			if viewModel.chats.isEmpty {
 				emptyState
 					.listRowInsets(EdgeInsets())
@@ -170,15 +142,6 @@ struct ChatHistoryDrawerView: View {
             }
             .accessibilityLabel("Open settings")
 
-            Button {
-                playHeaderHaptic()
-                onOpenModels()
-            } label: {
-                Image("playground.icon")
-                    .renderingMode(.template)
-                    .padding(.horizontal, 6)
-            }
-            .accessibilityLabel("Open model marketplace")
         }
     }
 
@@ -208,13 +171,6 @@ private struct ChatHistoryRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
 			HStack(alignment: .center, spacing: 14) {
-				if let personality = chat.personality {
-					Image(personality.avatarAsset)
-						.resizable()
-						.scaledToFit()
-						.frame(width: 30, height: 30)
-						.clipShape(Circle())
-				}
                 Text(chat.historyTitle)
                     .font(.beaconFont(size: 16, weight: .medium))
                     .foregroundStyle(.primary)
@@ -246,8 +202,7 @@ private struct ChatHistoryRow: View {
         viewModel: ChatHistoryViewModel(conversations: ChatHistoryPreviewData.conversations),
         onClose: { },
         onNewChat: { },
-        onOpenSettings: { },
-        onOpenModels: { }
+        onOpenSettings: { }
     ) { _ in }
 }
 
@@ -256,8 +211,7 @@ private struct ChatHistoryRow: View {
         viewModel: ChatHistoryViewModel(conversations: []),
         onClose: { },
         onNewChat: { },
-        onOpenSettings: { },
-        onOpenModels: { }
+        onOpenSettings: { }
     ) { _ in }
 }
 

@@ -7,7 +7,7 @@
     "sizeInGB": 0.66,
     "type": "regular",
     "recommendedDevice": "iPhone 14+",
-    "isAvailableDuringOnboarding": true,
+    "isAvailableDuringOnboarding": false,
     "isBuiltIn": false,
     "supportsImages": false,
     "parameterCountInBillions": 1.2,
@@ -27,7 +27,8 @@
     "supportsImages": false,
     "parameterCountInBillions": 0.6,
     "updatedAt": "April 28, 2025",
-    "bestFor": "Fast responses, simple explanations, short writing, and basic everyday tasks. Its compact size favors speed and a smaller download over depth on difficult, multi-step questions."
+    "bestFor": "Fast responses, simple explanations, short writing, and basic everyday tasks. Its compact size favors speed and a smaller download over depth on difficult, multi-step questions.",
+    "onboardingRole": "chatLight"
   },
   {
     "id": "qwen3-1.7b",
@@ -42,7 +43,8 @@
     "supportsImages": false,
     "parameterCountInBillions": 1.7,
     "updatedAt": "April 28, 2025",
-    "bestFor": "More involved questions, step-by-step problem solving, analysis, and writing. It offers more capacity than the 0.6B option while remaining a relatively compact on-device model."
+    "bestFor": "More involved questions, step-by-step problem solving, analysis, and writing. It offers more capacity than the 0.6B option while remaining a relatively compact on-device model.",
+    "onboardingRole": "chatCore"
   },
   {
     "id": "minicpm5-2b",
@@ -157,12 +159,13 @@
     "sizeInGB": 1.01,
     "type": "reasoning",
     "recommendedDevice": "iPhone 15 Pro+",
-    "isAvailableDuringOnboarding": false,
+    "isAvailableDuringOnboarding": true,
     "isBuiltIn": false,
     "supportsImages": false,
     "parameterCountInBillions": 1.5,
     "updatedAt": "February 26, 2025",
-    "bestFor": "Math, logic, and multi-step reasoning. It may take longer and produce more detailed responses than a regular chat model, so it is best when careful problem solving matters more than speed."
+    "bestFor": "Math, logic, and multi-step reasoning. It may take longer and produce more detailed responses than a regular chat model, so it is best when careful problem solving matters more than speed.",
+    "onboardingRole": "thinker"
   },
   {
     "id": "qwen2.5-coder-3b",
@@ -202,12 +205,13 @@
     "sizeInGB": 1.02,
     "type": "regular",
     "recommendedDevice": "iPhone 14+",
-    "isAvailableDuringOnboarding": false,
+    "isAvailableDuringOnboarding": true,
     "isBuiltIn": false,
     "supportsImages": true,
     "parameterCountInBillions": 0.5,
     "updatedAt": "February 20, 2025",
-    "bestFor": "Describing attached images, recognizing visible objects and actions, and reading clear text with a smaller download. It is the preferred lightweight vision bridge for Beacon’s text-only chat models."
+    "bestFor": "Describing attached images, recognizing visible objects and actions, and reading clear text with a smaller download. It is the preferred lightweight vision bridge for Beacon’s text-only chat models.",
+    "onboardingRole": "vision"
   },
   {
     "id": "qwen2-vl-2b",
@@ -217,11 +221,12 @@
     "sizeInGB": 1.26,
     "type": "regular",
     "recommendedDevice": "iPhone 15 Pro+",
-    "isAvailableDuringOnboarding": false,
+    "isAvailableDuringOnboarding": true,
     "isBuiltIn": false,
     "supportsImages": true,
     "parameterCountInBillions": 2,
     "updatedAt": "March 24, 2025",
-    "bestFor": "Answering questions about attached images, describing scenes, and reading visible text. It is the catalog’s vision model; download it before retrying a chat that includes an image."
+    "bestFor": "Answering questions about attached images, describing scenes, and reading visible text. It is the catalog’s vision model; download it before retrying a chat that includes an image.",
+    "onboardingRole": "vision"
   }
 ]

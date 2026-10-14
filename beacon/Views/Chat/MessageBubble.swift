@@ -340,7 +340,10 @@ private struct ThinkingStatusText: View {
 	}
 
 	private var displayText: String {
-		text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Thinking" : text.trimmingCharacters(in: .whitespacesAndNewlines)
+		let status = text.trimmingCharacters(in: .whitespacesAndNewlines)
+			.trimmingCharacters(in: CharacterSet(charactersIn: ".…"))
+			.trimmingCharacters(in: .whitespacesAndNewlines)
+		return status.isEmpty ? "Thinking" : status
 	}
 
 	private var isSearchingWeb: Bool {
@@ -432,9 +435,9 @@ private extension String {
 
 private var previewAttachmentData: Data? {
 	#if canImport(UIKit)
-	UIImage(named: "personalitySpotlight")?.jpegData(compressionQuality: 0.8)
+	UIImage(named: "whatsnew")?.jpegData(compressionQuality: 0.8)
 	#elseif canImport(AppKit)
-	NSImage(named: NSImage.Name("personalitySpotlight"))?.tiffRepresentation
+	NSImage(named: NSImage.Name("whatsnew"))?.tiffRepresentation
 	#endif
 }
 

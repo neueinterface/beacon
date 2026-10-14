@@ -25,10 +25,16 @@ enum MemoryCapture {
 			let json = cleaned.hasPrefix("```") ? cleaned.components(separatedBy: .newlines).dropFirst().dropLast().joined(separator: "\n") : cleaned
 			guard let data = json.data(using: .utf8),
 				  let parsed = try? JSONDecoder().decode(Decision.self, from: data) else { return fallback }
-			return Array(parsed.memories.prefix(3)).compactMap { candidate in
+			let extracted = Array(parsed.memories.prefix(3)).compactMap { candidate -> String? in
 				let value = candidate.split(whereSeparator: \.isWhitespace).joined(separator: " ")
 				return value.isEmpty || value.count > 240 || containsSensitiveData(value) ? nil : value
 			}
+			let explicitNameKeys = Set(fallback.compactMap(MemoryContext.nameSubjectKey(for:)))
+			let additional = extracted.filter { candidate in
+				if fallback.contains(where: { $0.localizedCaseInsensitiveCompare(candidate) == .orderedSame }) { return false }
+				return MemoryContext.nameSubjectKey(for: candidate).map { !explicitNameKeys.contains($0) } ?? true
+			}
+			return Array((fallback + additional).prefix(3))
 		} catch {
 			return fallback
 		}
@@ -46,6 +52,7 @@ enum MemoryCapture {
 	static func explicitCandidates(from text: String) -> [String] {
 		let patterns: [(String, String)] = [
 			(#"\bmy name is ([^\n,.!?]{1,60})"#, "The user's name is %@."),
+			(#"\bmy (english bulldog|french bulldog|bulldog|dog|cat|pet)(?:['’]s)? (?:name is|is named|is called) ([\p{L}][\p{L} '’\-]{0,59})(?=[.!\n]|$)"#, "The user's %@ is named %@."),
 			(#"\bmy (wife|husband|partner|spouse|son|daughter|mother|mom|father|dad)(?:['’]?s)? name is ([^\n,.!?]{1,60})"#, "The user's %@ is named %@."),
 			(#"\bi prefer ([^\n.!?]{3,100})"#, "The user prefers %@."),
 			(#"\bmy favorite ([a-z ]{2,30}) is ([^\n,.!?]{1,80})"#, "The user's favorite %@ is %@."),

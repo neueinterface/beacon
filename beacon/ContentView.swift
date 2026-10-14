@@ -13,14 +13,21 @@ struct ContentView: View {
 	@AppStorage("hasCompletedWelcome") private var hasCompletedWelcome = false
 	@AppStorage("selectedModelID") private var selectedModelID = ""
 	@AppStorage("downloadedModelIDs") private var downloadedModelIDs = ""
+	@AppStorage("hasSeenModelRoutingUpdate") private var hasSeenModelRoutingUpdate = false
 	@AppStorage("lastSeenWhatsNewRelease") private var lastSeenAttentionID = ""
 	@ObservedObject private var modelRuntime: BeaconModelRuntime
 	@StateObject private var memoryStore = MemoryStore()
 	private let models = ModelCatalog.availableModels
 	@State private var isChoosingModel = false
+	@State private var isShowingModelMarketplace = false
 	@State private var downloadingModel: BeaconModel?
 	@State private var isOnboardingSetup = false
+	@State private var onboardingDownloadQueue: [BeaconModel] = []
+	@State private var onboardingDownloadModels: [BeaconModel] = []
+	@State private var onboardingCompletedDownloadGB = 0.0
+	@State private var onboardingPrimaryModel: BeaconModel?
 	@State private var downloadAlert: DownloadAlert?
+	@State private var isShowingModelRoutingUpdate = false
 	@State private var isShowingAttention = false
 	@ObservedObject private var notificationRouter: NotificationRouter
 
@@ -32,24 +39,53 @@ struct ContentView: View {
 	var body: some View {
 		Group {
 			if let downloadingModel {
-				ModelDownloadView(model: downloadingModel, runtime: modelRuntime, onComplete: {
-					downloadAlert = .completed(downloadingModel.name)
-					if isOnboardingSetup {
-						recordDownloaded(downloadingModel)
+				ModelDownloadView(
+					model: downloadingModel,
+					runtime: modelRuntime,
+					downloadTitle: isOnboardingSetup ? "Chat Core" : nil,
+					bundleModels: isOnboardingSetup ? onboardingDownloadModels : nil,
+					completedBundleModelCount: max(0, onboardingDownloadModels.count - onboardingDownloadQueue.count),
+					completedBundleDownloadGB: onboardingCompletedDownloadGB,
+						onComplete: {
+						if isOnboardingSetup {
+							onboardingCompletedDownloadGB += modelRuntime.totalUnitCount.map { Double($0) / 1_000_000_000 }
+								?? NSDecimalNumber(decimal: downloadingModel.sizeInGB).doubleValue
+							recordDownloaded(downloadingModel)
 						recordModelDownload(downloadingModel)
-						finishOnboarding(with: downloadingModel)
+
+						if let nextModel = onboardingDownloadQueue.dropFirst().first {
+							onboardingDownloadQueue.removeFirst()
+							self.downloadingModel = nil
+							Task { @MainActor in
+								await Task.yield()
+								guard isOnboardingSetup else { return }
+								self.downloadingModel = nextModel
+							}
+						} else {
+							onboardingDownloadQueue.removeAll()
+							onboardingDownloadModels.removeAll()
+							onboardingCompletedDownloadGB = 0
+							downloadAlert = .completed(onboardingPrimaryModel?.onboardingName ?? downloadingModel.onboardingName)
+							finishOnboarding(with: onboardingPrimaryModel ?? downloadingModel)
+						}
 					} else {
+						downloadAlert = .completed(downloadingModel.name)
 						recordModelDownload(downloadingModel)
 						select(downloadingModel)
 					}
-				}, onCancel: {
+					}, onCancel: {
 					cancelDownload(for: downloadingModel)
-					downloadAlert = .cancelled(downloadingModel.name)
-					isOnboardingSetup = false
-					self.downloadingModel = nil
-				}, onError: { message in
-					downloadAlert = .failed(downloadingModel.name, message)
-				})
+						downloadAlert = .cancelled(isOnboardingSetup ? "Chat Core" : downloadingModel.name)
+						isOnboardingSetup = false
+						onboardingDownloadQueue.removeAll()
+						onboardingDownloadModels.removeAll()
+						onboardingCompletedDownloadGB = 0
+						self.downloadingModel = nil
+					}, onError: { message in
+						downloadAlert = .failed(isOnboardingSetup ? "Chat Core" : downloadingModel.name, message)
+					}
+				)
+				.id(downloadingModel.id)
 			} else if hasCompletedWelcome {
 				ChatView(
 					runtime: modelRuntime,
@@ -58,16 +94,35 @@ struct ContentView: View {
 					onDownloadModel: prepare,
 					notificationRouter: notificationRouter
 				)
+			} else if isShowingModelMarketplace {
+				ModelMarketPlaceView(
+					models: models,
+					isOnboarding: true,
+					onClose: { isShowingModelMarketplace = false },
+					onDownload: prepare,
+					onSelect: select
+				)
 			} else if isChoosingModel {
 				WelcomeModelSelectView(
-					models: ModelCatalog.onboardingModels(in: models),
-					onDownloadModel: prepareOnboardingModel,
+					models: ModelCatalog.coreOnboardingModels(in: models),
+					onDownloadModels: prepareOnboardingModels,
+					onChooseLater: completeOnboardingLater,
 					onBack: { isChoosingModel = false }
 				)
 			} else {
-				WelcomeView(onGetStarted: {
+				WelcomeView(onNewToLocalModels: {
 					isChoosingModel = true
+				}, onUsedLocalModels: {
+					isShowingModelMarketplace = true
 				})
+			}
+		}
+		.overlay {
+			if isShowingModelRoutingUpdate {
+				ModelRoutingUpdateOverlay(
+					onKeepModels: dismissModelRoutingUpdate,
+					onReplaceModels: replaceModelsWithBundle
+				)
 			}
 		}
 		.alert(item: $downloadAlert) { alert in
@@ -103,6 +158,14 @@ struct ContentView: View {
 		.task {
 			ModelIDMigration.migrate()
 			guard hasCompletedWelcome, notificationRouter.quickActionToOpen == nil else { return }
+			if !hasSeenModelRoutingUpdate, !downloadedModelIDs.isEmpty {
+				withAnimation(.spring(response: 0.32, dampingFraction: 0.84)) {
+					isShowingModelRoutingUpdate = true
+				}
+				return
+			} else if !hasSeenModelRoutingUpdate {
+				hasSeenModelRoutingUpdate = true
+			}
 			presentAttentionIfNeeded()
 		}
 	}
@@ -154,26 +217,54 @@ struct ContentView: View {
 		}
 	}
 
-	private func prepareOnboardingModel(_ model: BeaconModel) {
-		guard ModelCatalog.onboardingModels(in: models).contains(model) else { return }
-		let compatibility = ModelDeviceCompatibility.current(for: model)
-		guard compatibility.canUse else {
-			downloadAlert = .unavailable(model.name, compatibility.message ?? "This model isn't supported on this iPhone.")
+	private func prepareOnboardingModels(_ selectedModels: [BeaconModel], _ primaryModel: BeaconModel) {
+		guard models.contains(primaryModel), selectedModels.contains(primaryModel) else { return }
+		guard selectedModels.allSatisfy({ models.contains($0) }) else { return }
+
+		for model in selectedModels {
+			let compatibility = ModelDeviceCompatibility.current(for: model)
+			guard compatibility.canUse else {
+				downloadAlert = .unavailable(model.onboardingName, compatibility.message ?? "This model isn't supported on this iPhone.")
+				return
+			}
+		}
+
+		var simulatedDownloadedIDs = Set(downloadedModelIDs.split(separator: ",").map(String.init))
+		for model in selectedModels where !isDownloaded(model) {
+			let simulatedIDs = simulatedDownloadedIDs.sorted().joined(separator: ",")
+			switch ModelStorageLimit.downloadAvailability(for: model, downloadedModelIDs: simulatedIDs, in: models) {
+			case .available:
+				simulatedDownloadedIDs.insert(model.id)
+			case .appStorageFull:
+				downloadAlert = .failed(model.onboardingName, "Delete a downloaded model to free up Beacon's 10 GB model storage limit.")
+				return
+			case let .deviceStorageLow(requiredGB, availableGB):
+				downloadAlert = .failed(model.onboardingName, "This model needs about \(ModelStorageLimit.formattedGB(requiredGB)) free. You have \(ModelStorageLimit.formattedGB(availableGB)) available.")
+				return
+			}
+		}
+
+		onboardingPrimaryModel = primaryModel
+		onboardingDownloadModels = selectedModels.filter { !isDownloaded($0) }
+		onboardingDownloadQueue = onboardingDownloadModels
+		onboardingCompletedDownloadGB = 0
+		guard let firstModel = onboardingDownloadQueue.first else {
+			finishOnboarding(with: primaryModel)
 			return
 		}
-		if isDownloaded(model) {
-			finishOnboarding(with: model)
-			return
+
+		isOnboardingSetup = true
+		downloadingModel = firstModel
+	}
+
+	private func completeOnboardingLater() {
+		hasSeenModelRoutingUpdate = true
+		let downloadedChatModel = ModelCatalog.coreOnboardingModels(in: models).first(where: { isDownloaded($0) })
+		selectedModelID = downloadedChatModel?.id ?? ModelCatalog.defaultModel(in: models).id
+		if let attention = AttentionContent.current {
+			lastSeenAttentionID = attention.id
 		}
-		switch ModelStorageLimit.downloadAvailability(for: model, downloadedModelIDs: downloadedModelIDs, in: models) {
-		case .available:
-			isOnboardingSetup = true
-			downloadingModel = model
-		case .appStorageFull:
-			downloadAlert = .failed(model.name, "Delete a downloaded model to free up Beacon's 10 GB model storage limit.")
-		case let .deviceStorageLow(requiredGB, availableGB):
-			downloadAlert = .failed(model.name, "This model needs about \(ModelStorageLimit.formattedGB(requiredGB)) free. You have \(ModelStorageLimit.formattedGB(availableGB)) available.")
-		}
+		hasCompletedWelcome = true
 	}
 
 	private func recordModelDownload(_ model: BeaconModel) {
@@ -184,17 +275,53 @@ struct ContentView: View {
 	}
 
 	private func finishOnboarding(with model: BeaconModel) {
-		guard ModelCatalog.onboardingModels(in: models).contains(model), isDownloaded(model) else {
+		hasSeenModelRoutingUpdate = true
+		guard models.contains(model), isDownloaded(model) else {
 			isOnboardingSetup = false
+							onboardingDownloadQueue.removeAll()
+							onboardingDownloadModels.removeAll()
+							onboardingCompletedDownloadGB = 0
 			return
 		}
 		isOnboardingSetup = false
+		onboardingPrimaryModel = nil
 		selectedModelID = model.id
 		if let attention = AttentionContent.current {
 			lastSeenAttentionID = attention.id
 		}
 		hasCompletedWelcome = true
 		downloadingModel = nil
+	}
+
+	private func dismissModelRoutingUpdate() {
+		withAnimation(.spring(response: 0.32, dampingFraction: 0.84)) {
+			isShowingModelRoutingUpdate = false
+		}
+		hasSeenModelRoutingUpdate = true
+	}
+
+	private func replaceModelsWithBundle() {
+		let previousModels = models.filter { !$0.isBuiltIn && isDownloaded($0) }
+		_ = modelRuntime.unloadIfIdle()
+
+		do {
+			try DownloadedModelStorage.delete(previousModels)
+		} catch {
+			downloadAlert = .failed("Models", "Beacon couldn't remove the previous models. Please try again.")
+			return
+		}
+
+		downloadedModelIDs = ""
+		selectedModelID = ""
+		hasSeenModelRoutingUpdate = true
+		withAnimation(.spring(response: 0.32, dampingFraction: 0.84)) {
+			isShowingModelRoutingUpdate = false
+		}
+
+		let bundle = ModelCatalog.coreOnboardingModels(in: models)
+			.filter { ModelDeviceCompatibility.current(for: $0).canUse }
+		guard let primaryModel = bundle.first(where: { $0.onboardingRole == .chatCore }) ?? bundle.first else { return }
+		prepareOnboardingModels(bundle, primaryModel)
 	}
 
 	private func isDownloaded(_ model: BeaconModel) -> Bool {
@@ -215,6 +342,70 @@ struct ContentView: View {
 		guard !model.isBuiltIn else { return }
 		removeDownloaded(model)
 		try? DownloadedModelStorage.delete([model])
+		if isOnboardingSetup {
+			onboardingDownloadQueue.removeAll()
+			onboardingDownloadModels.removeAll()
+			onboardingCompletedDownloadGB = 0
+			onboardingPrimaryModel = nil
+			isOnboardingSetup = false
+		}
+	}
+}
+
+private struct ModelRoutingUpdateOverlay: View {
+	@Environment(\.accessibilityReduceMotion) private var reduceMotion
+	let onKeepModels: () -> Void
+	let onReplaceModels: () -> Void
+
+	var body: some View {
+		GeometryReader { proxy in
+			ZStack(alignment: .bottom) {
+				Color.black.opacity(0.25)
+					.ignoresSafeArea()
+
+				VStack(spacing: 18) {
+					Capsule()
+						.fill(Color.secondary.opacity(0.35))
+						.frame(width: 38, height: 5)
+
+					VStack(spacing: 10) {
+						Text("Beacon just got easier")
+							.font(.openRunde(size: 24, weight: .semibold))
+						Text("We updated Beacon so it can choose the right model for each message. Your chats and memories are saved.")
+							.font(.openRunde(size: 16, weight: .medium))
+							.foregroundStyle(.secondary)
+							.lineSpacing(3)
+					}
+					.multilineTextAlignment(.center)
+					.fixedSize(horizontal: false, vertical: true)
+
+					VStack(spacing: 12) {
+						BeaconButton("Replace with Chat Core", variant: .black, size: .large, isFullWidth: true, action: onReplaceModels)
+						BeaconButton("Keep my models", variant: .secondary, size: .large, isFullWidth: true, action: onKeepModels)
+					}
+				}
+				.padding(.horizontal, 24)
+				.padding(.top, 20)
+				.padding(.bottom, 24)
+				.frame(maxWidth: 560)
+				.frame(height: min(390, max(0, proxy.size.height - proxy.safeAreaInsets.top - 24)))
+				.background(Color(uiColor: .systemBackground))
+				.clipShape(UnevenRoundedRectangle(
+					topLeadingRadius: 40,
+					bottomLeadingRadius: 52,
+					bottomTrailingRadius: 52,
+					topTrailingRadius: 40,
+					style: .continuous
+				))
+				.shadow(color: .black.opacity(0.12), radius: 24, y: 8)
+				.padding(.horizontal, 8)
+				.padding(.bottom, 8)
+				.transition(reduceMotion ? .move(edge: .bottom) : .move(edge: .bottom).combined(with: .scale(scale: 0.94, anchor: .bottom)))
+			}
+			.frame(maxWidth: .infinity, maxHeight: .infinity)
+		}
+		.ignoresSafeArea()
+		.accessibilityAddTraits(.isModal)
 	}
 }
 

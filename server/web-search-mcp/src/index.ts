@@ -4,11 +4,13 @@ import { z } from "zod";
 import { SearchRateLimiter } from "./rate-limiter";
 import { ModelDownloadCounter } from "./model-downloads";
 import { searchWeb } from "./search";
+import { normalizeSearchQueries } from "./search-model";
 
 export { SearchRateLimiter, ModelDownloadCounter };
 
 const MAX_REQUEST_BYTES = 16_384;
 const PROTOCOL_VERSION = "2025-06-18";
+const SEARCH_QUERY = z.string().trim().min(2).max(200);
 
 function createServer(env: Env): McpServer {
   const server = new McpServer({
@@ -21,15 +23,24 @@ function createServer(env: Env): McpServer {
     {
       description: "Search the current web and optionally extract bounded text from the top results.",
       inputSchema: {
-        query: z.string().trim().min(2).max(200),
+        // `query` keeps older Beacon builds compatible while newer builds can
+        // provide a small, deliberate query plan in one MCP call.
+        query: SEARCH_QUERY.optional(),
+        objective: z.string().trim().min(2).max(300).optional(),
+        queries: z.array(SEARCH_QUERY).min(1).max(3).optional(),
         limit: z.number().int().min(1).max(5).default(3),
         includeContent: z.boolean().default(true),
         maxContentLength: z.number().int().min(500).max(5_000).default(3_000)
       }
     },
-    async ({ query, limit, includeContent, maxContentLength }) => {
+    async ({ query, objective, queries, limit, includeContent, maxContentLength }) => {
+      const searchQueries = normalizeSearchQueries(query, queries);
+      if (searchQueries.length === 0) throw new Error("At least one search query is required");
+      const searchObjective = objective?.trim() || searchQueries[0];
       const results = await searchWeb(env.BROWSER, {
-        query,
+        query: searchQueries[0],
+        objective: searchObjective,
+        queries: searchQueries,
         limit,
         includeContent,
         maxContentLength
@@ -38,7 +49,7 @@ function createServer(env: Env): McpServer {
       return {
         content: [{
           type: "text",
-          text: JSON.stringify({ query, results })
+          text: JSON.stringify({ query: searchQueries[0], objective: searchObjective, queries: searchQueries, results })
         }]
       };
     }

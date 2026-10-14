@@ -10,6 +10,7 @@ import SwiftUI
 struct BeaconButton: View {
 		enum Variant {
 		case primary
+		case black
 		case blue
 		case pink
 		case green
@@ -140,6 +141,8 @@ struct BeaconButton: View {
 				if let title {
 					Text(title)
 						.font(textFont)
+						.multilineTextAlignment(.center)
+						.fixedSize(horizontal: false, vertical: true)
 				}
 
 				if isLoading {
@@ -153,6 +156,7 @@ struct BeaconButton: View {
 			}
 			.foregroundStyle(foregroundStyle)
 			.padding(.horizontal, horizontalPadding)
+			.padding(.vertical, 8)
 			.frame(maxWidth: isFullWidth ? .infinity : nil, minHeight: height)
 			.background(backgroundStyle, in: Capsule())
 		}
@@ -244,6 +248,8 @@ struct BeaconButton: View {
 
 	private var foregroundStyle: Color {
 		switch variant {
+		case .black:
+			.white
 		case .primary, .blue, .pink, .green:
 			Color(uiColor: .systemBackground)
 		case .secondary, .subtle:
@@ -255,6 +261,8 @@ struct BeaconButton: View {
 
 	private var backgroundStyle: Color {
 		switch variant {
+		case .black:
+			.black
 		case .primary:
 			.primary
 		case .blue:

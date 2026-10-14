@@ -8,7 +8,10 @@
 import SwiftUI
 
 struct ModelMarketPlaceView: View {
+	@Environment(\.accessibilityReduceMotion) private var reduceMotion
+	@State private var hasAppeared = false
 	let models: [BeaconModel]
+	var isOnboarding = false
 	var onClose: () -> Void = { }
 	var onDownload: (BeaconModel) -> Void = { _ in }
 	var onSelect: (BeaconModel) -> Void = { _ in }
@@ -22,27 +25,30 @@ struct ModelMarketPlaceView: View {
 	@State private var switchedModelName: String?
 	@State private var modelSwitchToastTask: Task<Void, Never>?
 	@State private var informationModelID: String?
-	@State private var selectedCompany = ModelCompanyFilter.all
 	@State private var availableStorageGB: Double?
 	@State private var hasMeasuredAvailableStorage = false
 	private var catalogModels: [BeaconModel] {
 		models
 	}
 
-	private var companyFilters: [String] {
-		[ModelCompanyFilter.all] + Array(Set(catalogModels.map(\.company))).sorted()
+	private var recommendedModels: [BeaconModel] {
+		ModelCatalog.marketplaceModels(in: models)
 	}
 
-	private var filteredModels: [BeaconModel] {
-		guard selectedCompany != ModelCompanyFilter.all else { return catalogModels }
-		return catalogModels.filter { $0.company == selectedCompany }
+	private var otherDownloadedModels: [BeaconModel] {
+		let recommendedIDs = Set(recommendedModels.map(\.id))
+		return models.filter {
+			!recommendedIDs.contains($0.id) && (isDownloaded($0) || selectedModelID == $0.id)
+		}
 	}
 
 	var body: some View {
 		NavigationStack {
 			ScrollView {
 				VStack(alignment: .leading, spacing: 28) {
-					Text("Download, delete and learn more about the local models you use.")
+					Text(isOnboarding
+						? "Choose the kind of help you want from Beacon. You can add or remove models later in Settings."
+						: "Three kinds of help, with a model selected for your iPhone. Manage your downloads here.")
 						.font(.openRunde(size: 16, weight: .regular))
 						.foregroundStyle(.secondary)
 						.lineSpacing(3)
@@ -56,34 +62,13 @@ struct ModelMarketPlaceView: View {
 							.background(Color.red.opacity(0.08), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
 					}
 
-					ModelCompanyFilterTabs(
-						companies: companyFilters,
-						selection: $selectedCompany
-					) {
-						ModelMarketPlaceList(
-							models: filteredModels,
-							selectedModelID: selectedModelID,
-							deletingModelID: deletingModelID,
-							isDownloaded: isDownloaded,
-							downloadAvailability: downloadAvailability,
-							onDownload: onDownload,
-							onSelect: { model in
-								selectedModelID = model.id
-								onSelect(model)
-								showModelSwitchToast(for: model.name)
-							},
-							onDelete: delete,
-							onOpenDetails: { model in
-								informationModelID = model.id
-							}
-						)
-					}
+					modelList
 				}
 				.padding(.horizontal, 24)
 				.padding(.bottom, 96)
 			}
 			.scrollEdgeEffectStyle(.soft, for: .top)
-			.navigationTitle("Model Marketplace")
+			.navigationTitle(isOnboarding ? "Choose a Model" : "Manage Models")
 			#if !os(macOS)
 			.navigationBarTitleDisplayMode(.large)
 			.toolbarVisibility(.visible, for: .navigationBar)
@@ -101,6 +86,10 @@ struct ModelMarketPlaceView: View {
 			}
 		}
 		.background(Color(uiColor: .systemBackground))
+		.opacity(hasAppeared ? 1 : 0)
+		.offset(y: hasAppeared || reduceMotion ? 0 : 14)
+		.animation(reduceMotion ? .easeOut(duration: 0.2) : .spring(response: 0.5, dampingFraction: 0.88), value: hasAppeared)
+		.onAppear { hasAppeared = true }
 		.overlay(alignment: .bottom) {
 			if let switchedModelName {
 				ModelSwitchToast(modelName: switchedModelName)
@@ -162,6 +151,52 @@ struct ModelMarketPlaceView: View {
 		)
 	}
 
+	@ViewBuilder
+	private var modelList: some View {
+		VStack(alignment: .leading, spacing: 28) {
+			ModelMarketPlaceList(
+				models: recommendedModels,
+				selectedModelID: selectedModelID,
+				deletingModelID: deletingModelID,
+				isOnboarding: true,
+				isDownloaded: isDownloaded,
+				downloadAvailability: downloadAvailability,
+				onDownload: onDownload,
+				onSelect: selectModel,
+				onDelete: delete,
+				onOpenDetails: showDetails
+			)
+			if !otherDownloadedModels.isEmpty {
+				Text("Your other downloads")
+					.font(.openRunde(size: 20, weight: .semibold))
+				Text("Previously downloaded models remain available to use or remove.")
+					.font(.openRunde(size: 15, weight: .regular))
+					.foregroundStyle(.secondary)
+				ModelMarketPlaceList(
+					models: otherDownloadedModels,
+					selectedModelID: selectedModelID,
+					deletingModelID: deletingModelID,
+					isDownloaded: isDownloaded,
+					downloadAvailability: downloadAvailability,
+					onDownload: onDownload,
+					onSelect: selectModel,
+					onDelete: delete,
+					onOpenDetails: showDetails
+				)
+			}
+		}
+	}
+
+	private func selectModel(_ model: BeaconModel) {
+		selectedModelID = model.id
+		onSelect(model)
+		showModelSwitchToast(for: model.name)
+	}
+
+	private func showDetails(for model: BeaconModel) {
+		informationModelID = model.id
+	}
+
 	private var modelDetailsPresented: Binding<Bool> {
 		Binding(
 			get: { informationModelID != nil },
@@ -177,7 +212,7 @@ struct ModelMarketPlaceView: View {
 		Button(action: onClose) {
 			Image(systemName: "xmark")
 				.font(.system(size: 17, weight: .bold))
-				.foregroundStyle(.black)
+				.foregroundStyle(.primary)
 				.frame(width: 34, height: 34)
 		}
 		.buttonStyle(.plain)
@@ -304,26 +339,11 @@ struct ModelMarketPlaceView: View {
 	}
 }
 
-private enum ModelCompanyFilter {
-	static let all = "All"
-}
-
-private struct ModelCompanyFilterTabs<Content: View>: View {
-	let companies: [String]
-	@Binding var selection: String
-	@ViewBuilder var content: () -> Content
-
-	var body: some View {
-		Tabs(options: companies, selection: $selection, size: .small, horizontalScrollOverflow: 20) { _ in
-			content()
-		}
-	}
-}
-
 private struct ModelMarketPlaceList: View {
 	let models: [BeaconModel]
 	let selectedModelID: String
 	let deletingModelID: String?
+	var isOnboarding = false
 	var isDownloaded: (BeaconModel) -> Bool
 	var downloadAvailability: (BeaconModel) -> ModelStorageLimit.DownloadAvailability
 	var onDownload: (BeaconModel) -> Void
@@ -339,6 +359,7 @@ private struct ModelMarketPlaceList: View {
 					isDownloaded: isDownloaded(model),
 					isSelected: selectedModelID == model.id,
 					isDeleting: deletingModelID == model.id,
+					isOnboarding: isOnboarding,
 					downloadAvailability: downloadAvailability(model),
 					onDownload: {
 						onDownload(model)
@@ -368,6 +389,7 @@ private struct ModelMarketPlaceRow: View {
 	let isDownloaded: Bool
 	let isSelected: Bool
 	let isDeleting: Bool
+	let isOnboarding: Bool
 	let downloadAvailability: ModelStorageLimit.DownloadAvailability
 	var showsDownloadInProgress = false
 	var onDownload: () -> Void
@@ -382,6 +404,7 @@ private struct ModelMarketPlaceRow: View {
 		isDownloaded: Bool,
 		isSelected: Bool,
 		isDeleting: Bool,
+		isOnboarding: Bool = false,
 		downloadAvailability: ModelStorageLimit.DownloadAvailability = .available,
 		showsDownloadInProgress: Bool = false,
 		onDownload: @escaping () -> Void,
@@ -393,6 +416,7 @@ private struct ModelMarketPlaceRow: View {
 		self.isDownloaded = isDownloaded
 		self.isSelected = isSelected
 		self.isDeleting = isDeleting
+		self.isOnboarding = isOnboarding
 		self.downloadAvailability = downloadAvailability
 		self.showsDownloadInProgress = showsDownloadInProgress
 		self.onDownload = onDownload
@@ -407,23 +431,28 @@ private struct ModelMarketPlaceRow: View {
 			Button(action: onOpenDetails) {
 				VStack(alignment: .leading, spacing: 16) {
 					VStack(alignment: .leading, spacing: 12) {
-						Text(model.name)
+						Text(isOnboarding ? model.assistantName : model.name)
 							.font(.openRunde(size: 18, weight: .medium))
 							.foregroundStyle(.primary)
+							.fixedSize(horizontal: false, vertical: true)
 
-						Text(model.description)
+						Text(isOnboarding ? model.assistantDescription : model.description)
 							.font(.openRunde(size: 16, weight: .regular))
 							.foregroundStyle(.secondary)
 							.lineSpacing(3)
+							.fixedSize(horizontal: false, vertical: true)
 					}
 
-					ModelTagLayout(spacing: 8) {
-						ForEach(model.marketplaceTags) { tag in
-							Tag(title: tag.title, color: tag.color)
-						}
-						if model.isBuiltIn {
-							Tag(title: "Built in", color: .indigo)
-						}
+						ModelTagLayout(spacing: 8) {
+							if !isOnboarding {
+								ForEach(model.marketplaceTags) { tag in
+									Tag(title: tag.title, color: tag.color)
+									}
+							}
+							Tag(title: model.formattedSize, color: .secondary)
+							if model.isBuiltIn {
+								Tag(title: "Built in", color: .indigo)
+							}
 						Tag(title: deviceCompatibility.tagTitle, color: deviceCompatibility.marketplaceTint)
 					}
 
@@ -431,6 +460,7 @@ private struct ModelMarketPlaceRow: View {
 						Label(compatibilityMessage, systemImage: deviceCompatibility.systemImage)
 							.font(.openRunde(size: 13, weight: .regular))
 							.foregroundStyle(deviceCompatibility.marketplaceTint)
+							.fixedSize(horizontal: false, vertical: true)
 					}
 				}
 				.frame(maxWidth: .infinity, alignment: .leading)
@@ -457,7 +487,7 @@ private struct ModelMarketPlaceRow: View {
 					if isDownloaded {
 						VStack(alignment: .leading, spacing: 10) {
 							HStack(spacing: 10) {
-								if !isSelected {
+								if !isSelected || isOnboarding {
 									BeaconButton("Use", variant: .secondary, size: .small, isDisabled: !deviceCompatibility.canUse) {
 										onSelect()
 									}
@@ -473,6 +503,8 @@ private struct ModelMarketPlaceRow: View {
 							.foregroundStyle(.secondary)
 					}
 				}
+			} else {
+				BeaconButton("Use", variant: .secondary, size: .small, isDisabled: !deviceCompatibility.canUse, action: onSelect)
 			}
 		}
 		.frame(maxWidth: .infinity, alignment: .leading)

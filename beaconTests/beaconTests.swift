@@ -37,9 +37,10 @@ struct BeaconAppDataTests {
 	@Test("Default model is available during onboarding")
 	func defaultModelIsAvailableDuringOnboarding() {
 		#expect(ModelCatalog.onboardingModels.contains(ModelCatalog.defaultModel))
-		#expect(ModelCatalog.defaultModel.id == "beacon")
-		#expect(ModelCatalog.onboardingModels.map(\.id) == ["beacon", "qwen3-0.6b", "qwen3-1.7b"])
-		#expect(ModelCatalog.onboardingModels.allSatisfy { $0.sizeInGB < 1 && !$0.supportsImages })
+		#expect(ModelCatalog.defaultModel.id == "qwen3-1.7b")
+		#expect(ModelCatalog.onboardingModels.map(\.id) == ["qwen3-0.6b", "qwen3-1.7b", "deepseek-r1-distill-qwen-1.5b", "smolvlm2-500m", "qwen2-vl-2b"])
+		#expect(ModelCatalog.coreOnboardingModels(in: ModelCatalog.availableModels).map(\.onboardingName) == ["Chat Light", "Chat Core", "Vision"])
+		#expect(ModelCatalog.optionalOnboardingModels(in: ModelCatalog.availableModels).map(\.onboardingName) == ["Thinker"])
 	}
 
 	@Test("Model lookup returns matching catalog model")
@@ -72,6 +73,44 @@ struct BeaconAppDataTests {
 		#expect(ImageResponseRouting.usesVisionBridge(for: textModel))
 	}
 
+	@Test("Automatic routing chooses vision, thinker, and light assistants")
+	func automaticModelRouting() {
+		let downloaded = Set(["qwen3-0.6b", "qwen3-1.7b", "deepseek-r1-distill-qwen-1.5b", "qwen2-vl-2b"])
+		let compatible: (BeaconModel) -> ModelDeviceCompatibility = { _ in .goodFit }
+
+		#expect(BeaconModelRouter.route(text: "What is in this photo?", hasImages: true, in: ModelCatalog.availableModels, downloadedIDs: downloaded, compatibility: compatible).id == "qwen2-vl-2b")
+		#expect(BeaconModelRouter.route(text: "Solve this step by step and explain the logic.", hasImages: false, in: ModelCatalog.availableModels, downloadedIDs: downloaded, compatibility: compatible).id == "deepseek-r1-distill-qwen-1.5b")
+		#expect(BeaconModelRouter.route(text: "Give me a quick summary.", hasImages: false, in: ModelCatalog.availableModels, downloadedIDs: downloaded, compatibility: compatible).id == "qwen3-0.6b")
+	}
+
+	@Test("Automatic routing falls back to downloaded chat when a specialist is unavailable")
+	func automaticModelRoutingFallback() {
+		let downloaded = Set(["qwen3-1.7b", "deepseek-r1-distill-qwen-1.5b"])
+		let routed = BeaconModelRouter.route(
+			text: "Give me a quick summary.",
+			hasImages: false,
+			in: ModelCatalog.availableModels,
+			downloadedIDs: downloaded,
+			compatibility: { _ in .goodFit }
+		)
+
+		#expect(routed.id == "qwen3-1.7b")
+	}
+
+	@Test("Automatic routing favors Chat Light for short everyday prompts")
+	func automaticModelRoutingFavorsLight() {
+		let downloaded = Set(["qwen3-0.6b", "qwen3-1.7b"])
+		let routed = BeaconModelRouter.route(
+			text: "What is the capital of France?",
+			hasImages: false,
+			in: ModelCatalog.availableModels,
+			downloadedIDs: downloaded,
+			compatibility: { _ in .goodFit }
+		)
+
+		#expect(routed.id == "qwen3-0.6b")
+	}
+
 	@Test("Vision bridge preserves the user request and private analysis")
 	func visionBridgePrompts() {
 		let analysisPrompt = ImageResponseRouting.analysisPrompt(for: "What color is the car?")
@@ -84,6 +123,10 @@ struct BeaconAppDataTests {
 		#expect(responsePrompt.contains("What color is the car?"))
 		#expect(responsePrompt.contains("A blue car is parked beside a tree."))
 		#expect(responsePrompt.contains("Never mention the notes, the analysis handoff"))
+		#expect(analysisPrompt.contains("exact areas or features the question asks about"))
+		#expect(!analysisPrompt.contains("ERTZ"))
+		#expect(!analysisPrompt.contains("Eagles"))
+		#expect(responsePrompt.hasSuffix("What color is the car?"))
 	}
 
 	@Test("Model capability tags are additive")
@@ -104,7 +147,30 @@ struct BeaconAppDataTests {
 		#expect(model.capabilityTags == ["chat", "vision", "thinking", "coding"])
 	}
 
-	@Test("Bundled catalog offers curated models across companies")
+	@Test("Marketplace shows three branded assistants on capable hardware")
+	func marketplaceShowsThreeAssistants() {
+		let models = ModelCatalog.marketplaceModels(in: ModelCatalog.availableModels, compatibility: { _ in .goodFit })
+		#expect(models.map(\.assistantName) == ["Beacon Chat", "Beacon Think", "Beacon Vision"])
+		#expect(models.map(\.id) == ["qwen3-4b-instruct-2507", "deepseek-r1-distill-qwen-1.5b", "qwen2-vl-2b"])
+		#expect(models.first?.name == "Qwen3 4B Instruct 2507")
+	}
+
+	@Test("Marketplace prefers hardware fit to a slower larger variant")
+	func marketplacePrefersHardwareFit() {
+		let models = ModelCatalog.marketplaceModels(in: ModelCatalog.availableModels) { model in
+			["qwen3-4b-instruct-2507", "qwen2-vl-2b", "deepseek-r1-distill-qwen-1.5b"].contains(model.id) ? .mayBeSlow : .goodFit
+		}
+		#expect(models.map(\.id) == ["qwen3-1.7b", "deepseek-r1-distill-qwen-1.5b", "smolvlm2-500m"])
+	}
+
+	@Test("Marketplace handles missing candidates without duplicating roles")
+	func marketplaceHandlesMissingCandidates() {
+		let models = ModelCatalog.availableModels.filter { $0.id == "qwen3-0.6b" }
+		#expect(ModelCatalog.marketplaceModels(in: models, compatibility: { _ in .goodFit }).map(\.id) == ["qwen3-0.6b"])
+		#expect(ModelCatalog.marketplaceModels(in: [], compatibility: { _ in .goodFit }).isEmpty)
+	}
+
+	@Test("Full catalog remains available for existing downloads")
 	func catalogOffersCuratedModelsAcrossCompanies() {
 		let models = ModelCatalog.availableModels
 		let companies = Set(models.map(\.company))
@@ -155,82 +221,6 @@ struct InformationCardTitleTests {
 
 		#expect(title.count <= 60)
 		#expect(title == "Beacon Giving People A Private Way To Run Capable Language")
-	}
-}
-
-@Suite("Chat personalities")
-struct ChatPersonalityTests {
-	@Test("Characters keep distinct reply styles")
-	func personalityReplies() {
-		let answer = "The car is fine because you can fix the little scratch."
-		let chaotic = ChatPersonality.yackYack.displayResponse(answer)
-
-		#expect(ChatPersonality.allCases.count == 3)
-		#expect(chaotic.contains("!!"))
-		#expect(chaotic.lowercased().contains("car"))
-		#expect(chaotic.contains("BRRZZT!"))
-		#expect(chaotic.contains("YAAACK! 🌀"))
-		#expect(ChatPersonality.professorBug.displayResponse(answer) == answer)
-		let aceReply = ChatPersonality.coolGuy.displayResponse("Yep. That small scratch is usually cosmetic, but check that the paint isn't broken.")
-		#expect(aceReply == "yep. that small scratch is usually cosmetic, but check that the paint isn't broken.")
-		#expect(ChatPersonality.coolGuy.displayResponse("See [Donald Trump](https://Example.com/Person).").contains("https://Example.com/Person"))
-		#expect(ChatPersonality.yackYack.displayResponse("[Bug](beacon-source://1) is smart.").contains("[Bug](beacon-source://1)"))
-		#expect(ChatPersonality.yackYack.avatarBackground != ChatPersonality.coolGuy.avatarBackground)
-		#expect(ChatPersonality.coolGuy.avatarBackground != ChatPersonality.professorBug.avatarBackground)
-	}
-
-	@Test("Characters offer complete specialty-specific conversation starters")
-	func personalityConversationStarters() {
-		let allPrompts = ChatPersonality.allCases.flatMap(\.suggestedPrompts)
-
-		#expect(ChatPersonality.allCases.allSatisfy { $0.suggestedPrompts.count == 3 })
-		#expect(Set(allPrompts).count == allPrompts.count)
-		#expect(ChatPersonality.yackYack.suggestedPrompts.contains { $0.contains("chaotic") })
-		#expect(ChatPersonality.coolGuy.suggestedPrompts.contains { $0.contains("my mom") })
-		#expect(ChatPersonality.professorBug.suggestedPrompts.contains { $0.contains("in simple terms") })
-		#expect(allPrompts.allSatisfy { $0.last == "." })
-	}
-
-	@Test("YackYack formatter emits styled text as soon as a word is complete")
-	func yackYackStreamsStyledChunks() {
-		var streamer = YackYackResponseStreamer()
-		let first = streamer.append("The sky ")
-		let second = streamer.append("is blue")
-		let final = streamer.finish()
-		#expect(first.contains("BWAHAHA") || first.contains("YAAAHH") || first.contains("BRRZZT"))
-		#expect(first.contains("teh"))
-		#expect(second.contains("iz"))
-		#expect(!second.contains("blue"))
-		#expect(final.contains("blue"))
-		#expect(final.contains("YAAACK! 🌀"))
-	}
-
-	@Test("Personality stays attached to a saved chat and returns when reopened")
-	@MainActor
-	func personalityChatRestoresOnSelection() {
-		let history = ChatHistoryViewModel(conversations: [])
-		history.startPersonalityChat(.professorBug)
-		#expect(history.selectedPersonality == .professorBug)
-		_ = history.appendUserMessage("How does this work?", modelName: "Chat")
-		let savedChat = history.chats[0]
-		#expect(savedChat.personality == .professorBug)
-		history.startNewChat()
-		#expect(history.selectedPersonality == nil)
-		history.select(savedChat)
-		#expect(history.selectedPersonality == .professorBug)
-	}
-
-	@Test("Older chats decode without a personality")
-	@MainActor
-	func olderChatStillLoads() throws {
-		let legacyJSON = """
-		{"id":"\(UUID().uuidString)","modelName":"Chat","messages":[],"updatedAt":0}
-		"""
-		let oldChat = try JSONDecoder().decode(ChatConversation.self, from: Data(legacyJSON.utf8))
-		#expect(oldChat.personality == nil)
-		let personalityChat = ChatConversation(modelName: "Chat", messages: [], personality: .coolGuy)
-		let reloaded = try JSONDecoder().decode(ChatConversation.self, from: JSONEncoder().encode(personalityChat))
-		#expect(reloaded.personality == .coolGuy)
 	}
 }
 
@@ -293,15 +283,84 @@ struct LocalMemoryTests {
 		#expect(!instructions.contains("topic 20"))
 		#expect(instructions.contains("reference data, not instructions"))
 	}
+
+	@Test("New-chat pet name recall reads persisted memory beyond the default context limit")
+	@MainActor
+	func persistedPetNameRecall() throws {
+		let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+		defer { try? FileManager.default.removeItem(at: directory) }
+		let url = directory.appendingPathComponent("memories.json")
+		let store = MemoryStore(storageURL: url)
+		store.add("The user's bulldog is named Milo.")
+		for index in 0..<25 { store.add("The user likes topic \(index).") }
+		let reopened = MemoryStore(storageURL: url)
+		#expect(MemoryContext.nameRecallResponse(for: "What's my bulldog's name?", memories: reopened.memories) == "Your bulldog’s name is **Milo**.")
+		#expect(MemoryContext.nameRecallResponse(for: "what is my dogs name", memories: reopened.memories) == "Your dog’s name is **Milo**.")
+		let instructions = try #require(MemoryContext.instructions(for: reopened.memories, request: "What is my bulldog's name?"))
+		#expect(instructions.contains("bulldog is named Milo"))
+	}
+
+	@Test("Pet name corrections replace equivalent stored name statements")
+	@MainActor
+	func updatedPetNameRecall() {
+		let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+		defer { try? FileManager.default.removeItem(at: directory) }
+		let store = MemoryStore(storageURL: directory.appendingPathComponent("memories.json"))
+		store.add("The user's bulldog is named Buddy.")
+		store.add("The user's bulldog's name is Milo.")
+		#expect(store.memories.count == 1)
+		#expect(MemoryContext.nameRecallResponse(for: "What is the name of my bulldog?", memories: store.memories) == "Your bulldog’s name is **Milo**.")
+	}
+
+	@Test("Name recall does not guess missing or conflicting facts")
+	func nameRecallUncertainty() {
+		#expect(MemoryContext.nameRecallResponse(for: "What's my bulldog's name?", memories: []) == "I don’t know your bulldog’s name yet. What is it?")
+		let memories = [UserMemory(text: "The user's bulldog is named Milo."), UserMemory(text: "The user has a bulldog named Buddy.")]
+		#expect(MemoryContext.nameRecallResponse(for: "What's my bulldog's name?", memories: memories) == "I have conflicting information about your bulldog’s name. Which name is correct?")
+		#expect(MemoryContext.nameRecallResponse(for: "Suggest a name for my bulldog", memories: memories) == nil)
+		#expect(MemoryContext.nameRecallResponse(for: "What's my bulldog's name and age?", memories: memories) == nil)
+	}
+
+	@Test("Explicit current-conversation names override old memory without mixing up subjects")
+	func currentNameTakesPrecedence() {
+		let memories = [UserMemory(text: "The user's bulldog is named Buddy."), UserMemory(text: "The user's name is Armond.")]
+		#expect(MemoryContext.nameRecallResponse(for: "What's my bulldog's name?", memories: memories, userMessages: ["My bulldog's name is Milo."]) == "Your bulldog’s name is **Milo**.")
+		#expect(MemoryContext.nameRecallResponse(for: "What's my name?", memories: memories) == "Your name is **Armond**.")
+		#expect(MemoryContext.nameRecallResponse(for: "What's my dog's name?", memories: [], userMessages: ["My English bulldog is named Milo. My French bulldog is named Buddy."]) == "I have conflicting information about your dog’s name. Which name is correct?")
+		#expect(MemoryContext.nameRecallResponse(for: "What's my bulldog's name?", memories: [UserMemory(text: "The user's bulldog has the name Milo.")]) == "Your bulldog’s name is **Milo**.")
+	}
+
+	@Test("Recall handles natural saved wording and keeps unrelated names out of the model context")
+	func naturalMemoryWording() throws {
+		let facts = [UserMemory(text: "The user's name is Armond."), UserMemory(text: "The user owns an English bulldog named Milo, who loves walks.")]
+		#expect(MemoryContext.nameRecallResponse(for: "Do you remember what my bulldog's name is?", memories: facts) == "Your bulldog’s name is **Milo**.")
+		#expect(MemoryContext.nameRecallResponse(for: "What did I name my dog?", memories: facts) == "Your dog’s name is **Milo**.")
+		let prompt = MemoryContext.groundedPrompt("What is my bulldog called?", request: "What is my bulldog called?", memories: facts)
+		#expect(prompt.contains("English bulldog named Milo"))
+		#expect(!prompt.contains("Armond"))
+		#expect(prompt.hasSuffix("What is my bulldog called?"))
+		#expect(MemoryContext.groundedPrompt("Hello", request: "Hello", memories: []) == "Hello")
+	}
+
+	@Test("Explicit pet names are captured without an extraction model")
+	@MainActor
+	func explicitPetNameCapture() {
+		#expect(MemoryCapture.explicitCandidates(from: "My bulldog's name is Milo.").contains("The user's bulldog is named Milo."))
+		#expect(MemoryCapture.explicitCandidates(from: "My English bulldog is named Milo.").contains("The user's english bulldog is named Milo."))
+		#expect(MemoryCapture.explicitCandidates(from: "What's my bulldog's name?").isEmpty)
+	}
 }
 
 @Suite("Model response filtering")
 struct ModelResponseFilteringTests {
-	@Test("Default response guidance prioritizes one concise answer")
+	@Test("Default response guidance balances concise answers with readable Markdown")
 	func conciseMarkdownGuidance() {
-		#expect(BeaconSystemPrompt.instructions.contains("under 45 words"))
-		#expect(BeaconSystemPrompt.instructions.contains("one short paragraph of 1–3 sentences"))
-		#expect(BeaconSystemPrompt.instructions.contains("at least three distinct items"))
+		#expect(BeaconSystemPrompt.instructions.contains("80–160 words"))
+		#expect(BeaconSystemPrompt.instructions.contains("2–4 compact bullets"))
+		#expect(BeaconSystemPrompt.instructions.contains("Markdown **bold** sparingly"))
+		#expect(BeaconSystemPrompt.instructions.contains("Use *italics* occasionally"))
+		#expect(BeaconSystemPrompt.instructions.contains("at most one specific, relevant follow-up question"))
+		#expect(BeaconSystemPrompt.instructions.contains("not a mandatory template"))
 		#expect(BeaconSystemPrompt.instructions.contains("Your entire output is the message the user should read"))
 	}
 
@@ -313,6 +372,14 @@ struct ModelResponseFilteringTests {
 		#expect(VisibleResponseSanitizer.clean("No need to worry; that looks normal.") == "No need to worry; that looks normal.")
 		#expect(VisibleResponseSanitizer.clean("The answer should be 42.") == "The answer should be 42.")
 		#expect(VisibleResponseSanitizer.clean("I should answer briefly and clearly.").isEmpty)
+	}
+
+	@Test("Visible answers remove leaked speaker labels without altering ordinary text")
+	func removesSpeakerLabels() {
+		#expect(VisibleResponseSanitizer.clean("Beacon: Your bulldog’s name is **Milo**.") == "Your bulldog’s name is **Milo**.")
+		#expect(VisibleResponseSanitizer.clean("**Beacon:** Hello!") == "Hello!")
+		#expect(VisibleResponseSanitizer.clean("Assistant: Hello!") == "Hello!")
+		#expect(VisibleResponseSanitizer.clean("The beacon: a navigation light.") == "The beacon: a navigation light.")
 	}
 
 	@Test("Search progress replaces the previous stage instead of accumulating lines")
@@ -378,17 +445,32 @@ struct WebSearchRoutingTests {
 		#expect(BeaconModelRuntime.parseWebSearchDecision(from: #"{"action":"answer_locally"}"#) == .noSearch)
 	}
 
-	@Test("Search decision extracts one bounded query")
+	@Test("Search decision extracts a bounded search plan")
 	func searchDecision() {
-		#expect(BeaconModelRuntime.parseWebSearchDecision(from: #"{"action":"search_web","query":"weather in Berlin today"}"#) == .search("weather in Berlin today"))
+		#expect(
+			BeaconModelRuntime.parseWebSearchDecision(
+				from: #"{"action":"search_web","objective":"Current Berlin weather","queries":["weather in Berlin today","Berlin forecast today"]}"#
+			) == .search(
+				BeaconModelRuntime.WebSearchPlan(
+					objective: "Current Berlin weather",
+					queries: ["weather in Berlin today", "Berlin forecast today"]
+				)
+			)
+		)
 		let longQuery = String(repeating: "a", count: 250)
-		#expect(BeaconModelRuntime.parseWebSearchDecision(from: "{\"action\":\"search_web\",\"query\":\"\(longQuery)\"}") == .search(String(longQuery.prefix(200))))
+		#expect(
+			BeaconModelRuntime.parseWebSearchDecision(from: "{\"action\":\"search_web\",\"query\":\"\(longQuery)\"}") == .search(
+				BeaconModelRuntime.WebSearchPlan(objective: longQuery, queries: [longQuery])
+			)
+		)
 	}
 
 	@Test("Malformed or contradictory decisions are invalid")
 	func invalidDecision() {
 		#expect(BeaconModelRuntime.parseWebSearchDecision(from: "I would probably search") == .invalid)
 		#expect(BeaconModelRuntime.parseWebSearchDecision(from: #"{"action":"search_web","query":""}"#) == .invalid)
+		#expect(BeaconModelRuntime.parseWebSearchDecision(from: #"{"action":"search_web","queries":[]}"#) == .invalid)
+		#expect(BeaconModelRuntime.parseWebSearchDecision(from: #"{"action":"search_web","queries":["one","","three"]}"#) == .invalid)
 		#expect(BeaconModelRuntime.parseWebSearchDecision(from: #"{"action":"unknown"}"#) == .invalid)
 		#expect(BeaconModelRuntime.parseWebSearchDecision(from: #"{"action":"search_web","query":"first"} extra"#) == .invalid)
 	}
@@ -597,8 +679,8 @@ struct WebSearchRoutingTests {
 		#expect(WebSearchGrounding.instructions.contains("primary source of truth"))
 		#expect(WebSearchGrounding.instructions.contains("rather than your prior knowledge"))
 		#expect(WebSearchGrounding.instructions.contains("Cite every factual claim"))
-		#expect(WebSearchGrounding.instructions.contains("under 45 words"))
-		#expect(WebSearchGrounding.instructions.contains("at least three distinct items"))
+		#expect(WebSearchGrounding.instructions.contains("follow the shared response style"))
+		#expect(WebSearchGrounding.instructions.contains("short paragraphs or compact bullets"))
 		#expect(prompt.contains("[1] Spain's 2010 World Cup win"))
 		#expect(prompt.contains("Spain won the FIFA World Cup in 2010."))
 		#expect(prompt.contains("Page excerpt: Spain defeated the Netherlands in the 2010 final."))
@@ -666,6 +748,32 @@ struct WebSearchRoutingTests {
 		#expect(BeaconModelRuntime.visualWebSearchRoutingPrompt(question: "Who is this player?", visualContext: observation).contains("Ertz"))
 		#expect(VisualSearchRouting.queryUsesVisualClues(query, visualContext: observation))
 		#expect(VisualSearchRouting.relevantResults([unrelated, relevant], query: query).map(\.url) == [relevant.url])
+	}
+
+	@Test("Jersey identification rejects generic wearer searches and merchandise results")
+	func jerseySearchTargetsDistinguishingClues() {
+		let observation = "Observed: A dog wearing a green jersey with an Eagles logo, readable ERTZ and number 86. Likely identification: English bulldog."
+		let question = "Whose jersey is he wearing?"
+		let query = "Eagles Ertz 86 jersey player"
+		#expect(!VisualSearchRouting.queryUsesVisualClues("dog wearing jersey", visualContext: observation, question: question))
+		#expect(!VisualSearchRouting.queryUsesVisualClues("dog wearing Eagles jersey", visualContext: observation, question: question))
+		#expect(VisualSearchRouting.queryUsesVisualClues(query, visualContext: observation, question: question))
+		// Breed research is still valid when supported by distinct visual clues.
+		#expect(VisualSearchRouting.queryUsesVisualClues("English bulldog breed characteristics", visualContext: observation, question: "What breed is this?"))
+
+		let merchandise = WebSearchMCPClient.Result(
+			title: "Eagles jersey for your dog",
+			url: URL(string: "https://example.com/dog-jersey")!,
+			source: "example.com",
+			snippet: "Pet clothing for dogs wearing a team jersey."
+		)
+		let player = WebSearchMCPClient.Result(
+			title: "Zach Ertz wore number 86 for the Eagles",
+			url: URL(string: "https://example.com/ertz")!,
+			source: "example.com",
+			snippet: "Ertz played tight end in Philadelphia."
+		)
+		#expect(VisualSearchRouting.relevantResults([merchandise, player], query: query, question: question).map(\.url) == [player.url])
 	}
 
 }

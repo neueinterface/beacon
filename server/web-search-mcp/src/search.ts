@@ -1,22 +1,13 @@
 import { launch, type Browser, type BrowserContext, type BrowserWorker, type Page } from "@cloudflare/playwright";
 import { boundedResponseText, extractDirectPageData, searchDuckDuckGoDirect } from "./direct-search";
 import { refinedSearchQuery, selectBestResults } from "./search-query";
+import { mergeSearchResults, normalizeSearchQueries, type SearchResult } from "./search-model";
 import { isSafeExternalURL, sanitizeResults, sourceForURL, unwrapBingURL, type RawSearchResult } from "./url-safety";
-
-export type SearchResult = {
-  title: string;
-  url: string;
-  source: string;
-  snippet: string;
-  publishedDate?: string;
-  imageURL?: string;
-  // Kept while older Beacon releases still decode this field.
-  description: string;
-  content?: string;
-};
 
 export type SearchOptions = {
   query: string;
+  objective?: string;
+  queries?: string[];
   limit: number;
   includeContent: boolean;
   maxContentLength: number;
@@ -28,6 +19,29 @@ const DIRECT_PAGE_TIMEOUT_MS = 3_500;
 const USER_AGENT = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Version/18.0 Mobile/15E148 Safari/604.1";
 
 export async function searchWeb(browserBinding: BrowserWorker, options: SearchOptions): Promise<SearchResult[]> {
+  const queries = normalizeSearchQueries(options.query, options.queries);
+  if (queries.length > 1) {
+    const attempts = await Promise.allSettled(queries.map(query => searchSingleWeb(browserBinding, {
+      ...options,
+      query,
+      queries: [query]
+    })));
+    const successfulResults = attempts
+      .filter((attempt): attempt is PromiseFulfilledResult<SearchResult[]> => attempt.status === "fulfilled")
+      .flatMap(attempt => attempt.value);
+
+    if (successfulResults.length === 0) {
+      const failure = attempts.find((attempt): attempt is PromiseRejectedResult => attempt.status === "rejected");
+      throw failure?.reason ?? new Error("Web search returned no results");
+    }
+
+    return mergeSearchResults(successfulResults, queries, options.limit);
+  }
+
+  return searchSingleWeb(browserBinding, options);
+}
+
+async function searchSingleWeb(browserBinding: BrowserWorker, options: SearchOptions): Promise<SearchResult[]> {
   const candidateLimit = Math.min(15, Math.max(10, options.limit * 3));
   const minimumResults = Math.min(3, options.limit);
   const candidates: RawSearchResult[] = [];

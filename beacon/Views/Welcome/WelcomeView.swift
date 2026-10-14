@@ -11,44 +11,67 @@ import UIKit
 #endif
 
 struct WelcomeView: View {
-	@State private var isShowingFAQ = false
+	@Environment(\.accessibilityReduceMotion) private var reduceMotion
+	private enum Destination: Hashable {
+		case bundle
+		case marketplace
+	}
+	@State private var destination: Destination?
 	@State private var hasAppeared = false
 	@State private var logoScale = 1.0
 	@State private var isAnimatingLogo = false
 	@State private var isLogoShimmering = false
 	@State private var logoShimmerOffset = -3.0
 
-	var onGetStarted: () -> Void = { }
-	var onReadFAQ: () -> Void = { }
+	var onNewToLocalModels: () -> Void = { }
+	var onUsedLocalModels: () -> Void = { }
 
 	var body: some View {
-		VStack(alignment: .leading, spacing: 0) {
-			Spacer()
+		GeometryReader { proxy in
+			if proxy.size.height < 450 {
+				HStack(alignment: .center, spacing: 24) {
+					headerContainer(compact: true)
+					.frame(maxWidth: .infinity, alignment: .center)
+					actions
+						.frame(maxWidth: .infinity)
+				}
+				.padding(.vertical, 12)
+				.frame(width: proxy.size.width, height: proxy.size.height)
+			} else {
+			VStack(alignment: .center, spacing: 0) {
+				headerContainer()
+					.layoutPriority(1)
 
-			VStack(alignment: .leading, spacing: 40) {
-				logo
-					.staggeredBlurIn(hasAppeared, delay: 0.05)
-				header
-					.staggeredBlurIn(hasAppeared, delay: 0.14)
-				features
-					.staggeredBlurIn(hasAppeared, delay: 0.23)
+				Spacer(minLength: 24)
+
 				actions
-					.staggeredBlurIn(hasAppeared, delay: 0.34)
+					.fixedSize(horizontal: false, vertical: true)
+					.layoutPriority(1)
+			}
+			.padding(.top, proxy.size.height < 700 ? 16 : 32)
+			.padding(.bottom, proxy.size.height < 700 ? 12 : 24)
+			.frame(width: proxy.size.width, height: proxy.size.height, alignment: .top)
 			}
 		}
-		.padding(.horizontal, 20)
-		.padding(.bottom, 60)
-		.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+		.padding(.horizontal, 24)
+		.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
 		.background(Color(uiColor: .systemBackground))
-		.sheet(isPresented: $isShowingFAQ) {
-			FAQView {
-				isShowingFAQ = false
-			}
-			.presentationDragIndicator(.visible)
-		}
 		.onAppear {
 			hasAppeared = true
 			playInitialLogoShimmer()
+		}
+		.task(id: destination) {
+			guard let destination else { return }
+			do {
+				try await Task.sleep(for: .seconds(reduceMotion ? 0.2 : 0.35))
+			} catch {
+				return
+			}
+			guard !Task.isCancelled else { return }
+			switch destination {
+			case .bundle: onNewToLocalModels()
+			case .marketplace: onUsedLocalModels()
+			}
 		}
 	}
 
@@ -66,7 +89,7 @@ struct WelcomeView: View {
 					.transition(.opacity)
 			}
 		}
-		.frame(width: 50, height: 50)
+		.frame(width: 54, height: 54)
 		.scaleEffect(logoScale)
 		.contentShape(Rectangle())
 		.onTapGesture {
@@ -142,48 +165,82 @@ struct WelcomeView: View {
 		#endif
 	}
 
-	private var header: some View {
-		VStack(alignment: .leading, spacing: 10) {
-			Text("Chat with AI, locally.")
-				.font(.openRunde(size: 32, weight: .medium))
-				.foregroundStyle(.primary)
-
-			Text("Beacon provides private, on-device AI that feels simple and approachable.")
-				.font(.openRunde(size: 16, weight: .regular))
-				.foregroundStyle(.secondary)
-				.lineSpacing(3)
+	private func headerContainer(compact: Bool = false) -> some View {
+		VStack(spacing: compact ? 16 : 20) {
+			logo
+			header(compact: compact)
 		}
+		.welcomeEntrance(hasAppeared, delay: 0.05, offset: -12)
 	}
 
-	private var features: some View {
-		VStack(alignment: .leading, spacing: 20) {
-			FeatureRow(
-				icon: "shield.icon",
-				title: "Private by default",
-				description: "Your conversations stay on your device."
-			)
+	private func header(compact: Bool = false) -> some View {
+		VStack(alignment: .center, spacing: compact ? 12 : 20) {
+			Text("Beacon is your personal local AI")
+				.font(.openRunde(size: compact ? 26 : 28, weight: .semibold))
+				.foregroundStyle(.primary)
+				.fixedSize(horizontal: false, vertical: true)
 
-			FeatureRow(
-				icon: "aibox.icon",
-				title: "Curated models",
-				description: "Discover and download the right models for you."
-			)
-
-			FeatureRow(
-				icon: "rocket.icon",
-				title: "Fast and efficient",
-				description: "Optimized for speed and storage."
-			)
+			Text("Beacon provides private, on-device AI that feels simple and approachable.")
+				.font(.openRunde(size: compact ? 16 : 18, weight: .medium))
+				.foregroundStyle(.primary)
+				.lineSpacing(3)
+				.fixedSize(horizontal: false, vertical: true)
 		}
+		.multilineTextAlignment(.center)
+		.frame(maxWidth: .infinity)
 	}
 
 	private var actions: some View {
-		HStack(spacing: 12) {
-			BeaconButton("Get started", trailingAssetIcon: "download.icon", action: onGetStarted)
-			BeaconButton("Read FAQ", variant: .secondary) {
-				onReadFAQ()
-				isShowingFAQ = true
+		VStack(spacing: 14) {
+			BeaconButton(
+				"I haven't used Local Models",
+				size: .large,
+				isFullWidth: true,
+				action: { leave(for: .bundle) }
+			)
+			.welcomeEntrance(hasAppeared, delay: 0.22, offset: 14)
+			BeaconButton(
+				"I've used Local Models",
+				variant: .secondary,
+				size: .large,
+				isFullWidth: true,
+				action: { leave(for: .marketplace) }
+			)
+			.welcomeEntrance(hasAppeared, delay: 0.34, offset: 14)
+
+			ViewThatFits(in: .horizontal) {
+				HStack(spacing: 12) {
+					privacyLink
+					termsLink
+				}
+				VStack(spacing: 8) {
+					privacyLink
+					termsLink
+				}
 			}
+			.font(.openRunde(size: 13, weight: .regular))
+			.foregroundStyle(.secondary)
+			.padding(.top, 4)
+			.welcomeEntrance(hasAppeared, delay: 0.46, offset: 8)
+		}
+		.disabled(destination != nil)
+	}
+
+	private func leave(for destination: Destination) {
+		guard self.destination == nil else { return }
+		self.destination = destination
+		hasAppeared = false
+	}
+
+	private var privacyLink: some View {
+		Link(destination: URL(string: "https://beacon.neueinterface.com/privacy-policy")!) {
+			Text("Read our Privacy Policy").underline()
+		}
+	}
+
+	private var termsLink: some View {
+		Link(destination: URL(string: "https://beacon.neueinterface.com/terms-of-service")!) {
+			Text("Read our Terms of Service").underline()
 		}
 	}
 }
@@ -221,54 +278,40 @@ private struct LogoShimmerMask: View {
 	}
 }
 
-private struct FeatureRow: View {
-	let icon: String
-	let title: String
-	let description: String
-
-	var body: some View {
-		HStack(alignment: .top, spacing: 10) {
-			Image(icon)
-				.renderingMode(.template)
-				.resizable()
-				.scaledToFit()
-				.frame(width: 24, height: 24)
-				.foregroundStyle(.primary)
-				.padding(.top, 2)
-
-			VStack(alignment: .leading, spacing: 8) {
-				Text(title)
-					.font(.openRunde(size: 16, weight: .medium))
-					.foregroundStyle(.primary)
-
-				Text(description)
-					.font(.openRunde(size: 16, weight: .regular))
-					.foregroundStyle(.secondary)
-					.lineSpacing(3)
-			}
-		}
-	}
-}
-
-private struct StaggeredBlurInModifier: ViewModifier {
+private struct WelcomeEntranceModifier: ViewModifier {
+	@Environment(\.accessibilityReduceMotion) private var reduceMotion
 	let isVisible: Bool
 	let delay: Double
+	let offset: CGFloat
 
 	func body(content: Content) -> some View {
 		content
 			.opacity(isVisible ? 1 : 0)
-			.blur(radius: isVisible ? 0 : 10)
-			.offset(y: isVisible ? 0 : 10)
-			.animation(.smooth(duration: 0.55).delay(delay), value: isVisible)
+			.offset(y: isVisible || reduceMotion ? 0 : offset)
+			.animation(
+				(reduceMotion ? Animation.easeOut(duration: 0.2) : .spring(response: 0.5, dampingFraction: 0.88))
+					.delay(reduceMotion || !isVisible ? 0 : delay),
+				value: isVisible
+			)
 	}
 }
 
 private extension View {
-	func staggeredBlurIn(_ isVisible: Bool, delay: Double) -> some View {
-		modifier(StaggeredBlurInModifier(isVisible: isVisible, delay: delay))
+	func welcomeEntrance(_ isVisible: Bool, delay: Double, offset: CGFloat) -> some View {
+		modifier(WelcomeEntranceModifier(isVisible: isVisible, delay: delay, offset: offset))
 	}
 }
 
 #Preview {
 	WelcomeView()
+}
+
+#Preview("Small welcome") {
+	WelcomeView()
+		.previewLayout(.fixed(width: 320, height: 568))
+}
+
+#Preview("Landscape welcome") {
+	WelcomeView()
+		.previewLayout(.fixed(width: 667, height: 300))
 }

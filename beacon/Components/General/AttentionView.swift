@@ -23,7 +23,7 @@ struct AttentionContent {
 
 	static let ratingRequest = AttentionContent(
 		id: "rating-request-1",
-		heroImageName: "personalitySpotlight",
+		heroImageName: "whatsnew",
 		title: "Enjoying Beacon?",
 		subtitle: "A quick rating helps more people discover private, on-device AI.",
 		details: [
@@ -62,7 +62,7 @@ struct AttentionContent {
 		title: "What's New",
 		subtitle: "The latest improvements in Beacon.",
 		details: [
-			"Choose from Beacon's three curated chat experiences.",
+			"Manage Beacon's curated collection of on-device models.",
 			"Choose models that fit your device, download them, and switch whenever you need.",
 			"Keep every conversation and model on your device."
 		],

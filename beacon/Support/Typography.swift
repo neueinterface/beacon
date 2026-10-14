@@ -6,11 +6,10 @@ import UIKit
 
 enum AppTypography {
 	private static let fontFiles = [
-		"Neue-Regular",
-		"Neue-Medium",
-		"Neue-Bold",
-		"Neue-Heavy",
-		"Neue-Black"
+		"OpenRunde-Regular",
+		"OpenRunde-Medium",
+		"OpenRunde-Semibold",
+		"OpenRunde-Bold"
 	]
 
 	static func registerFonts() {
@@ -21,9 +20,9 @@ enum AppTypography {
 			CTFontManagerRegisterFontsForURL(fontURL as CFURL, .process, nil)
 		}
 
-		#if canImport(UIKit)
-		if let titleFont = UIFont(name: "Neue-Medium", size: 17),
-		   let largeTitleFont = UIFont(name: "Neue-Bold", size: 34) {
+	#if canImport(UIKit)
+		if let titleFont = UIFont(name: "OpenRunde-Medium", size: 17),
+		   let largeTitleFont = UIFont(name: "OpenRunde-Bold", size: 34) {
 			UINavigationBar.appearance().titleTextAttributes = [.font: titleFont]
 			UINavigationBar.appearance().largeTitleTextAttributes = [.font: largeTitleFont]
 		}
@@ -35,13 +34,13 @@ extension Font {
 	static func beaconFont(size: CGFloat, weight: Font.Weight = .regular) -> Font {
 		let name: String
 		if weight == .bold {
-			name = "Neue-Bold"
+			name = "OpenRunde-Bold"
 		} else if weight == .semibold {
-			name = "Neue-Bold"
+			name = "OpenRunde-Semibold"
 		} else if weight == .medium {
-			name = "Neue-Medium"
+			name = "OpenRunde-Medium"
 		} else {
-			name = "Neue-Medium"
+			name = "OpenRunde-Regular"
 		}
 
 		return .custom(name, size: size)

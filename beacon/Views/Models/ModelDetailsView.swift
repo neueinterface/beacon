@@ -50,9 +50,17 @@ struct ModelDetailsView: View {
 		ScrollView {
 			VStack(alignment: .leading, spacing: 26) {
 				VStack(alignment: .leading, spacing: 14) {
-					Text(model.name)
+					Text(model.assistantName)
 						.font(.openRunde(size: 30, weight: .medium))
 						.foregroundStyle(.primary)
+						.fixedSize(horizontal: false, vertical: true)
+
+					if model.assistantName != model.name {
+						Text("Powered by \(model.name)")
+							.font(.openRunde(size: 15, weight: .medium))
+							.foregroundStyle(.secondary)
+							.fixedSize(horizontal: false, vertical: true)
+					}
 
 					Text(model.description)
 						.font(.openRunde(size: 16, weight: .regular))
@@ -60,7 +68,7 @@ struct ModelDetailsView: View {
 						.lineSpacing(4)
 				}
 
-				HStack(spacing: 12) {
+				ModelTagLayout(spacing: 8) {
 					Tag(title: model.isBuiltIn ? "Built in" : model.compactDownloadSize, color: .indigo)
 					ForEach(model.capabilityTags, id: \.self) { capability in
 						Tag(title: capability, color: capability == "vision" ? .purple : .orange)
@@ -124,7 +132,7 @@ struct ModelDetailsView: View {
 				closeButton
 			}
 			ToolbarItem(placement: .principal) {
-				Text(model.name)
+				Text(model.assistantName)
 					.font(.openRunde(size: 18, weight: .semibold))
 			}
 			if !isDownloaded, !model.isBuiltIn {
@@ -461,7 +469,7 @@ struct ModelTagLayout: Layout {
 		var totalHeight: CGFloat = 0
 		var maximumWidth: CGFloat = 0
 		for subview in subviews {
-			let size = subview.sizeThatFits(.unspecified)
+			let size = subview.sizeThatFits(ProposedViewSize(width: availableWidth, height: nil))
 			if rowWidth > 0, rowWidth + spacing + size.width > availableWidth {
 				maximumWidth = max(maximumWidth, rowWidth)
 				totalHeight += rowHeight + spacing
@@ -479,7 +487,7 @@ struct ModelTagLayout: Layout {
 		var position = CGPoint(x: bounds.minX, y: bounds.minY)
 		var rowHeight: CGFloat = 0
 		for subview in subviews {
-			let size = subview.sizeThatFits(.unspecified)
+			let size = subview.sizeThatFits(ProposedViewSize(width: bounds.width, height: nil))
 			if position.x > bounds.minX, position.x + size.width > bounds.maxX {
 				position.x = bounds.minX
 				position.y += rowHeight + spacing

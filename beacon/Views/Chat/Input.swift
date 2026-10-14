@@ -8,6 +8,14 @@
 import SwiftUI
 import Foundation
 
+enum ConversationStarters {
+	static let general = [
+		"Explain why hurricanes form in simple terms.",
+		"Help me plan three realistic priorities for this week.",
+		"Help me write a warm birthday message to my mom."
+	]
+}
+
 #if false // Web search input controls are not currently available.
 struct Input: View {
 	@Binding var text: String
@@ -207,11 +215,6 @@ struct Input: View {
 
 #else
 
-struct InputModelOption: Identifiable, Equatable {
-	let id: String
-	let name: String
-}
-
 struct Input: View {
 	@Binding var text: String
 	@AppStorage("userMessageBubbleColor") private var userMessageBubbleColor = UserMessageBubbleColor.default.rawValue
@@ -222,13 +225,8 @@ struct Input: View {
 	var onAttachImage: (() -> Void)?
 	var canAttachImages = true
 	var canSendMessage = true
-	var selectedModelName: String?
-	var selectedModelID: String?
-	var modelOptions: [InputModelOption] = []
-	var onSelectModel: (String) -> Void = { _ in }
-	var onOpenModels: (() -> Void)?
 	var showsConversationStarters = true
-	var conversationStarters = ChatPersonality.generalSuggestedPrompts
+	var conversationStarters = ConversationStarters.general
 	var onRemoveAttachment: (Int) -> Void = { _ in }
 	var onStop: () -> Void = {}
 	var onSend: (String) -> Void
@@ -316,40 +314,6 @@ struct Input: View {
 					.accessibilityLabel("Attach image")
 				}
 
-				if let selectedModelName, let selectedModelID, let onOpenModels {
-					Menu {
-						if !modelOptions.isEmpty {
-							Picker("Model", selection: Binding(
-								get: { selectedModelID },
-								set: onSelectModel
-							)) {
-								ForEach(modelOptions) { model in
-									Text(model.name).tag(model.id)
-								}
-							}
-							Divider()
-						}
-						Button(action: onOpenModels) {
-							Label("Open Model Marketplace", systemImage: "square.grid.2x2")
-						}
-					} label: {
-						HStack(spacing: 5) {
-							Text(selectedModelName)
-								.lineLimit(1)
-							Image(systemName: "chevron.down")
-								.font(.system(size: 9, weight: .semibold))
-						}
-						.font(.beaconFont(size: 14, weight: .medium))
-						.foregroundStyle(.primary)
-						.padding(.horizontal, 11)
-						.frame(height: 32)
-						.background(Color(uiColor: .systemGray5), in: Capsule())
-					}
-					.buttonStyle(.plain)
-					.disabled(isGenerating)
-					.accessibilityLabel("Current model: \(selectedModelName). Switch model")
-				}
-
 				Spacer(minLength: 8)
 
 				Button {
@@ -385,6 +349,7 @@ private struct ChatSuggestionsView: View {
 	let onSelect: (String) -> Void
 	@State private var isVisible = false
 	@State private var displayedSuggestions: [String] = []
+	private let suggestionShape = RoundedRectangle(cornerRadius: 22, style: .continuous)
 
 	var body: some View {
 		VStack(alignment: .leading, spacing: 8) {
@@ -397,10 +362,10 @@ private struct ChatSuggestionsView: View {
 						.foregroundStyle(.primary)
 						.padding(.horizontal, 16)
 						.padding(.vertical, 12)
-						.background(Color.white.opacity(0.8), in: Capsule())
-						.glassEffect(.regular, in: Capsule())
+						.background(Color.white.opacity(0.8), in: suggestionShape)
+						.glassEffect(.regular, in: suggestionShape)
 						.overlay {
-							Capsule()
+							suggestionShape
 								.stroke(Color.white.opacity(0.8), lineWidth: 1)
 						}
 						.shadow(color: .black.opacity(0.06), radius: 12, y: 5)
@@ -460,11 +425,7 @@ private struct InputPreviewContainer: View {
 	var body: some View {
 		Input(
 			text: $previewText,
-			onAttachImage: {},
-			selectedModelName: "LFM2 1.2B",
-			selectedModelID: "beacon",
-			modelOptions: [InputModelOption(id: "beacon", name: "LFM2 1.2B")],
-			onOpenModels: {}
+			onAttachImage: {}
 		) { _ in }
 			.padding()
 			.background(Color(uiColor: .systemBackground))

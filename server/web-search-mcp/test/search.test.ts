@@ -1,9 +1,38 @@
 import { describe, expect, it } from "vitest";
 import { extractDirectPageData, parseDuckDuckGoHTML } from "../src/direct-search";
 import { filterRelevantResults, hasRelevantResults, refinedSearchQuery, selectBestResults } from "../src/search-query";
+import { mergeSearchResults, normalizeSearchQueries, type SearchResult } from "../src/search-model";
 import { isSafeExternalURL, sanitizeResults, unwrapBingURL } from "../src/url-safety";
 
 describe("search result safety", () => {
+
+  it("normalizes a bounded search plan without duplicating the primary query", () => {
+    expect(normalizeSearchQueries("latest release", ["latest release", "official release notes", "latest release"]))
+      .toEqual(["latest release", "official release notes"]);
+  });
+
+  it("merges planned-query results while retaining page content", () => {
+    const results: SearchResult[] = [
+      {
+        title: "Release notes",
+        url: "https://example.com/release",
+        source: "example.com",
+        snippet: "Version 2 is available.",
+        description: "Version 2 is available.",
+        content: "Full release details.",
+      },
+      {
+        title: "Release notes duplicate",
+        url: "https://example.com/release",
+        source: "example.com",
+        snippet: "A duplicate result.",
+        description: "A duplicate result.",
+      },
+    ];
+
+    expect(mergeSearchResults(results, ["latest release", "official release notes"], 3)).toEqual([results[0]]);
+  });
+
   it("accepts public HTTPS URLs", () => {
     expect(isSafeExternalURL("https://example.com/article")).toBe(true);
   });

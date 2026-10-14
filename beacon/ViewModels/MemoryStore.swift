@@ -55,6 +55,7 @@ final class MemoryStore: ObservableObject {
 	}
 
 	private static func subjectKey(for text: String) -> String? {
+		if let nameKey = MemoryContext.nameSubjectKey(for: text) { return nameKey }
 		let patterns = [
 			#"(?i)^The user's (name|wife|husband|partner|spouse|son|daughter|mother|mom|father|dad) (?:is|is named) "#,
 			#"(?i)^The user's favorite ([a-z ]{2,30}) is "#,
