@@ -24,7 +24,6 @@ struct ContentView: View {
 	@State private var isOnboardingSetup = false
 	@State private var onboardingDownloadQueue: [BeaconModel] = []
 	@State private var onboardingDownloadModels: [BeaconModel] = []
-	@State private var onboardingCompletedDownloadGB = 0.0
 	@State private var onboardingPrimaryModel: BeaconModel?
 	@State private var downloadAlert: DownloadAlert?
 	@State private var isShowingModelRoutingUpdate = false
@@ -45,11 +44,8 @@ struct ContentView: View {
 					downloadTitle: isOnboardingSetup ? "Chat Core" : nil,
 					bundleModels: isOnboardingSetup ? onboardingDownloadModels : nil,
 					completedBundleModelCount: max(0, onboardingDownloadModels.count - onboardingDownloadQueue.count),
-					completedBundleDownloadGB: onboardingCompletedDownloadGB,
 						onComplete: {
 						if isOnboardingSetup {
-							onboardingCompletedDownloadGB += modelRuntime.totalUnitCount.map { Double($0) / 1_000_000_000 }
-								?? NSDecimalNumber(decimal: downloadingModel.sizeInGB).doubleValue
 							recordDownloaded(downloadingModel)
 						recordModelDownload(downloadingModel)
 
@@ -64,7 +60,6 @@ struct ContentView: View {
 						} else {
 							onboardingDownloadQueue.removeAll()
 							onboardingDownloadModels.removeAll()
-							onboardingCompletedDownloadGB = 0
 							downloadAlert = .completed(onboardingPrimaryModel?.onboardingName ?? downloadingModel.onboardingName)
 							finishOnboarding(with: onboardingPrimaryModel ?? downloadingModel)
 						}
@@ -79,7 +74,6 @@ struct ContentView: View {
 						isOnboardingSetup = false
 						onboardingDownloadQueue.removeAll()
 						onboardingDownloadModels.removeAll()
-						onboardingCompletedDownloadGB = 0
 						self.downloadingModel = nil
 					}, onError: { message in
 						downloadAlert = .failed(isOnboardingSetup ? "Chat Core" : downloadingModel.name, message)
@@ -247,7 +241,6 @@ struct ContentView: View {
 		onboardingPrimaryModel = primaryModel
 		onboardingDownloadModels = selectedModels.filter { !isDownloaded($0) }
 		onboardingDownloadQueue = onboardingDownloadModels
-		onboardingCompletedDownloadGB = 0
 		guard let firstModel = onboardingDownloadQueue.first else {
 			finishOnboarding(with: primaryModel)
 			return
@@ -280,7 +273,6 @@ struct ContentView: View {
 			isOnboardingSetup = false
 							onboardingDownloadQueue.removeAll()
 							onboardingDownloadModels.removeAll()
-							onboardingCompletedDownloadGB = 0
 			return
 		}
 		isOnboardingSetup = false
@@ -345,7 +337,6 @@ struct ContentView: View {
 		if isOnboardingSetup {
 			onboardingDownloadQueue.removeAll()
 			onboardingDownloadModels.removeAll()
-			onboardingCompletedDownloadGB = 0
 			onboardingPrimaryModel = nil
 			isOnboardingSetup = false
 		}

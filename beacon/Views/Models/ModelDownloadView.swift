@@ -29,7 +29,6 @@ struct ModelDownloadView<Runtime: ModelDownloadRuntime>: View {
 	var downloadTitle: String?
 	var bundleModels: [BeaconModel]?
 	var completedBundleModelCount = 0
-	var completedBundleDownloadGB = 0.0
 	var onComplete: () -> Void = { }
 	var onCancel: () -> Void = { }
 	var onError: (String) -> Void = { _ in }
@@ -51,7 +50,7 @@ struct ModelDownloadView<Runtime: ModelDownloadRuntime>: View {
 				DownloadProgressBar(progress: bundleProgress, isLoading: isProgressActive)
 
 				VStack(alignment: .leading, spacing: 12) {
-					Text(runtime.isLoading ? "Downloading \(displayTitle)" : "Preparing \(displayTitle)")
+					Text(runtime.isLoading ? (bundleModels == nil ? "Downloading model" : "Downloading models") : (bundleModels == nil ? "Preparing model" : "Preparing models"))
 						.font(.openRunde(size: 24, weight: .medium))
 						.foregroundStyle(.primary)
 						.fixedSize(horizontal: false, vertical: true)
@@ -155,14 +154,15 @@ struct ModelDownloadView<Runtime: ModelDownloadRuntime>: View {
 		}
 
 		if let bundleModels {
-			return "Keep this screen open while Beacon downloads your bundle. \(completedBundleModelCount + 1) of \(bundleModels.count) is in progress."
+			return "Keep this screen open while Beacon downloads the recommended models. This only needs to happen once."
 		}
 
 		return "Keep this screen open while \(model.name) downloads to your device. This only needs to happen once."
 	}
 
 	private var displayTitle: String {
-		downloadTitle ?? model.name
+		if bundleModels != nil { return "Recommended models" }
+		return downloadTitle ?? model.name
 	}
 
 	private var isProgressActive: Bool {
@@ -171,7 +171,7 @@ struct ModelDownloadView<Runtime: ModelDownloadRuntime>: View {
 
 	private var downloadSizeText: String {
 		if bundleModels != nil {
-			return "\(formattedGB(min(completedBundleDownloadGB + currentDownloadedGB, bundleTotalGB)))/\(formattedGB(bundleTotalGB)) GB"
+			return "\(formattedGB(min(completedBundleDownloadGB + currentBundleDownloadGB, bundleTotalGB)))/\(formattedGB(bundleTotalGB)) GB"
 		}
 
 		if let completedUnitCount = runtime.completedUnitCount,
@@ -208,17 +208,25 @@ struct ModelDownloadView<Runtime: ModelDownloadRuntime>: View {
 
 	private var bundleTotalGB: Double {
 		guard let bundleModels, !bundleModels.isEmpty else { return downloadTotalGB }
-		let futureGB = bundleModels
-			.dropFirst(min(completedBundleModelCount + 1, bundleModels.count))
-			.reduce(0.0) { total, model in
-				total + NSDecimalNumber(decimal: model.sizeInGB).doubleValue
-			}
-		return max(completedBundleDownloadGB + downloadTotalGB + futureGB, 0.01)
+		return max(bundleModels.reduce(0.0) { total, model in
+			total + NSDecimalNumber(decimal: model.sizeInGB).doubleValue
+		}, 0.01)
+	}
+
+	private var completedBundleDownloadGB: Double {
+		guard let bundleModels else { return 0 }
+		return bundleModels.prefix(completedBundleModelCount).reduce(0.0) { total, model in
+			total + NSDecimalNumber(decimal: model.sizeInGB).doubleValue
+		}
+	}
+
+	private var currentBundleDownloadGB: Double {
+		NSDecimalNumber(decimal: model.sizeInGB).doubleValue * displayedProgress
 	}
 
 	private var bundleProgress: Double {
 		guard let bundleModels, !bundleModels.isEmpty else { return displayedProgress }
-		return min(max((completedBundleDownloadGB + currentDownloadedGB) / bundleTotalGB, 0.02), 1)
+		return min(max((completedBundleDownloadGB + currentBundleDownloadGB) / bundleTotalGB, 0.02), 1)
 	}
 
 	private func formattedGB(_ value: Double) -> String {
