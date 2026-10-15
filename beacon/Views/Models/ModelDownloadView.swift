@@ -29,7 +29,9 @@ struct ModelDownloadView<Runtime: ModelDownloadRuntime>: View {
 	var downloadTitle: String?
 	var bundleModels: [BeaconModel]?
 	var completedBundleModelCount = 0
+	var isDownloadComplete = false
 	var onComplete: () -> Void = { }
+	var onContinue: () -> Void = { }
 	var onCancel: () -> Void = { }
 	var onError: (String) -> Void = { _ in }
 	var startsAutomatically = true
@@ -41,17 +43,13 @@ struct ModelDownloadView<Runtime: ModelDownloadRuntime>: View {
 	@State private var lastLoadingHapticProgress = 0.0
 
 	var body: some View {
-		GeometryReader { proxy in
 		ScrollView(showsIndicators: false) {
-		VStack(alignment: .leading, spacing: 0) {
-			Spacer()
-
-			VStack(alignment: .leading, spacing: 28) {
+			VStack(alignment: .leading, spacing: 24) {
 				DownloadProgressBar(progress: bundleProgress, isLoading: isProgressActive)
 
 				VStack(alignment: .leading, spacing: 12) {
-					Text(runtime.isLoading ? (bundleModels == nil ? "Downloading model" : "Downloading models") : (bundleModels == nil ? "Preparing model" : "Preparing models"))
-						.font(.openRunde(size: 24, weight: .medium))
+					Text(isDownloadComplete ? "You’re ready to go" : "Downloading models")
+						.font(.openRunde(size: 24, weight: .semibold))
 						.foregroundStyle(.primary)
 						.fixedSize(horizontal: false, vertical: true)
 
@@ -91,6 +89,7 @@ struct ModelDownloadView<Runtime: ModelDownloadRuntime>: View {
 
 					Spacer(minLength: 12)
 
+					if !isDownloadComplete {
 					Button(action: cancelDownload) {
 						Image(systemName: "xmark")
 							.font(.system(size: 14, weight: .semibold))
@@ -100,25 +99,42 @@ struct ModelDownloadView<Runtime: ModelDownloadRuntime>: View {
 					}
 					.buttonStyle(SpringButtonStyle())
 					.accessibilityLabel("Cancel download")
+					}
 				}
 				.padding(18)
 				.frame(maxWidth: .infinity, alignment: .leading)
 				.background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+
+				DownloadTicTacToeView()
+					.frame(maxWidth: .infinity)
 			}
-		}
-		.padding(.horizontal, 20)
+		.padding(.horizontal, 28)
 		.padding(.vertical, 24)
-		.frame(minHeight: proxy.size.height, alignment: .bottomLeading)
 		}
 		.scrollBounceBehavior(.basedOnSize)
+		.safeAreaInset(edge: .bottom, spacing: 0) {
+			BeaconButton(
+				isDownloadComplete ? "Continue" : (runtime.errorMessage == nil ? "Downloading" : "Download paused"),
+				variant: isDownloadComplete ? .black : .secondary,
+				size: .large,
+				isFullWidth: true,
+				isDisabled: runtime.errorMessage != nil,
+				isLoading: !isDownloadComplete && runtime.errorMessage == nil,
+				action: onContinue
+			)
+			.padding(.horizontal, 28)
+			.padding(.vertical, 12)
+			.background(Color(uiColor: .systemBackground))
 		}
 		.background(Color(uiColor: .systemBackground))
 		.onAppear {
+			if !startsAutomatically { displayedProgress = runtime.progress }
+		}
+		.task(id: model.id) {
 			guard startsAutomatically else { return }
-			guard !hasStarted else { return }
-			loadingTask = Task {
-				await startLoading()
-			}
+			hasStarted = false
+			displayedProgress = 0
+			await startLoading()
 		}
 		.onChange(of: runtime.isLoading) { _, isLoading in
 			if isLoading {
@@ -149,11 +165,14 @@ struct ModelDownloadView<Runtime: ModelDownloadRuntime>: View {
 	}
 
 	private var statusText: String {
+		if isDownloadComplete {
+			return "Your models are ready. Finish your game or tap Continue to start chatting."
+		}
 		if runtime.errorMessage != nil {
 			return "Something went wrong while preparing \(displayTitle)."
 		}
 
-		if let bundleModels {
+		if bundleModels != nil {
 			return "Keep this screen open while Beacon downloads the recommended models. This only needs to happen once."
 		}
 
@@ -166,10 +185,11 @@ struct ModelDownloadView<Runtime: ModelDownloadRuntime>: View {
 	}
 
 	private var isProgressActive: Bool {
-		runtime.errorMessage == nil && displayedProgress < 1
+		!isDownloadComplete && runtime.errorMessage == nil && displayedProgress < 1
 	}
 
 	private var downloadSizeText: String {
+		if isDownloadComplete { return "Ready to use" }
 		if bundleModels != nil {
 			return "\(formattedGB(min(completedBundleDownloadGB + currentBundleDownloadGB, bundleTotalGB)))/\(formattedGB(bundleTotalGB)) GB"
 		}
@@ -225,6 +245,7 @@ struct ModelDownloadView<Runtime: ModelDownloadRuntime>: View {
 	}
 
 	private var bundleProgress: Double {
+		if isDownloadComplete { return 1 }
 		guard let bundleModels, !bundleModels.isEmpty else { return displayedProgress }
 		return min(max((completedBundleDownloadGB + currentBundleDownloadGB) / bundleTotalGB, 0.02), 1)
 	}
@@ -302,7 +323,7 @@ private struct DownloadProgressBar: View {
 	let progress: Double
 	let isLoading: Bool
 
-	private let height: CGFloat = 5
+	private let height: CGFloat = 10
 
 	var body: some View {
 		GeometryReader { proxy in
@@ -384,6 +405,15 @@ private struct DownloadProgressFill: View {
 	ModelDownloadView(
 		model: ModelCatalog.defaultModel,
 		runtime: PreviewModelDownloadRuntime(progress: 1, isLoading: false),
+		startsAutomatically: false
+	)
+}
+
+#Preview("Ready to continue") {
+	ModelDownloadView(
+		model: ModelCatalog.defaultModel,
+		runtime: PreviewModelDownloadRuntime(progress: 1, isLoading: false),
+		isDownloadComplete: true,
 		startsAutomatically: false
 	)
 }

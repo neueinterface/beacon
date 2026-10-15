@@ -21,6 +21,7 @@ struct ContentView: View {
 	@State private var isChoosingModel = false
 	@State private var isShowingModelMarketplace = false
 	@State private var downloadingModel: BeaconModel?
+	@State private var isDownloadComplete = false
 	@State private var isOnboardingSetup = false
 	@State private var onboardingDownloadQueue: [BeaconModel] = []
 	@State private var onboardingDownloadModels: [BeaconModel] = []
@@ -44,30 +45,25 @@ struct ContentView: View {
 					downloadTitle: isOnboardingSetup ? "Chat Core" : nil,
 					bundleModels: isOnboardingSetup ? onboardingDownloadModels : nil,
 					completedBundleModelCount: max(0, onboardingDownloadModels.count - onboardingDownloadQueue.count),
-						onComplete: {
-						if isOnboardingSetup {
-							recordDownloaded(downloadingModel)
+					isDownloadComplete: isDownloadComplete,
+					onComplete: {
+						recordDownloaded(downloadingModel)
 						recordModelDownload(downloadingModel)
-
-						if let nextModel = onboardingDownloadQueue.dropFirst().first {
+						if isOnboardingSetup, let nextModel = onboardingDownloadQueue.dropFirst().first {
 							onboardingDownloadQueue.removeFirst()
-							self.downloadingModel = nil
-							Task { @MainActor in
-								await Task.yield()
-								guard isOnboardingSetup else { return }
-								self.downloadingModel = nextModel
-							}
+							self.downloadingModel = nextModel
 						} else {
+							isDownloadComplete = true
+						}
+					}, onContinue: {
+						guard isDownloadComplete else { return }
+						if isOnboardingSetup {
 							onboardingDownloadQueue.removeAll()
 							onboardingDownloadModels.removeAll()
-							downloadAlert = .completed(onboardingPrimaryModel?.onboardingName ?? downloadingModel.onboardingName)
 							finishOnboarding(with: onboardingPrimaryModel ?? downloadingModel)
+						} else {
+							select(downloadingModel)
 						}
-					} else {
-						downloadAlert = .completed(downloadingModel.name)
-						recordModelDownload(downloadingModel)
-						select(downloadingModel)
-					}
 					}, onCancel: {
 					cancelDownload(for: downloadingModel)
 						downloadAlert = .cancelled(isOnboardingSetup ? "Chat Core" : downloadingModel.name)
@@ -79,7 +75,6 @@ struct ContentView: View {
 						downloadAlert = .failed(isOnboardingSetup ? "Chat Core" : downloadingModel.name, message)
 					}
 				)
-				.id(downloadingModel.id)
 			} else if hasCompletedWelcome {
 				ChatView(
 					runtime: modelRuntime,
@@ -207,6 +202,7 @@ struct ContentView: View {
 				return
 			}
 
+			isDownloadComplete = false
 			downloadingModel = model
 		}
 	}
@@ -247,6 +243,7 @@ struct ContentView: View {
 		}
 
 		isOnboardingSetup = true
+		isDownloadComplete = false
 		downloadingModel = firstModel
 	}
 
