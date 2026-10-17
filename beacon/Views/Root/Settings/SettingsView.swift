@@ -137,6 +137,7 @@ struct SettingsView: View {
 						SettingsButtonRow(title: "Rate on App Store", icon: "review.icon") {
 							openURL(AppStoreLinks.review) { accepted in
 								isShowingReviewLinkError = !accepted
+								if accepted { ReviewPromptScheduler().recordReviewPageOpened() }
 							}
 						}
 					}

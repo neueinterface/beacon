@@ -48,6 +48,8 @@ The marketplace starts with **Chat Core** and **Recommended models** tabs, follo
 
 ## Architecture
 
+Review invitations become eligible after a locally persisted, randomized threshold of 3–6 successful chat replies. They appear only after a short idle pause, not during generation, typing, downloads, other sheets, or release announcements. Dismissing an invitation starts a 90-day cooldown, with at most three invitations per rolling year. Opening the App Store review page stops automatic invitations; Beacon does not claim to know whether a review was actually submitted. Chat content is never included in these local counters.
+
 - `BeaconModelRuntime` loads MLX models from a Hugging Face repository and streams responses
 - `Resources/models.json` defines the bundled marketplace catalog
 - `WebSearchMCPClient` implements the optional MCP-compatible web-search integration

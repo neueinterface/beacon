@@ -89,6 +89,7 @@ struct ContentView: View {
 					models: models,
 					onDownloadModel: prepare,
 					onDownloadBundle: prepareRecommendedBundle,
+					allowsReviewInvitations: !isShowingAttention && !isShowingModelRoutingUpdate,
 					notificationRouter: notificationRouter
 				)
 			} else if isShowingModelMarketplace {

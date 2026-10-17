@@ -132,11 +132,13 @@ enum VisualSearchRouting {
 
 struct ChatView: View {
 	@Environment(\.scenePhase) private var scenePhase
+	@Environment(\.openURL) private var openURL
 	@ObservedObject var runtime: BeaconModelRuntime
 	@ObservedObject var memoryStore: MemoryStore
 	let models: [BeaconModel]
 	var onDownloadModel: (BeaconModel) async -> Void = { _ in }
 	var onDownloadBundle: () async -> Void = { }
+	var allowsReviewInvitations = true
 	@ObservedObject var notificationRouter = NotificationRouter()
 	@StateObject private var historyViewModel = ChatHistoryViewModel()
 	@AppStorage("downloadedModelIDs") private var downloadedModelIDs = ""
@@ -160,6 +162,9 @@ struct ChatView: View {
 	@State private var isShowingSettings = false
 	@State private var isShowingModelMarketplace = false
 	@State private var isShowingAppIconPicker = false
+	@State private var isShowingReviewInvitation = false
+	@State private var isShowingReviewLinkError = false
+	@State private var reviewOpportunity = 0
 	@State private var quickActionPresentationTask: Task<Void, Never>?
 	@State private var pendingScrollMessageID: ChatMessage.ID?
 	@State private var enteringUserMessageID: ChatMessage.ID?
@@ -188,6 +193,7 @@ struct ChatView: View {
 	#endif
 	private let responseHaptics = StreamingResponseHaptics()
 	private let webSearchClient = WebSearchMCPClient()
+	private let reviewScheduler = ReviewPromptScheduler()
 
 	private let screenSpring = Animation.spring(response: 0.46, dampingFraction: 0.86, blendDuration: 0.12)
 
@@ -322,6 +328,34 @@ struct ChatView: View {
 			NavigationStack {
 				AppIconPickerView()
 			}
+		}
+		.sheet(isPresented: $isShowingReviewInvitation) {
+			AttentionView(
+				content: .ratingRequest,
+				onClose: { isShowingReviewInvitation = false },
+				onAction: { _ in
+					isShowingReviewInvitation = false
+					openURL(AppStoreLinks.review) { accepted in
+						if accepted {
+							reviewScheduler.recordReviewPageOpened()
+						} else {
+							isShowingReviewLinkError = true
+						}
+					}
+				}
+			)
+			.onAppear { reviewScheduler.recordPresentation() }
+		}
+		.alert("Could not open App Store", isPresented: $isShowingReviewLinkError) {
+			Button("OK", role: .cancel) { }
+		} message: {
+			Text("Please try Rate on App Store in Settings, or find Beacon in the App Store to leave a review.")
+		}
+		.task(id: reviewOpportunity) {
+			guard reviewOpportunity > 0, reviewScheduler.shouldOffer() else { return }
+			do { try await Task.sleep(for: .seconds(2)) } catch { return }
+			guard !Task.isCancelled, canShowReviewInvitation, reviewScheduler.shouldOffer() else { return }
+			isShowingReviewInvitation = true
 		}
 		.alert("Photo Access Needed", isPresented: $isShowingPhotoAccessAlert) {
 			Button("OK") { }
@@ -795,12 +829,14 @@ struct ChatView: View {
 			historyViewModel.replaceMessage(responseID, with: answer)
 			historyViewModel.setAssistantThinkingStatus("", for: responseID)
 			isPreparingResponse = false
+			recordSuccessfulReplyForReview()
 			return
 		}
 		responseHaptics.start()
 		let attemptID = responseAttemptTracker.begin()
 
 		responseTask = Task {
+			var completedSuccessfully = false
 			do {
 				captureMemory(from: text, hasImages: !imageDatas.isEmpty)
 				let prompt: String
@@ -867,6 +903,7 @@ struct ChatView: View {
 					responseHaptics.tick(for: chunk)
 				}
 				let cleanedResponse = VisibleResponseSanitizer.clean(generatedResponse)
+				completedSuccessfully = !cleanedResponse.isEmpty
 				historyViewModel.replaceMessage(responseID, with: cleanedResponse.isEmpty ? "I’m not sure." : cleanedResponse)
 				historyViewModel.setAssistantThinkingStatus("", for: responseID)
 				#if DEBUG
@@ -921,10 +958,27 @@ struct ChatView: View {
 			isAnalyzingImage = false
 			responseHaptics.stop()
 			responseTask = nil
+			if completedSuccessfully, !Task.isCancelled {
+				recordSuccessfulReplyForReview()
+			}
 			if scenePhase == .background {
 				_ = runtime.unloadIfIdle()
 			}
 		}
+	}
+
+	private var canShowReviewInvitation: Bool {
+		allowsReviewInvitations && scenePhase == .active && !isAssistantBusy && !runtime.isLoading
+			&& !isShowingHistory && !isShowingSettings && !isShowingModelMarketplace
+			&& !isShowingAppIconPicker && !isShowingReviewInvitation && !isShowingPhotoPicker
+			&& !isShowingPhotoAccessAlert && !isShowingReviewLinkError && safariViewModel.page == nil
+			&& failedResponse == nil && inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+			&& attachedImageData.isEmpty && notificationRouter.quickActionToOpen == nil
+	}
+
+	private func recordSuccessfulReplyForReview() {
+		reviewScheduler.recordSuccessfulReply()
+		reviewOpportunity += 1
 	}
 
 	private func analyzeImage(_ imageData: Data, question: String, using selectedVisionModel: BeaconModel? = nil) async throws -> String {

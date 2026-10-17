@@ -44,7 +44,7 @@ struct AttentionContent {
 		details: [
 			"Your rating takes only a moment and makes a real difference."
 		],
-		action: Action(kind: .requestReview, title: "Rate Beacon", systemImage: "star.fill")
+		action: Action(kind: .requestReview, title: "Rate on App Store", systemImage: "star.fill")
 	)
 
 	static let version103 = AttentionContent(
