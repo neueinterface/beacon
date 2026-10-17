@@ -181,7 +181,7 @@ enum ModelDeviceCompatibility: Equatable {
 		case .goodFit:
 			nil
 		case .mayBeSlow:
-			"This model can run on your iPhone, but responses may be slower."
+			"This model may run slowly or exceed available memory. You can still download it; try a smaller model if it cannot run."
 		case let .unavailable(reason):
 			switch reason {
 			case .appleIntelligenceUnsupported:
@@ -235,62 +235,21 @@ enum ModelDeviceCompatibility: Equatable {
 			}
 		}
 
-		let recommendedTier = DeviceTier(recommendedDevice: model.recommendedDevice)
-		let currentTier = DeviceTier.current
-		if currentTier.rawValue >= recommendedTier.rawValue { return .goodFit }
-		if recommendedTier.rawValue - currentTier.rawValue == 1 { return .mayBeSlow }
-		return .unavailable(.modelTooDemanding)
+		return localModel(model, physicalMemoryGB: DeviceMemory.physicalMemoryGB)
+	}
+
+	/// Estimates are advisory, not a guarantee of runtime memory availability.
+	/// Reserve half of physical RAM for iOS, Beacon, and other processes. Include
+	/// overhead for activations/KV cache and the image encoder, not just weights.
+	static func localModel(_ model: BeaconModel, physicalMemoryGB: Double) -> ModelDeviceCompatibility {
+		let weightsGB = NSDecimalNumber(decimal: model.sizeInGB).doubleValue
+		let estimatedWorkingMemoryGB = weightsGB * 1.5 + (model.supportsImages ? 1.25 : 0.5)
+		return estimatedWorkingMemoryGB <= physicalMemoryGB * 0.5 ? .goodFit : .mayBeSlow
 	}
 }
 
-private enum DeviceTier: Int {
-	case unsupported = 0
-	case iPhone13 = 1
-	case iPhone14 = 2
-	case iPhone14Pro = 3
-	case iPhone15Pro = 4
-	case iPhone16Pro = 5
-
-	init(recommendedDevice: String) {
-		if recommendedDevice.contains("16 Pro") {
-			self = .iPhone16Pro
-		} else if recommendedDevice.contains("15 Pro") {
-			self = .iPhone15Pro
-		} else if recommendedDevice.contains("14 Pro") {
-			self = .iPhone14Pro
-		} else if recommendedDevice.contains("14") {
-			self = .iPhone14
-		} else {
-			self = .iPhone13
-		}
-	}
-
-	static let current: DeviceTier = {
-		#if targetEnvironment(simulator)
-		return .iPhone16Pro
-		#elseif os(iOS)
-		let identifier = currentDeviceIdentifier
-		guard identifier.hasPrefix("iPhone") else { return .iPhone16Pro }
-		if identifier.hasPrefix("iPhone18,") || identifier.hasPrefix("iPhone17,") { return .iPhone16Pro }
-		if identifier == "iPhone16,1" || identifier == "iPhone16,2" { return .iPhone15Pro }
-		if identifier == "iPhone15,2" || identifier == "iPhone15,3" || identifier == "iPhone16,3" || identifier == "iPhone16,4" { return .iPhone14Pro }
-		if identifier == "iPhone14,2" || identifier == "iPhone14,3" || identifier == "iPhone14,7" || identifier == "iPhone14,8" || identifier == "iPhone15,4" || identifier == "iPhone15,5" { return .iPhone14 }
-		if identifier.hasPrefix("iPhone14,") { return .iPhone13 }
-		return .unsupported
-		#else
-		return .iPhone16Pro
-		#endif
-	}()
-
-	private static var currentDeviceIdentifier: String {
-		var systemInfo = utsname()
-		uname(&systemInfo)
-		let mirror = Mirror(reflecting: systemInfo.machine)
-		return mirror.children.reduce(into: "") { identifier, element in
-			guard let value = element.value as? Int8, value != 0 else { return }
-			identifier.append(Character(UnicodeScalar(UInt8(value))))
-		}
-	}
+enum DeviceMemory {
+	static let physicalMemoryGB = Double(ProcessInfo.processInfo.physicalMemory) / 1_073_741_824
 }
 
 enum ModelCatalog {
@@ -326,52 +285,88 @@ enum ModelCatalog {
 		models.filter(\.isAvailableDuringOnboarding)
 	}
 
-	static func coreOnboardingModels(in models: [BeaconModel]) -> [BeaconModel] {
-		let onboarding = onboardingModels(in: models)
-		let nonVisionModels = onboarding.filter {
-			$0.onboardingRole == .chatLight || $0.onboardingRole == .chatCore
+	static func coreOnboardingModels(
+		in models: [BeaconModel],
+		compatibility: (BeaconModel) -> ModelDeviceCompatibility = { ModelDeviceCompatibility.current(for: $0) }
+	) -> [BeaconModel] {
+		func bestFit(_ ids: [String]) -> BeaconModel? {
+			ids.compactMap { id in models.first { $0.id == id } }
+				.first { compatibility($0) == .goodFit }
 		}
-		let visionModels = onboarding.filter { $0.onboardingRole == .vision }
-		let selectedVision = visionModels.first(where: { $0.id == "qwen2-vl-2b" && ModelDeviceCompatibility.current(for: $0).canUse })
-			?? visionModels.first(where: { ModelDeviceCompatibility.current(for: $0).canUse })
-			?? visionModels.first
-
-		return nonVisionModels + (selectedVision.map { [$0] } ?? [])
+		let light = bestFit(["qwen3-0.6b"])
+		let chat = bestFit(["qwen3-4b-instruct-2507", "qwen3-1.7b", "qwen3-0.6b"])
+		let vision = bestFit(["qwen2-vl-2b", "smolvlm2-500m"])
+		var seen = Set<String>()
+		return [light, chat, vision].compactMap { $0 }.filter { seen.insert($0.id).inserted }
 	}
 
 	static func optionalOnboardingModels(in models: [BeaconModel]) -> [BeaconModel] {
 		onboardingModels(in: models).filter { $0.onboardingRole?.isOptional == true }
 	}
 
-	/// One curated option per capability. Prefer a good hardware fit over a
-	/// larger model that can only run with reduced performance.
+	/// Keep every supported model browsable, even when it isn't recommended.
 	static func marketplaceModels(
 		in models: [BeaconModel],
 		compatibility: (BeaconModel) -> ModelDeviceCompatibility = { ModelDeviceCompatibility.current(for: $0) }
 	) -> [BeaconModel] {
-		let choices = [
-			["qwen3-4b-instruct-2507", "qwen3-1.7b", "qwen3-0.6b"],
-			["deepseek-r1-distill-qwen-1.5b"],
-			["qwen2-vl-2b", "smolvlm2-500m"]
-		]
-		return choices.compactMap { ids in
-			let candidates = ids.compactMap { id in models.first { $0.id == id } }
-			return candidates.first(where: { compatibility($0) == .goodFit })
-				?? candidates.first(where: { compatibility($0).canUse })
-				?? candidates.first
+		return models.enumerated().sorted { lhs, rhs in
+			let left = compatibility(lhs.element).sortPriority
+			let right = compatibility(rhs.element).sortPriority
+			return left == right ? lhs.offset < rhs.offset : left < right
 		}
+		.map(\.element)
 	}
 
 	static func defaultModel(in models: [BeaconModel]) -> BeaconModel {
-		coreOnboardingModels(in: models).first(where: { $0.onboardingRole == .chatCore })
+		primaryChatModel(in: coreOnboardingModels(in: models))
 			?? coreOnboardingModels(in: models).first
 			?? onboardingModels(in: models).first
 			?? models.first
 			?? availableModels[0]
 	}
 
+	static func primaryChatModel(in models: [BeaconModel]) -> BeaconModel? {
+		["qwen3-4b-instruct-2507", "qwen3-1.7b", "qwen3-0.6b"]
+			.compactMap { id in models.first { $0.id == id } }.first
+			?? models.first { !$0.supportsImages && $0.type == .regular && !$0.isBuiltIn }
+	}
+
 	static func model(id: String, in models: [BeaconModel]) -> BeaconModel? {
 		models.first { $0.id == id }
+	}
+}
+
+enum ModelMarketplaceCategory: Hashable {
+	case chatCore
+	case recommended
+	case company(String)
+
+	var title: String {
+		switch self {
+		case .chatCore: "Chat Core"
+		case .recommended: "Recommended models"
+		case let .company(name): name
+		}
+	}
+
+	static func options(in models: [BeaconModel]) -> [Self] {
+		[.chatCore, .recommended] + Set(models.map(\.company)).sorted().map { .company($0) }
+	}
+
+	func models(
+		in catalog: [BeaconModel],
+		compatibility: (BeaconModel) -> ModelDeviceCompatibility = { ModelDeviceCompatibility.current(for: $0) }
+	) -> [BeaconModel] {
+		switch self {
+		case .chatCore:
+			ModelCatalog.coreOnboardingModels(in: catalog, compatibility: compatibility)
+		case .recommended:
+			ModelCatalog.marketplaceModels(in: catalog, compatibility: compatibility)
+				.filter { compatibility($0) == .goodFit }
+		case let .company(name):
+			ModelCatalog.marketplaceModels(in: catalog, compatibility: compatibility)
+				.filter { $0.company == name }
+		}
 	}
 }
 
@@ -393,10 +388,17 @@ enum BeaconModelRouter {
 		hasImages: Bool,
 		in models: [BeaconModel],
 		downloadedIDs: Set<String>,
+		preferredModelID: String? = nil,
 		compatibility: (BeaconModel) -> ModelDeviceCompatibility = { ModelDeviceCompatibility.current(for: $0) }
 	) -> BeaconModel {
 		let available = models.filter { model in
 			(model.isBuiltIn || downloadedIDs.contains(model.id)) && compatibility(model).canUse
+		}
+
+		// Manual mode pins the answering model. Text-only models can still use
+		// the existing vision bridge without changing the user's selection.
+		if let preferredModelID, let selected = available.first(where: { $0.id == preferredModelID }) {
+			return selected
 		}
 
 		if hasImages, let vision = available.first(where: \.supportsImages) {
@@ -518,7 +520,7 @@ enum ModelStorageLimit {
 		return String(format: "%.1f GB", value)
 	}
 
-	static func availableDeviceStorageGB() -> Double? {
+	nonisolated static func availableDeviceStorageGB() -> Double? {
 		guard let url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first,
 			let values = try? url.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]),
 			let bytes = values.volumeAvailableCapacityForImportantUsage else {

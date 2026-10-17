@@ -16,7 +16,9 @@ The project explores what a polished, approachable interface for local AI can lo
 
 ## Included Models
 
-The bundled catalog contains 4-bit text and vision models supported by the pinned MLX Swift LM runtime. Download sizes are approximate and exclude runtime memory required during generation.
+The bundled catalog contains **50 text and vision models** whose architectures and image processors are supported by the pinned MLX Swift LM runtime. Most are 4-bit conversions; the original SmolVLM2 option uses full-precision weights. Download sizes are approximate and exclude runtime memory required during generation. Hub/configuration auditing does not replace iPhone inference testing.
+
+The original 15 entries are listed below. The full catalog is in [`beacon/Resources/models.json`](beacon/Resources/models.json); see the [expansion notes](research_notes/2026-10-17-mlx-catalog-audit.md) and [per-repository audit](reports/model-catalog-audit.json) for the additional 35 entries and verification scope. Device names in this historical table are guidance, not download restrictions; the app uses RAM estimates.
 
 | Company | Model | Hugging Face repository | Download | Recommended device |
 | --- | --- | --- | ---: | --- |
@@ -33,10 +35,16 @@ The bundled catalog contains 4-bit text and vision models supported by the pinne
 | IBM | Granite 3.3 2B Instruct | [`mlx-community/granite-3.3-2b-instruct-4bit`](https://huggingface.co/mlx-community/granite-3.3-2b-instruct-4bit) | 1.43 GB | iPhone 15 Pro+ |
 | DeepSeek | R1 Distill Qwen 1.5B | [`mlx-community/DeepSeek-R1-Distill-Qwen-1.5B-4bit`](https://huggingface.co/mlx-community/DeepSeek-R1-Distill-Qwen-1.5B-4bit) | 1.01 GB | iPhone 15 Pro+ |
 | Microsoft | Phi 3.5 Mini Instruct | [`mlx-community/Phi-3.5-mini-instruct-4bit`](https://huggingface.co/mlx-community/Phi-3.5-mini-instruct-4bit) | 2.15 GB | iPhone 15 Pro+ |
-| Hugging Face | SmolVLM2 500M (vision) | [`HuggingFaceTB/SmolVLM2-500M-Video-Instruct-mlx`](https://huggingface.co/mlx-community/SmolVLM2-500M-Video-Instruct-mlx) | 1.02 GB | iPhone 14+ |
+| Hugging Face | SmolVLM2 500M (vision) | [`HuggingFaceTB/SmolVLM2-500M-Video-Instruct-mlx`](https://huggingface.co/HuggingFaceTB/SmolVLM2-500M-Video-Instruct-mlx) | 1.02 GB | iPhone 14+ |
 | Alibaba | Qwen2-VL 2B (vision) | [`mlx-community/Qwen2-VL-2B-Instruct-4bit`](https://huggingface.co/mlx-community/Qwen2-VL-2B-Instruct-4bit) | 1.26 GB | iPhone 15 Pro+ |
 
-Onboarding offers a choice of one small chat model: LFM2 1.2B, Qwen3 0.6B, or Qwen3 1.7B. The marketplace can filter models by company. Each model’s details include expanded guidance on what it is best suited for. Attach an image to chat without a vision model installed and Beacon offers an inline download with progress. Models are downloaded from Hugging Face and stored in the app cache; Beacon prevents downloads when a model is unsuitable for the current device or would exceed its 10 GB model-storage limit.
+Onboarding offers Chat Core, a bundle of models selected using the device's physical RAM rather than its iPhone generation. It chooses a lightweight chat model, the largest recommended Qwen chat variant, and a vision model when memory permits, without duplicate downloads. Models run one at a time. The same bundle is available in the Model Marketplace in Settings.
+
+The marketplace exposes all 50 catalog models in company tabs, with live Hugging Face metadata fetched for the selected tab. The bundled catalog remains browsable offline; pull to refresh retries Hub information. RAM recommendations estimate weights plus inference overhead while reserving half of physical RAM for the system and app. They are advisory, not a guarantee: larger models remain downloadable with a memory warning. Free device storage and Beacon's 10 GB model-storage limit are still checked, including the combined space needed for a bundle. Models are downloaded from Hugging Face and stored in the app cache. Arbitrary Hub repositories and local GGUF imports are not supported by this MLX catalog.
+
+The chat input's model switcher offers **Chat Core** for automatic routing or any downloaded, available model for manual use. The choice persists across launches and also applies to Shortcuts. Manual text models still use the vision bridge for image attachments. The switcher includes a shortcut to the marketplace for additional downloads.
+
+The marketplace starts with **Chat Core** and **Recommended models** tabs, followed by company tabs. Recommended models includes only good RAM fits; company tabs retain every catalog option, including models with memory warnings. There is no search bar.
 
 ## Architecture
 

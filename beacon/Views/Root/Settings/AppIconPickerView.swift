@@ -6,6 +6,7 @@ import UIKit
 struct AppIconPickerView: View {
 	@State private var selectedIconName = currentAlternateIconName
 	@State private var errorMessage: String?
+	@State private var changingIconID: String?
 
 	private let columns = Array(repeating: GridItem(.flexible(), spacing: 14), count: 4)
 	private let iconOptions = AppIconOption.allCases
@@ -28,8 +29,17 @@ struct AppIconPickerView: View {
 							select(option)
 						} label: {
 							AppIconOptionCell(option: option, isSelected: selectedIconName == option.alternateIconName)
+								.overlay {
+									if changingIconID == option.id {
+										BeaconLoader(size: 20, lineWidth: 2, color: .primary)
+											.padding(10)
+											.background(.regularMaterial, in: Circle())
+									}
+								}
 						}
 						.buttonStyle(.plain)
+						.disabled(changingIconID != nil)
+						.accessibilityValue(changingIconID == option.id ? "Loading" : "")
 					}
 				}
 			}
@@ -54,6 +64,7 @@ struct AppIconPickerView: View {
 	}
 
 	private func select(_ option: AppIconOption) {
+		guard changingIconID == nil else { return }
 		#if canImport(UIKit)
 		guard UIApplication.shared.supportsAlternateIcons else {
 			errorMessage = "This device does not support alternate app icons."
@@ -65,8 +76,10 @@ struct AppIconPickerView: View {
 		#if targetEnvironment(simulator)
 		errorMessage = "Alternate app icons can't be changed in the iOS Simulator. Build and run on a real device to test icon switching."
 		#else
+		changingIconID = option.id
 		UIApplication.shared.setAlternateIconName(option.alternateIconName) { error in
 			Task { @MainActor in
+				defer { changingIconID = nil }
 				if let error {
 					errorMessage = error.localizedDescription
 				} else {

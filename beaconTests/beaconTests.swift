@@ -34,12 +34,12 @@ struct BeaconAppDataTests {
 		#expect(router.quickActionToOpen == .changeAppIcon)
 	}
 
-	@Test("Default model is available during onboarding")
+	@Test("Default model belongs to the device-selected Chat Core bundle")
 	func defaultModelIsAvailableDuringOnboarding() {
-		#expect(ModelCatalog.onboardingModels.contains(ModelCatalog.defaultModel))
-		#expect(ModelCatalog.defaultModel.id == "qwen3-1.7b")
+		let bundle = ModelCatalog.coreOnboardingModels(in: ModelCatalog.availableModels)
+		#expect(bundle.contains(ModelCatalog.defaultModel))
+		#expect(ModelCatalog.defaultModel == ModelCatalog.primaryChatModel(in: bundle))
 		#expect(ModelCatalog.onboardingModels.map(\.id) == ["qwen3-0.6b", "qwen3-1.7b", "deepseek-r1-distill-qwen-1.5b", "smolvlm2-500m", "qwen2-vl-2b"])
-		#expect(ModelCatalog.coreOnboardingModels(in: ModelCatalog.availableModels).map(\.onboardingName) == ["Chat Light", "Chat Core", "Vision"])
 		#expect(ModelCatalog.optionalOnboardingModels(in: ModelCatalog.availableModels).map(\.onboardingName) == ["Thinker"])
 	}
 
@@ -81,6 +81,55 @@ struct BeaconAppDataTests {
 		#expect(BeaconModelRouter.route(text: "What is in this photo?", hasImages: true, in: ModelCatalog.availableModels, downloadedIDs: downloaded, compatibility: compatible).id == "qwen2-vl-2b")
 		#expect(BeaconModelRouter.route(text: "Solve this step by step and explain the logic.", hasImages: false, in: ModelCatalog.availableModels, downloadedIDs: downloaded, compatibility: compatible).id == "deepseek-r1-distill-qwen-1.5b")
 		#expect(BeaconModelRouter.route(text: "Give me a quick summary.", hasImages: false, in: ModelCatalog.availableModels, downloadedIDs: downloaded, compatibility: compatible).id == "qwen3-0.6b")
+	}
+
+	@Test("Manual selection pins the answering model until Chat Core is selected")
+	func manualModelSelectionOverridesAutomaticRouting() {
+		let downloaded = Set(["beacon", "qwen3-0.6b", "qwen3-1.7b", "deepseek-r1-distill-qwen-1.5b", "qwen2-vl-2b"])
+		for hasImages in [false, true] {
+			let model = BeaconModelRouter.route(
+				text: "Solve this math problem step by step.",
+				hasImages: hasImages,
+				in: ModelCatalog.availableModels,
+				downloadedIDs: downloaded,
+				preferredModelID: "beacon",
+				compatibility: { _ in .goodFit }
+			)
+			#expect(model.id == "beacon")
+		}
+		let automatic = BeaconModelRouter.route(
+			text: "Solve this math problem step by step.",
+			hasImages: false,
+			in: ModelCatalog.availableModels,
+			downloadedIDs: downloaded,
+			preferredModelID: nil,
+			compatibility: { _ in .goodFit }
+		)
+		#expect(automatic.id == "deepseek-r1-distill-qwen-1.5b")
+	}
+
+	@Test("Missing or unavailable manual selections fall back to installed models")
+	func manualModelSelectionFallback() {
+		for id in ["removed-model", "beacon"] {
+			let model = BeaconModelRouter.route(
+				text: "Write a detailed plan.",
+				hasImages: false,
+				in: ModelCatalog.availableModels,
+				downloadedIDs: ["qwen3-1.7b"],
+				preferredModelID: id,
+				compatibility: { _ in .goodFit }
+			)
+			#expect(model.id == "qwen3-1.7b")
+		}
+		let unavailable = BeaconModelRouter.route(
+			text: "Write a detailed plan.",
+			hasImages: false,
+			in: ModelCatalog.availableModels,
+			downloadedIDs: ["beacon", "qwen3-1.7b"],
+			preferredModelID: "beacon",
+			compatibility: { $0.id == "beacon" ? .unavailable(.modelTooDemanding) : .goodFit }
+		)
+		#expect(unavailable.id == "qwen3-1.7b")
 	}
 
 	@Test("Automatic routing falls back to downloaded chat when a specialist is unavailable")
@@ -147,27 +196,59 @@ struct BeaconAppDataTests {
 		#expect(model.capabilityTags == ["chat", "vision", "thinking", "coding"])
 	}
 
-	@Test("Marketplace shows three branded assistants on capable hardware")
-	func marketplaceShowsThreeAssistants() {
+	@Test("Marketplace exposes every supported Hugging Face model")
+	func marketplaceShowsFullCatalog() {
 		let models = ModelCatalog.marketplaceModels(in: ModelCatalog.availableModels, compatibility: { _ in .goodFit })
-		#expect(models.map(\.assistantName) == ["Beacon Chat", "Beacon Think", "Beacon Vision"])
-		#expect(models.map(\.id) == ["qwen3-4b-instruct-2507", "deepseek-r1-distill-qwen-1.5b", "qwen2-vl-2b"])
-		#expect(models.first?.name == "Qwen3 4B Instruct 2507")
+		#expect(models == ModelCatalog.availableModels)
+		#expect(models.contains { $0.id == "lfm2.5-1.2b" })
+		#expect(models.contains { $0.id == "gemma-3-1b" })
 	}
 
-	@Test("Marketplace prefers hardware fit to a slower larger variant")
+	@Test("Marketplace sorts hardware fits first without hiding demanding models")
 	func marketplacePrefersHardwareFit() {
 		let models = ModelCatalog.marketplaceModels(in: ModelCatalog.availableModels) { model in
 			["qwen3-4b-instruct-2507", "qwen2-vl-2b", "deepseek-r1-distill-qwen-1.5b"].contains(model.id) ? .mayBeSlow : .goodFit
 		}
-		#expect(models.map(\.id) == ["qwen3-1.7b", "deepseek-r1-distill-qwen-1.5b", "smolvlm2-500m"])
+		#expect(models.count == ModelCatalog.availableModels.count)
+		#expect(models.suffix(3).map(\.id) == ["qwen3-4b-instruct-2507", "deepseek-r1-distill-qwen-1.5b", "qwen2-vl-2b"])
 	}
 
-	@Test("Marketplace handles missing candidates without duplicating roles")
+	@Test("Marketplace handles a partial or empty catalog")
 	func marketplaceHandlesMissingCandidates() {
 		let models = ModelCatalog.availableModels.filter { $0.id == "qwen3-0.6b" }
 		#expect(ModelCatalog.marketplaceModels(in: models, compatibility: { _ in .goodFit }).map(\.id) == ["qwen3-0.6b"])
 		#expect(ModelCatalog.marketplaceModels(in: [], compatibility: { _ in .goodFit }).isEmpty)
+	}
+
+	@Test("Six-GB phones can download small models regardless of generation")
+	func sixGBPhoneCompatibility() throws {
+		for id in ["beacon", "lfm2.5-1.2b", "qwen3-0.6b", "qwen3-1.7b", "deepseek-r1-distill-qwen-1.5b"] {
+			let model = try #require(ModelCatalog.model(id: id))
+			#expect(ModelDeviceCompatibility.localModel(model, physicalMemoryGB: 6) == .goodFit)
+		}
+		let largerModel = try #require(ModelCatalog.model(id: "qwen3-4b-instruct-2507"))
+		#expect(ModelDeviceCompatibility.localModel(largerModel, physicalMemoryGB: 6) == .mayBeSlow)
+		#expect(ModelDeviceCompatibility.localModel(largerModel, physicalMemoryGB: 6).canUse)
+		#expect(ModelCatalog.availableModels.allSatisfy { ModelDeviceCompatibility.localModel($0, physicalMemoryGB: 4).canUse })
+	}
+
+	@Test("Chat Core adapts its models to physical RAM", arguments: [4.0, 6.0, 8.0])
+	func chatCoreAdaptsToRAM(memoryGB: Double) {
+		let bundle = ModelCatalog.coreOnboardingModels(in: ModelCatalog.availableModels) {
+			ModelDeviceCompatibility.localModel($0, physicalMemoryGB: memoryGB)
+		}
+		#expect(Set(bundle.map(\.id)).count == bundle.count)
+		#expect(bundle.allSatisfy { ModelDeviceCompatibility.localModel($0, physicalMemoryGB: memoryGB) == .goodFit })
+		#expect(ModelCatalog.primaryChatModel(in: bundle)?.id == (memoryGB >= 8 ? "qwen3-4b-instruct-2507" : "qwen3-1.7b"))
+		#expect(bundle.first(where: \.supportsImages)?.id == (memoryGB >= 8 ? "qwen2-vl-2b" : memoryGB >= 6 ? "smolvlm2-500m" : nil))
+	}
+
+	@Test("Chat Core omits models that do not fit and deduplicates its fallback")
+	func chatCoreSmallestFallback() {
+		let models = ModelCatalog.availableModels.filter { $0.id == "qwen3-0.6b" }
+		#expect(ModelCatalog.coreOnboardingModels(in: models, compatibility: { _ in .goodFit }) == models)
+		#expect(ModelCatalog.coreOnboardingModels(in: models, compatibility: { _ in .mayBeSlow }).isEmpty)
+		#expect(ModelCatalog.coreOnboardingModels(in: [], compatibility: { _ in .goodFit }).isEmpty)
 	}
 
 	@Test("Full catalog remains available for existing downloads")
@@ -175,9 +256,14 @@ struct BeaconAppDataTests {
 		let models = ModelCatalog.availableModels
 		let companies = Set(models.map(\.company))
 
-		#expect(models.count == 15)
+		#expect(models.count == 50)
+		#expect(Set(models.map(\.id)).count == models.count)
+		#expect(Set(models.map(\.repositoryID)).count == models.count)
 		#expect(companies.isSuperset(of: ["Alibaba", "DeepSeek", "Google", "Hugging Face", "IBM", "Liquid AI", "Meta", "Microsoft", "OpenBMB"]))
-		#expect(models.filter(\.supportsImages).map(\.id) == ["smolvlm2-500m", "qwen2-vl-2b"])
+		#expect(models.filter(\.supportsImages).count == 14)
+		#expect(Set(models.filter(\.supportsImages).map(\.id)).isSuperset(of: ["smolvlm2-500m", "qwen2-vl-2b", "gemma-4-e2b", "qwen3.5-0.8b", "lfm2-vl-450m"]))
+		#expect(companies.isSuperset(of: ["Mistral AI", "TII", "LG AI Research"]))
+		#expect(models.allSatisfy { $0.sizeInGB > 0 && $0.sizeInGB < 4 })
 		#expect(ModelCatalog.model(id: "minicpm5-2b")?.repositoryID == "mlx-community/MiniCPM5-2B-mlx-4Bit")
 		#expect(ModelCatalog.model(id: "qwen3-4b-instruct-2507")?.repositoryID == "mlx-community/Qwen3-4B-Instruct-2507-4bit")
 		#expect(models.allSatisfy { $0.bestFor?.count ?? 0 > 100 })

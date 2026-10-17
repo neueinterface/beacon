@@ -12,6 +12,7 @@ struct ContentView: View {
 	@Environment(\.requestReview) private var requestReview
 	@AppStorage("hasCompletedWelcome") private var hasCompletedWelcome = false
 	@AppStorage("selectedModelID") private var selectedModelID = ""
+	@AppStorage("usesChatCore") private var usesChatCore = true
 	@AppStorage("downloadedModelIDs") private var downloadedModelIDs = ""
 	@AppStorage("hasSeenModelRoutingUpdate") private var hasSeenModelRoutingUpdate = false
 	@AppStorage("lastSeenWhatsNewRelease") private var lastSeenAttentionID = ""
@@ -25,8 +26,10 @@ struct ContentView: View {
 	@State private var isOnboardingSetup = false
 	@State private var onboardingDownloadQueue: [BeaconModel] = []
 	@State private var onboardingDownloadModels: [BeaconModel] = []
+	@State private var onboardingDownloadByteCounts: [String: Int64] = [:]
 	@State private var onboardingPrimaryModel: BeaconModel?
 	@State private var downloadAlert: DownloadAlert?
+	@State private var isPreparingModelSetup = false
 	@State private var isShowingModelRoutingUpdate = false
 	@State private var isShowingAttention = false
 	@ObservedObject private var notificationRouter: NotificationRouter
@@ -45,8 +48,12 @@ struct ContentView: View {
 					downloadTitle: isOnboardingSetup ? "Chat Core" : nil,
 					bundleModels: isOnboardingSetup ? onboardingDownloadModels : nil,
 					completedBundleModelCount: max(0, onboardingDownloadModels.count - onboardingDownloadQueue.count),
+					completedBundleByteCounts: onboardingDownloadByteCounts,
 					isDownloadComplete: isDownloadComplete,
 					onComplete: {
+						if isOnboardingSetup, let bytes = modelRuntime.totalUnitCount, bytes > 0 {
+							onboardingDownloadByteCounts[downloadingModel.id] = bytes
+						}
 						recordDownloaded(downloadingModel)
 						recordModelDownload(downloadingModel)
 						if isOnboardingSetup, let nextModel = onboardingDownloadQueue.dropFirst().first {
@@ -81,6 +88,7 @@ struct ContentView: View {
 					memoryStore: memoryStore,
 					models: models,
 					onDownloadModel: prepare,
+					onDownloadBundle: prepareRecommendedBundle,
 					notificationRouter: notificationRouter
 				)
 			} else if isShowingModelMarketplace {
@@ -89,7 +97,8 @@ struct ContentView: View {
 					isOnboarding: true,
 					onClose: { isShowingModelMarketplace = false },
 					onDownload: prepare,
-					onSelect: select
+					onSelect: select,
+					onDownloadBundle: prepareRecommendedBundle
 				)
 			} else if isChoosingModel {
 				WelcomeModelSelectView(
@@ -110,7 +119,7 @@ struct ContentView: View {
 			if isShowingModelRoutingUpdate {
 				ModelRoutingUpdateOverlay(
 					onKeepModels: dismissModelRoutingUpdate,
-					onReplaceModels: replaceModelsWithBundle
+					onUseChatCore: continueWithChatCore
 				)
 			}
 		}
@@ -147,6 +156,12 @@ struct ContentView: View {
 		.task {
 			ModelIDMigration.migrate()
 			guard hasCompletedWelcome, notificationRouter.quickActionToOpen == nil else { return }
+			// New release notes take precedence over the older Chat Core intro.
+			// Users should receive one current announcement, not stacked popups.
+			if let attention = AttentionContent.current, lastSeenAttentionID != attention.id {
+				presentAttentionIfNeeded()
+				return
+			}
 			if !hasSeenModelRoutingUpdate, !downloadedModelIDs.isEmpty {
 				withAnimation(.spring(response: 0.32, dampingFraction: 0.84)) {
 					isShowingModelRoutingUpdate = true
@@ -167,6 +182,7 @@ struct ContentView: View {
 	private func markAttentionSeen() {
 		guard let attention = AttentionContent.current else { return }
 		lastSeenAttentionID = attention.id
+		hasSeenModelRoutingUpdate = true
 	}
 
 	private func recordDownloaded(_ model: BeaconModel) {
@@ -181,7 +197,10 @@ struct ContentView: View {
 		downloadedModelIDs = ids.sorted().joined(separator: ",")
 	}
 
-	private func prepare(_ model: BeaconModel) {
+	private func prepare(_ model: BeaconModel) async {
+		guard !isPreparingModelSetup else { return }
+		isPreparingModelSetup = true
+		defer { isPreparingModelSetup = false }
 		let compatibility = ModelDeviceCompatibility.current(for: model)
 		guard compatibility.canUse else {
 			downloadAlert = .unavailable(model.name, compatibility.message ?? "Choose a model marked Works with this iPhone instead.")
@@ -191,7 +210,11 @@ struct ContentView: View {
 		if model.isBuiltIn {
 			select(model)
 		} else {
-			switch ModelStorageLimit.downloadAvailability(for: model, downloadedModelIDs: downloadedModelIDs, in: models) {
+			let availableGB = await Task.detached(priority: .userInitiated) {
+				ModelStorageLimit.availableDeviceStorageGB()
+			}.value
+			guard !Task.isCancelled else { return }
+			switch ModelStorageLimit.downloadAvailability(for: model, downloadedModelIDs: downloadedModelIDs, in: models, availableGB: availableGB) {
 			case .available:
 				break
 			case .appStorageFull:
@@ -207,7 +230,10 @@ struct ContentView: View {
 		}
 	}
 
-	private func prepareOnboardingModels(_ selectedModels: [BeaconModel], _ primaryModel: BeaconModel) {
+	private func prepareOnboardingModels(_ selectedModels: [BeaconModel], _ primaryModel: BeaconModel) async {
+		guard !isPreparingModelSetup else { return }
+		isPreparingModelSetup = true
+		defer { isPreparingModelSetup = false }
 		guard models.contains(primaryModel), selectedModels.contains(primaryModel) else { return }
 		guard selectedModels.allSatisfy({ models.contains($0) }) else { return }
 
@@ -220,11 +246,16 @@ struct ContentView: View {
 		}
 
 		var simulatedDownloadedIDs = Set(downloadedModelIDs.split(separator: ",").map(String.init))
+		var remainingStorageGB = await Task.detached(priority: .userInitiated) {
+			ModelStorageLimit.availableDeviceStorageGB()
+		}.value
+		guard !Task.isCancelled else { return }
 		for model in selectedModels where !isDownloaded(model) {
 			let simulatedIDs = simulatedDownloadedIDs.sorted().joined(separator: ",")
-			switch ModelStorageLimit.downloadAvailability(for: model, downloadedModelIDs: simulatedIDs, in: models) {
+			switch ModelStorageLimit.downloadAvailability(for: model, downloadedModelIDs: simulatedIDs, in: models, availableGB: remainingStorageGB) {
 			case .available:
 				simulatedDownloadedIDs.insert(model.id)
+				remainingStorageGB = remainingStorageGB.map { $0 - NSDecimalNumber(decimal: model.sizeInGB).doubleValue * 1.1 }
 			case .appStorageFull:
 				downloadAlert = .failed(model.onboardingName, "Delete a downloaded model to free up Beacon's 10 GB model storage limit.")
 				return
@@ -235,6 +266,7 @@ struct ContentView: View {
 		}
 
 		onboardingPrimaryModel = primaryModel
+		onboardingDownloadByteCounts = [:]
 		onboardingDownloadModels = selectedModels.filter { !isDownloaded($0) }
 		onboardingDownloadQueue = onboardingDownloadModels
 		guard let firstModel = onboardingDownloadQueue.first else {
@@ -275,6 +307,7 @@ struct ContentView: View {
 		isOnboardingSetup = false
 		onboardingPrimaryModel = nil
 		selectedModelID = model.id
+		usesChatCore = true
 		if let attention = AttentionContent.current {
 			lastSeenAttentionID = attention.id
 		}
@@ -289,28 +322,21 @@ struct ContentView: View {
 		hasSeenModelRoutingUpdate = true
 	}
 
-	private func replaceModelsWithBundle() {
-		let previousModels = models.filter { !$0.isBuiltIn && isDownloaded($0) }
-		_ = modelRuntime.unloadIfIdle()
+	private func continueWithChatCore() async {
+		// Add only missing bundle models. Adopting Chat Core must never erase
+		// previous downloads or clear the current selection if setup fails.
+		await prepareRecommendedBundle()
+		guard !Task.isCancelled else { return }
+		dismissModelRoutingUpdate()
+	}
 
-		do {
-			try DownloadedModelStorage.delete(previousModels)
-		} catch {
-			downloadAlert = .failed("Models", "Beacon couldn't remove the previous models. Please try again.")
+	private func prepareRecommendedBundle() async {
+		let bundle = ModelCatalog.coreOnboardingModels(in: models)
+		guard let primaryModel = ModelCatalog.primaryChatModel(in: bundle) ?? bundle.first else {
+			downloadAlert = .unavailable("Chat Core", "No recommended bundle fits this device. Choose an individual model in the marketplace.")
 			return
 		}
-
-		downloadedModelIDs = ""
-		selectedModelID = ""
-		hasSeenModelRoutingUpdate = true
-		withAnimation(.spring(response: 0.32, dampingFraction: 0.84)) {
-			isShowingModelRoutingUpdate = false
-		}
-
-		let bundle = ModelCatalog.coreOnboardingModels(in: models)
-			.filter { ModelDeviceCompatibility.current(for: $0).canUse }
-		guard let primaryModel = bundle.first(where: { $0.onboardingRole == .chatCore }) ?? bundle.first else { return }
-		prepareOnboardingModels(bundle, primaryModel)
+		await prepareOnboardingModels(bundle, primaryModel)
 	}
 
 	private func isDownloaded(_ model: BeaconModel) -> Bool {
@@ -323,6 +349,7 @@ struct ContentView: View {
 		}
 
 		selectedModelID = model.id
+		usesChatCore = false
 		hasCompletedWelcome = true
 		downloadingModel = nil
 	}
@@ -343,7 +370,7 @@ struct ContentView: View {
 private struct ModelRoutingUpdateOverlay: View {
 	@Environment(\.accessibilityReduceMotion) private var reduceMotion
 	let onKeepModels: () -> Void
-	let onReplaceModels: () -> Void
+	let onUseChatCore: () async -> Void
 
 	var body: some View {
 		GeometryReader { proxy in
@@ -351,32 +378,39 @@ private struct ModelRoutingUpdateOverlay: View {
 				Color.black.opacity(0.25)
 					.ignoresSafeArea()
 
-				VStack(spacing: 18) {
-					Capsule()
-						.fill(Color.secondary.opacity(0.35))
-						.frame(width: 38, height: 5)
+				ScrollView {
+					VStack(spacing: 18) {
+						Capsule()
+							.fill(Color.secondary.opacity(0.35))
+							.frame(width: 38, height: 5)
 
-					VStack(spacing: 10) {
-						Text("Beacon just got easier")
-							.font(.openRunde(size: 24, weight: .semibold))
-						Text("We updated Beacon so it can choose the right model for each message. Your chats and memories are saved.")
-							.font(.openRunde(size: 16, weight: .medium))
-							.foregroundStyle(.secondary)
-							.lineSpacing(3)
-					}
-					.multilineTextAlignment(.center)
-					.fixedSize(horizontal: false, vertical: true)
+						VStack(spacing: 10) {
+							Text("Meet Chat Core")
+								.font(.openRunde(size: 24, weight: .semibold))
+							Text("Chat Core brings together models selected for your iPhone and automatically chooses the right one for each message—so you don’t have to.")
+								.font(.openRunde(size: 16, weight: .medium))
+								.foregroundStyle(.secondary)
+								.lineSpacing(3)
+							Text("Your previous models, chats, and memories stay saved either way. You can still download other models in Settings → Model Marketplace.")
+								.font(.openRunde(size: 15, weight: .regular))
+								.foregroundStyle(.secondary)
+								.lineSpacing(3)
+						}
+						.multilineTextAlignment(.center)
+						.fixedSize(horizontal: false, vertical: true)
 
-					VStack(spacing: 12) {
-						BeaconButton("Replace with Chat Core", variant: .black, size: .large, isFullWidth: true, action: onReplaceModels)
-						BeaconButton("Keep my models", variant: .secondary, size: .large, isFullWidth: true, action: onKeepModels)
+						VStack(spacing: 12) {
+							BeaconButton("Continue with Chat Core", variant: .black, size: .large, isFullWidth: true, asyncAction: onUseChatCore)
+							BeaconButton("Keep previous models", variant: .secondary, size: .large, isFullWidth: true, action: onKeepModels)
+						}
 					}
+					.padding(.horizontal, 24)
+					.padding(.top, 20)
+					.padding(.bottom, 24)
 				}
-				.padding(.horizontal, 24)
-				.padding(.top, 20)
-				.padding(.bottom, 24)
+				.scrollBounceBehavior(.basedOnSize)
 				.frame(maxWidth: 560)
-				.frame(height: min(390, max(0, proxy.size.height - proxy.safeAreaInsets.top - 24)))
+				.frame(height: min(480, max(0, proxy.size.height - proxy.safeAreaInsets.top - 24)))
 				.background(Color(uiColor: .systemBackground))
 				.clipShape(UnevenRoundedRectangle(
 					topLeadingRadius: 40,

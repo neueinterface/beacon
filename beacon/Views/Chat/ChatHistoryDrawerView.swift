@@ -9,6 +9,7 @@ struct ChatHistoryDrawerView: View {
     var onClose: () -> Void
     var onNewChat: () -> Void
     var onOpenSettings: () -> Void
+    var onOpenModels: () -> Void = { }
     var onSelect: (ChatConversation) -> Void
 
     var body: some View {
@@ -52,6 +53,7 @@ struct ChatHistoryDrawerView: View {
 
                     ToolbarItem(placement: .topBarTrailing) {
                         HStack(spacing: 8) {
+                            modelMarketplaceButton
                             Button {
                                 playHeaderHaptic()
                                 onOpenSettings()
@@ -132,6 +134,8 @@ struct ChatHistoryDrawerView: View {
             }
             .accessibilityLabel("Close chat history")
 
+            modelMarketplaceButton
+
             Button {
                 playHeaderHaptic()
                 onOpenSettings()
@@ -143,6 +147,19 @@ struct ChatHistoryDrawerView: View {
             .accessibilityLabel("Open settings")
 
         }
+    }
+
+    private var modelMarketplaceButton: some View {
+        Button {
+            playHeaderHaptic()
+            onOpenModels()
+        } label: {
+            Image("playground.icon")
+                .renderingMode(.template)
+                .padding(.horizontal, 6)
+        }
+        .accessibilityLabel("Open Model Marketplace")
+        .accessibilityIdentifier("history-model-marketplace")
     }
 
     private var emptyState: some View {

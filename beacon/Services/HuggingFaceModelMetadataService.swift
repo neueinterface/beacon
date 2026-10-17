@@ -21,8 +21,8 @@ struct HuggingFaceModelMetadataService {
 		self.session = session
 	}
 
-	func fetch(repositoryID: String) async throws -> HuggingFaceModelMetadata {
-		if let cached = Self.cache[repositoryID],
+	func fetch(repositoryID: String, forceRefresh: Bool = false) async throws -> HuggingFaceModelMetadata {
+		if !forceRefresh, let cached = Self.cache[repositoryID],
 		   Date.now.timeIntervalSince(cached.fetchedAt) < Self.cacheLifetime {
 			return cached.metadata
 		}

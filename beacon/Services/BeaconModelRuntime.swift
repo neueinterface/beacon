@@ -106,6 +106,7 @@ final class BeaconModelRuntime: ModelDownloadRuntime {
 	private var foundationSession: LanguageModelSession?
 	private var progressObservations: [NSKeyValueObservation] = []
 	private var observedProgresses: [Progress] = []
+	private var activeLoadID: UUID?
 	private var loadWaiters: [CheckedContinuation<Void, Never>] = []
 
 	func isReady(for model: BeaconModel) -> Bool {
@@ -127,9 +128,11 @@ final class BeaconModelRuntime: ModelDownloadRuntime {
 		guard !isReady(for: model) else { return }
 
 		isLoading = true
+		let loadID = UUID()
+		activeLoadID = loadID
 		defer { finishLoading() }
 		errorMessage = nil
-		progress = 0.02
+		progress = 0
 		completedUnitCount = nil
 		totalUnitCount = nil
 		progressObservations.removeAll()
@@ -150,6 +153,7 @@ final class BeaconModelRuntime: ModelDownloadRuntime {
 			print("BeaconModelRuntime: loading \(model.repositoryID)")
 			let container = try await #huggingFaceLoadModelContainer(configuration: configuration) { progress in
 				Task { @MainActor in
+					guard self.activeLoadID == loadID else { return }
 					self.observe(progress)
 				}
 			}
@@ -185,6 +189,7 @@ final class BeaconModelRuntime: ModelDownloadRuntime {
 	}
 
 	private func finishLoading() {
+		activeLoadID = nil
 		isLoading = false
 		let waiters = loadWaiters
 		loadWaiters.removeAll()
@@ -552,7 +557,9 @@ final class BeaconModelRuntime: ModelDownloadRuntime {
 		case "mlx-community/Qwen2-VL-2B-Instruct-4bit":
 			VLMRegistry.qwen2VL2BInstruct4Bit
 		default:
-			ModelConfiguration(id: model.repositoryID)
+			model.supportsImages
+				? VLMRegistry.shared.configuration(id: model.repositoryID)
+				: LLMRegistry.shared.configuration(id: model.repositoryID)
 		}
 	}
 
@@ -569,10 +576,12 @@ final class BeaconModelRuntime: ModelDownloadRuntime {
 	}
 
 	private func observe(_ downloadProgress: Progress) {
-		updateProgress(from: downloadProgress)
-
-		guard !observedProgresses.contains(where: { $0 === downloadProgress }) else { return }
+		if observedProgresses.contains(where: { $0 === downloadProgress }) {
+			updateProgress(from: downloadProgress)
+			return
+		}
 		observedProgresses.append(downloadProgress)
+		updateProgress(from: downloadProgress)
 
 		let fractionObservation = downloadProgress.observe(\.fractionCompleted, options: [.new]) { [weak self] progress, _ in
 			Task { @MainActor in
@@ -593,23 +602,13 @@ final class BeaconModelRuntime: ModelDownloadRuntime {
 	}
 
 	private func updateProgress(from downloadProgress: Progress) {
-		if downloadProgress.completedUnitCount >= 0 {
-			completedUnitCount = downloadProgress.completedUnitCount
-		}
-
-		if downloadProgress.totalUnitCount > 0 {
-			totalUnitCount = downloadProgress.totalUnitCount
-		}
-
-		let fractionCompleted: Double
-		if downloadProgress.totalUnitCount > 0, downloadProgress.completedUnitCount >= 0 {
-			fractionCompleted = Double(downloadProgress.completedUnitCount) / Double(downloadProgress.totalUnitCount)
-		} else {
-			fractionCompleted = downloadProgress.fractionCompleted
-		}
-
-		guard fractionCompleted.isFinite else { return }
-		progress = min(max(0.02, fractionCompleted), 1)
+		// Ignore queued observations from a completed/cancelled model once the
+		// next model in a bundle has started.
+		guard observedProgresses.contains(where: { $0 === downloadProgress }) else { return }
+		let snapshot = ModelDownloadProgress(downloadProgress)
+		completedUnitCount = snapshot.completedUnitCount
+		totalUnitCount = snapshot.totalUnitCount
+		progress = snapshot.fractionCompleted
 	}
 
 	private func mlxHistory(from messages: [ChatMessage]) -> [Chat.Message] {

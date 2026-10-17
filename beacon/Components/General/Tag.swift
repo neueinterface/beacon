@@ -10,9 +10,31 @@ import SwiftUI
 struct Tag: View {
 	let title: String
 	var color: Color = .gray
+	var showsVerifiedBadge = false
+	var systemImage: String?
 
 	var body: some View {
-		Text(title)
+		HStack(spacing: 5) {
+			if showsVerifiedBadge {
+				ZStack {
+					Image("badge.icon")
+						.renderingMode(.template)
+						.resizable()
+						.scaledToFit()
+					Image(systemName: "checkmark")
+						.font(.system(size: 6, weight: .black))
+						.foregroundStyle(.white)
+				}
+				.frame(width: 16, height: 16)
+				.accessibilityHidden(true)
+			} else if let systemImage {
+				Image(systemName: systemImage)
+					.font(.system(size: 12, weight: .semibold))
+					.frame(width: 16, height: 16)
+					.accessibilityHidden(true)
+			}
+			Text(title)
+		}
 			.font(.openRunde(size: 12, weight: .semibold))
 			.foregroundStyle(color)
 			.padding(.horizontal, 12)
@@ -48,6 +70,8 @@ struct ModelSwitchToast: View {
 	HStack(spacing: 12) {
 		Tag(title: "vision", color: .indigo)
 		Tag(title: "deep research", color: .orange)
+		Tag(title: "Works with this iPhone", color: .green, showsVerifiedBadge: true)
+		Tag(title: "Reduced performance", color: .orange, systemImage: "exclamationmark.triangle.fill")
 	}
 	.padding()
 }

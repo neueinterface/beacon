@@ -196,6 +196,7 @@ struct WelcomeView: View {
 				"I haven't used Local Models",
 				size: .large,
 				isFullWidth: true,
+				isDisabled: destination != nil,
 				action: { leave(for: .bundle) }
 			)
 			.welcomeEntrance(hasAppeared, delay: 0.22, offset: 14)
@@ -204,6 +205,7 @@ struct WelcomeView: View {
 				variant: .secondary,
 				size: .large,
 				isFullWidth: true,
+				isDisabled: destination != nil,
 				action: { leave(for: .marketplace) }
 			)
 			.welcomeEntrance(hasAppeared, delay: 0.34, offset: 14)

@@ -19,7 +19,22 @@ struct AttentionContent {
 	let action: Action?
 
 	/// Set to nil to disable the launch-time attention sheet for the current build.
-	static let current: AttentionContent? = .version103
+	static let current: AttentionContent? = .version106
+
+	static let version106 = AttentionContent(
+		id: "1.0.6",
+		heroImageName: "whatsnew",
+		title: "What's New in 1.0.6",
+		subtitle: "More models. More choice. Still private.",
+		details: [
+			"The Model Marketplace is back with 50 local models, organized by company, plus Chat Core and Recommended models tabs.",
+			"Chat Core selects a model bundle for your device and automatically routes each message. Or choose a downloaded model yourself with the restored picker in chat.",
+			"RAM-based recommendations replace iPhone-generation restrictions. Look for the green verified tag or orange memory warning when choosing a model.",
+			"Downloads now show live progress while files arrive, with clearer loading feedback when it’s needed.",
+			"Your existing models, chats, and memories stay saved. Add more models anytime from Settings or chat history."
+		],
+		action: nil
+	)
 
 	static let ratingRequest = AttentionContent(
 		id: "rating-request-1",
@@ -159,6 +174,6 @@ struct AttentionView: View {
 #Preview {
 	Color.clear
 		.sheet(isPresented: .constant(true)) {
-			AttentionView(content: .ratingRequest)
+			AttentionView(content: .version106)
 		}
 }

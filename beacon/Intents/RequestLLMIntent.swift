@@ -34,7 +34,15 @@ struct RequestLLMIntent: AppIntent {
 		let defaults = UserDefaults.standard
 		let selectedModelID = defaults.string(forKey: "selectedModelID") ?? ""
 		let models = ModelCatalog.availableModels
-		let selectedModel = ModelCatalog.model(id: selectedModelID, in: models) ?? ModelCatalog.defaultModel(in: models)
+		let usesChatCore = defaults.object(forKey: "usesChatCore") as? Bool ?? true
+		let downloadedIDs = Set((defaults.string(forKey: "downloadedModelIDs") ?? "").split(separator: ",").map(String.init))
+		let selectedModel = BeaconModelRouter.route(
+			text: trimmedPrompt,
+			hasImages: false,
+			in: models,
+			downloadedIDs: downloadedIDs,
+			preferredModelID: usesChatCore ? nil : selectedModelID
+		)
 
 		guard selectedModel.isBuiltIn || isDownloaded(selectedModel, defaults: defaults) else {
 			let message = "Open Beacon and download \(selectedModel.name) before using it from Shortcuts."

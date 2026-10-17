@@ -1,6 +1,5 @@
 
 import SwiftUI
-import StoreKit
 import UserNotifications
 #if canImport(UIKit)
 import UIKit
@@ -10,7 +9,8 @@ struct SettingsView: View {
 	@ObservedObject var chatHistoryViewModel: ChatHistoryViewModel
 	@ObservedObject var memoryStore: MemoryStore
 	var models = ModelCatalog.availableModels
-	var onDownloadModel: (BeaconModel) -> Void = { _ in }
+	var onDownloadModel: (BeaconModel) async -> Void = { _ in }
+	var onDownloadBundle: () async -> Void = { }
 	@Environment(\.dismiss) private var dismiss
 	@Environment(\.openURL) private var openURL
 	@AppStorage("downloadedModelIDs") private var downloadedModelIDs = ""
@@ -21,6 +21,8 @@ struct SettingsView: View {
 	#endif
 	@State private var isConfirmingDeleteAllChats = false
 	@State private var isConfirmingDeleteModels = false
+	@State private var isDeletingModels = false
+	@State private var isShowingReviewLinkError = false
 	@State private var isShowingModelManager = false
 	#if false // Web search is not currently available.
 	@State private var isShowingWebSearchInfo = false
@@ -82,9 +84,20 @@ struct SettingsView: View {
 		Set(downloadedModelIDs.split(separator: ",").map(String.init)).contains(model.id)
 	}
 
-	private func deleteAllDownloadedModels() {
-		guard (try? DownloadedModelStorage.delete(downloadedModels)) != nil else { return }
-		downloadedModelIDs = ""
+	private func deleteAllDownloadedModels() async {
+		defer { isDeletingModels = false }
+		let urls = downloadedModels.flatMap { DownloadedModelStorage.cacheURLs(for: $0) }
+		do {
+			try await Task.detached(priority: .userInitiated) {
+				let fileManager = FileManager.default
+				for url in urls where fileManager.fileExists(atPath: url.path) {
+					try fileManager.removeItem(at: url)
+				}
+			}.value
+			downloadedModelIDs = ""
+		} catch {
+			// Keep recorded downloads when removal fails so the user can retry.
+		}
 	}
 
 	var body: some View {
@@ -121,8 +134,10 @@ struct SettingsView: View {
 						}
 						SettingsListDivider()
 
-						SettingsButtonRow(title: "Leave a rating on the App Store", icon: "review.icon") {
-							requestAppReview()
+						SettingsButtonRow(title: "Rate on App Store", icon: "review.icon") {
+							openURL(AppStoreLinks.review) { accepted in
+								isShowingReviewLinkError = !accepted
+							}
 						}
 					}
 
@@ -143,9 +158,10 @@ struct SettingsView: View {
 						ModelStorageUsagePill(usedGB: downloadedStorageGB, maxGB: ModelStorageLimit.maxGB)
 
 						VStack(spacing: 0) {
-							SettingsButtonRow(title: "Manage Models", icon: "playground.icon") {
+							SettingsButtonRow(title: "Model Marketplace", icon: "playground.icon") {
 								isShowingModelManager = true
 							}
+							.disabled(isDeletingModels)
 						}
 						.padding(.vertical, 6)
 						.background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -155,7 +171,8 @@ struct SettingsView: View {
 							variant: .destructive,
 							size: .large,
 							isFullWidth: true,
-							isDisabled: downloadedModels.isEmpty
+							isDisabled: downloadedModels.isEmpty,
+							isLoading: isDeletingModels
 						) {
 							isConfirmingDeleteModels = true
 						}
@@ -197,6 +214,11 @@ struct SettingsView: View {
 				}
 				#endif
 			}
+			.alert("Could not open App Store", isPresented: $isShowingReviewLinkError) {
+				Button("OK", role: .cancel) { }
+			} message: {
+				Text("Please try again, or search for Beacon – Local AI Chat in the App Store to leave a review.")
+			}
 			.alert("Delete all chats?", isPresented: $isConfirmingDeleteAllChats) {
 				Button("Cancel", role: .cancel) { }
 				Button("Delete All Chats (\(chatHistoryViewModel.chats.count))", role: .destructive) {
@@ -210,7 +232,7 @@ struct SettingsView: View {
 			.alert("Delete all downloaded models?", isPresented: $isConfirmingDeleteModels) {
 				Button("Cancel", role: .cancel) { }
 				Button("Delete Models (\(downloadedModels.count))", role: .destructive) {
-					deleteAllDownloadedModels()
+					isDeletingModels = true
 				}
 			} message: {
 				Text("This removes every downloaded model from Beacon. You can download them again later.")
@@ -230,10 +252,18 @@ struct SettingsView: View {
 					models: models,
 					onClose: { isShowingModelManager = false },
 					onDownload: { model in
+						await onDownloadModel(model)
 						isShowingModelManager = false
-						onDownloadModel(model)
+					},
+					onDownloadBundle: {
+						await onDownloadBundle()
+						isShowingModelManager = false
 					}
 				)
+			}
+			.task(id: isDeletingModels) {
+				guard isDeletingModels else { return }
+				await deleteAllDownloadedModels()
 			}
 		}
 	}
@@ -287,14 +317,6 @@ struct SettingsView: View {
 		}
 	}
 
-	private func requestAppReview() {
-		#if canImport(UIKit)
-		guard let scene = UIApplication.shared.connectedScenes
-			.first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene else { return }
-
-		SKStoreReviewController.requestReview(in: scene)
-		#endif
-	}
 }
 
 private struct ModelStorageUsagePill: View {

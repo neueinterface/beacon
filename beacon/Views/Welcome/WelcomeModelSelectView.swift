@@ -11,7 +11,7 @@ struct WelcomeModelSelectView: View {
 	@AppStorage("downloadedModelIDs") private var downloadedModelIDs = ""
 
 	let models: [BeaconModel]
-	var onDownloadModels: ([BeaconModel], BeaconModel) -> Void
+	var onDownloadModels: ([BeaconModel], BeaconModel) async -> Void
 	var onChooseLater: () -> Void = { }
 	var onBack: () -> Void = { }
 
@@ -24,8 +24,7 @@ struct WelcomeModelSelectView: View {
 	}
 
 	private var primaryModel: BeaconModel? {
-		bundledModels.first(where: { $0.onboardingRole == .chatCore })
-			?? bundledModels.first(where: { $0.onboardingRole == .chatLight })
+		ModelCatalog.primaryChatModel(in: bundledModels)
 			?? bundledModels.first
 	}
 
@@ -77,7 +76,7 @@ struct WelcomeModelSelectView: View {
 					isFullWidth: true,
 					trailingAssetIcon: "download.icon",
 					isDisabled: primaryModel == nil,
-					action: downloadBundle
+					asyncAction: downloadBundle
 				)
 				BeaconButton("Choose later", variant: .secondary, size: .large, isFullWidth: true) {
 					withAnimation(confirmationAnimation) {
@@ -104,8 +103,9 @@ struct WelcomeModelSelectView: View {
 							.accessibilityHidden(true)
 
 						ChooseLaterConfirmationView(
-							onDownload: { dismissConfirmation(download: true) },
-							onConfirm: { dismissConfirmation(confirmed: true) }
+							onDownload: downloadBundle,
+							onConfirm: { dismissConfirmation(confirmed: true) },
+							isConfirming: isDismissingConfirmation
 						)
 						.frame(maxWidth: 560)
 						.frame(height: min(340, max(0, proxy.size.height - proxy.safeAreaInsets.top - 24)))
@@ -145,16 +145,14 @@ struct WelcomeModelSelectView: View {
 		)
 	}
 
-	private func dismissConfirmation(confirmed: Bool = false, download: Bool = false) {
+	private func dismissConfirmation(confirmed: Bool = false) {
 		guard isShowingChooseLater, !isDismissingConfirmation else { return }
 		isDismissingConfirmation = true
 		withAnimation(confirmationAnimation, completionCriteria: .removed) {
 			isShowingChooseLater = false
 		} completion: {
 			isDismissingConfirmation = false
-			if download {
-				downloadBundle()
-			} else if confirmed {
+			if confirmed {
 				onChooseLater()
 			}
 		}
@@ -166,7 +164,7 @@ struct WelcomeModelSelectView: View {
 			Text("Chat Core")
 				.font(.openRunde(size: 20, weight: .semibold))
 				.fixedSize(horizontal: false, vertical: true)
-				WelcomeVerifiedBadge()
+				VerifiedBadge()
 			}
 
 			Text("A curated bundle of local models for your iPhone. Get help with everyday questions, writing, and planning—without choosing individual models.")
@@ -184,6 +182,14 @@ struct WelcomeModelSelectView: View {
 				Tag(title: "Selected for your iPhone", color: .green)
 				Tag(title: bundleSize, color: .indigo)
 			}
+
+			Text("Selected using \(Int(DeviceMemory.physicalMemoryGB.rounded())) GB RAM. Models run one at a time; available memory varies.")
+				.font(.openRunde(size: 13, weight: .regular))
+				.foregroundStyle(.secondary)
+			ForEach(bundledModels) { model in
+				Text("\(model.name) · \(model.formattedSize)")
+					.font(.openRunde(size: 14, weight: .medium))
+			}
 		}
 		.foregroundStyle(.primary)
 		.padding(24)
@@ -191,15 +197,16 @@ struct WelcomeModelSelectView: View {
 		.background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 26, style: .continuous))
 	}
 
-	private func downloadBundle() {
+	private func downloadBundle() async {
 		guard let primaryModel else { return }
-		onDownloadModels(bundledModels, primaryModel)
+		await onDownloadModels(bundledModels, primaryModel)
 	}
 }
 
 private struct ChooseLaterConfirmationView: View {
-	let onDownload: () -> Void
+	let onDownload: () async -> Void
 	let onConfirm: () -> Void
+	var isConfirming = false
 
 	var body: some View {
 		ScrollView(showsIndicators: false) {
@@ -216,8 +223,8 @@ private struct ChooseLaterConfirmationView: View {
 				.fixedSize(horizontal: false, vertical: true)
 
 				VStack(spacing: 12) {
-					BeaconButton("Download Chat Core", variant: .black, size: .large, isFullWidth: true, action: onDownload)
-					BeaconButton("Yes, choose later", variant: .secondary, size: .large, isFullWidth: true, action: onConfirm)
+					BeaconButton("Download Chat Core", variant: .black, size: .large, isFullWidth: true, isDisabled: isConfirming, asyncAction: onDownload)
+					BeaconButton("Yes, choose later", variant: .secondary, size: .large, isFullWidth: true, isDisabled: isConfirming, action: onConfirm)
 				}
 				.padding(.top, 4)
 			}
@@ -228,29 +235,6 @@ private struct ChooseLaterConfirmationView: View {
 		.scrollBounceBehavior(.basedOnSize)
 		.foregroundStyle(.primary)
 		.background(Color(uiColor: .systemBackground))
-	}
-}
-
-private struct WelcomeVerifiedBadge: View {
-	@Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-	var body: some View {
-		TimelineView(.animation(minimumInterval: 1.0 / 30, paused: reduceMotion)) { context in
-			ZStack {
-				Image("badge.icon")
-					.renderingMode(.template)
-					.resizable()
-					.scaledToFit()
-					.foregroundStyle(.green)
-					.rotationEffect(.degrees(reduceMotion ? 0 : context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 8) / 8 * 360))
-
-				Image(systemName: "checkmark")
-					.font(.system(size: 11, weight: .black))
-					.foregroundStyle(.white)
-			}
-			.frame(width: 30, height: 30)
-		}
-		.accessibilityLabel("Recommended for your iPhone")
 	}
 }
 

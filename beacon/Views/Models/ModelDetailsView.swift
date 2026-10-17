@@ -10,9 +10,9 @@ struct ModelDetailsView: View {
 	let isDeleting: Bool
 	let deleteErrorMessage: String?
 	let downloadAvailability: ModelStorageLimit.DownloadAvailability
-	var onDownload: () -> Void
+	var onDownload: () async -> Void
 	var onSelect: () -> Void
-	var onDelete: () -> Void
+	var onDelete: () async -> Void
 	var onOpenURL: (URL) -> Void
 
 	@State private var huggingFaceMetadata: HuggingFaceModelMetadata?
@@ -25,9 +25,9 @@ struct ModelDetailsView: View {
 		isDeleting: Bool = false,
 		deleteErrorMessage: String? = nil,
 		downloadAvailability: ModelStorageLimit.DownloadAvailability = .available,
-		onDownload: @escaping () -> Void = { },
+		onDownload: @escaping () async -> Void = { },
 		onSelect: @escaping () -> Void = { },
-		onDelete: @escaping () -> Void = { },
+		onDelete: @escaping () async -> Void = { },
 		onOpenURL: @escaping (URL) -> Void = { _ in }
 	) {
 		self.model = model
@@ -121,10 +121,9 @@ struct ModelDetailsView: View {
 				if !isDownloaded, !model.isBuiltIn {
 					BeaconButton(
 						assetIcon: "download.icon",
-						isDisabled: !canDownload
-					) {
-						onDownload()
-					}
+						isDisabled: !canDownload,
+						asyncAction: onDownload
+					)
 				}
 			}
 			#else
@@ -139,10 +138,9 @@ struct ModelDetailsView: View {
 				ToolbarItem(placement: .topBarTrailing) {
 					BeaconButton(
 						assetIcon: "download.icon",
-						isDisabled: !canDownload
-					) {
-						onDownload()
-					}
+						isDisabled: !canDownload,
+						asyncAction: onDownload
+					)
 				}
 			}
 			#endif
@@ -276,16 +274,13 @@ struct ModelDetailsView: View {
 						"Download",
 						variant: .secondary,
 						trailingAssetIcon: "download.icon",
-						isDisabled: !canDownload
-					) {
-						onDownload()
-					}
+						isDisabled: !canDownload,
+						asyncAction: onDownload
+					)
 				}
 
 				if isDownloaded, !model.isBuiltIn {
-					BeaconButton("Delete", variant: .destructive, trailingAssetIcon: "trash.icon", isLoading: isDeleting) {
-						onDelete()
-					}
+					BeaconButton("Delete", variant: .destructive, trailingAssetIcon: "trash.icon", isLoading: isDeleting, asyncAction: onDelete)
 				}
 			}
 
@@ -417,11 +412,13 @@ extension BeaconModel {
 		if searchableText.contains("mistral") || searchableText.contains("ministral") { return "Mistral AI" }
 		if searchableText.contains("granite") { return "IBM" }
 		if searchableText.contains("stablelm") { return "Stability AI" }
-		if searchableText.contains("smollm") { return "Hugging Face" }
+		if searchableText.contains("smollm") || searchableText.contains("smolvlm") { return "Hugging Face" }
 		if searchableText.contains("olmo") { return "Allen Institute" }
 		if searchableText.contains("yi-") { return "01.AI" }
 		if searchableText.contains("glm") { return "Zhipu" }
 		if searchableText.contains("minicpm") { return "OpenBMB" }
+		if searchableText.contains("falcon") { return "TII" }
+		if searchableText.contains("exaone") { return "LG AI Research" }
 		return repositoryID.split(separator: "/").first.map(String.init) ?? "Other"
 	}
 
@@ -505,7 +502,7 @@ extension ModelDeviceCompatibility {
 		switch self {
 		case .goodFit: .green
 		case .mayBeSlow: .orange
-		case .unavailable: .gray
+		case .unavailable: .orange
 		}
 	}
 }

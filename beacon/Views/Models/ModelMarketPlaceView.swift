@@ -13,10 +13,12 @@ struct ModelMarketPlaceView: View {
 	let models: [BeaconModel]
 	var isOnboarding = false
 	var onClose: () -> Void = { }
-	var onDownload: (BeaconModel) -> Void = { _ in }
+	var onDownload: (BeaconModel) async -> Void = { _ in }
 	var onSelect: (BeaconModel) -> Void = { _ in }
+	var onDownloadBundle: () async -> Void = { }
 
 	@AppStorage("selectedModelID") private var selectedModelID = ""
+	@AppStorage("usesChatCore") private var usesChatCore = true
 	@AppStorage("downloadedModelIDs") private var downloadedModelIDs = ""
 	@StateObject private var safariViewModel = SafariViewModel()
 	@State private var deletingModelID: String?
@@ -27,19 +29,19 @@ struct ModelMarketPlaceView: View {
 	@State private var informationModelID: String?
 	@State private var availableStorageGB: Double?
 	@State private var hasMeasuredAvailableStorage = false
+	@State private var selectedCategory: ModelMarketplaceCategory = .chatCore
+	@State private var metadata: [String: HuggingFaceModelMetadata] = [:]
+	@State private var catalogRefreshMessage: String?
 	private var catalogModels: [BeaconModel] {
 		models
 	}
 
-	private var recommendedModels: [BeaconModel] {
-		ModelCatalog.marketplaceModels(in: models)
+	private var displayedModels: [BeaconModel] {
+		selectedCategory.models(in: models)
 	}
 
-	private var otherDownloadedModels: [BeaconModel] {
-		let recommendedIDs = Set(recommendedModels.map(\.id))
-		return models.filter {
-			!recommendedIDs.contains($0.id) && (isDownloaded($0) || selectedModelID == $0.id)
-		}
+	private var bundleModels: [BeaconModel] {
+		ModelCatalog.coreOnboardingModels(in: models)
 	}
 
 	var body: some View {
@@ -47,8 +49,8 @@ struct ModelMarketPlaceView: View {
 			ScrollView {
 				VStack(alignment: .leading, spacing: 28) {
 					Text(isOnboarding
-						? "Choose the kind of help you want from Beacon. You can add or remove models later in Settings."
-						: "Three kinds of help, with a model selected for your iPhone. Manage your downloads here.")
+						? "Get started with Chat Core, or choose an individual model from Hugging Face."
+						: "Explore the full supported Hugging Face / MLX catalog. RAM-based recommendations are a guide, not a download restriction.")
 						.font(.openRunde(size: 16, weight: .regular))
 						.foregroundStyle(.secondary)
 						.lineSpacing(3)
@@ -62,13 +64,40 @@ struct ModelMarketPlaceView: View {
 							.background(Color.red.opacity(0.08), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
 					}
 
-					modelList
+					if let catalogRefreshMessage {
+						Text(catalogRefreshMessage)
+							.font(.openRunde(size: 13, weight: .regular))
+							.foregroundStyle(.secondary)
+					}
+					Tabs(
+						options: ModelMarketplaceCategory.options(in: models),
+						selection: $selectedCategory,
+						size: .small,
+						horizontalScrollOverflow: 24,
+						title: { $0.title }
+					) { category in
+						VStack(alignment: .leading, spacing: 24) {
+							if category == .chatCore, !bundleModels.isEmpty {
+								bundleCard
+							}
+							if category == .recommended {
+								Text("Models recommended for your device’s RAM. Other supported models are available in the company tabs.")
+									.font(.openRunde(size: 15, weight: .regular))
+									.foregroundStyle(.secondary)
+							}
+							modelList
+						}
+					}
 				}
 				.padding(.horizontal, 24)
 				.padding(.bottom, 96)
 			}
 			.scrollEdgeEffectStyle(.soft, for: .top)
-			.navigationTitle(isOnboarding ? "Choose a Model" : "Manage Models")
+			.navigationTitle("Model Marketplace")
+			.refreshable {
+				await refreshCatalogMetadata(forceRefresh: true)
+				await measureAvailableStorage()
+			}
 			#if !os(macOS)
 			.navigationBarTitleDisplayMode(.large)
 			.toolbarVisibility(.visible, for: .navigationBar)
@@ -104,17 +133,15 @@ struct ModelMarketPlaceView: View {
 					ModelDetailsView(
 						model: model,
 						isDownloaded: isDownloaded(model),
-						isSelected: selectedModelID == model.id,
+						isSelected: !usesChatCore && selectedModelID == model.id,
 						isDeleting: deletingModelID == model.id,
 						deleteErrorMessage: deleteErrorMessage,
 						downloadAvailability: downloadAvailability(for: model),
-						onDownload: { onDownload(model) },
+						onDownload: { await onDownload(model) },
 						onSelect: {
-							selectedModelID = model.id
-							onSelect(model)
-							showModelSwitchToast(for: model.name)
+							selectModel(model)
 						},
-						onDelete: { delete(model) },
+						onDelete: { await delete(model) },
 						onOpenURL: { safariViewModel.open($0) }
 					)
 				}
@@ -135,6 +162,9 @@ struct ModelMarketPlaceView: View {
 		.task {
 			await measureAvailableStorage()
 		}
+		.task(id: selectedCategory) {
+			await refreshCatalogMetadata()
+		}
 		.onDisappear {
 			modelSwitchToastTask?.cancel()
 		}
@@ -154,11 +184,15 @@ struct ModelMarketPlaceView: View {
 	@ViewBuilder
 	private var modelList: some View {
 		VStack(alignment: .leading, spacing: 28) {
+			if displayedModels.isEmpty {
+				Text("No recommended models in this tab for your device. Browse the company tabs to explore other models.")
+					.foregroundStyle(.secondary)
+			}
 			ModelMarketPlaceList(
-				models: recommendedModels,
-				selectedModelID: selectedModelID,
+				models: displayedModels,
+				selectedModelID: usesChatCore ? "" : selectedModelID,
 				deletingModelID: deletingModelID,
-				isOnboarding: true,
+				metadata: metadata,
 				isDownloaded: isDownloaded,
 				downloadAvailability: downloadAvailability,
 				onDownload: onDownload,
@@ -166,29 +200,52 @@ struct ModelMarketPlaceView: View {
 				onDelete: delete,
 				onOpenDetails: showDetails
 			)
-			if !otherDownloadedModels.isEmpty {
-				Text("Your other downloads")
+		}
+	}
+
+	private var bundleCard: some View {
+		VStack(alignment: .leading, spacing: 20) {
+			HStack(spacing: 8) {
+				Text("Chat Core")
 					.font(.openRunde(size: 20, weight: .semibold))
-				Text("Previously downloaded models remain available to use or remove.")
-					.font(.openRunde(size: 15, weight: .regular))
-					.foregroundStyle(.secondary)
-				ModelMarketPlaceList(
-					models: otherDownloadedModels,
-					selectedModelID: selectedModelID,
-					deletingModelID: deletingModelID,
-					isDownloaded: isDownloaded,
-					downloadAvailability: downloadAvailability,
-					onDownload: onDownload,
-					onSelect: selectModel,
-					onDelete: delete,
-					onOpenDetails: showDetails
-				)
+				VerifiedBadge()
+			}
+			Text("A bundle selected for your device’s \(Int(DeviceMemory.physicalMemoryGB.rounded())) GB RAM. Models run one at a time.")
+				.font(.openRunde(size: 15, weight: .regular))
+				.foregroundStyle(.secondary)
+			ForEach(bundleModels) { model in
+				Text("\(model.name) · \(model.formattedSize)")
+					.font(.openRunde(size: 14, weight: .medium))
+			}
+			BeaconButton(bundleModels.allSatisfy(isDownloaded) ? "Use Chat Core" : "Download Chat Core", variant: .black, size: .large, isFullWidth: true, asyncAction: onDownloadBundle)
+		}
+		.padding(24)
+		.frame(maxWidth: .infinity, alignment: .leading)
+		.background(Color(uiColor: .systemGray6).opacity(0.5), in: RoundedRectangle(cornerRadius: 26, style: .continuous))
+	}
+
+	/// Fetch live Hub information for every supported repository. A Hub outage
+	/// must never hide the bundled catalog or disable an otherwise valid download.
+	@MainActor
+	private func refreshCatalogMetadata(forceRefresh: Bool = false) async {
+		let service = HuggingFaceModelMetadataService()
+		var failureCount = 0
+		for model in selectedCategory.models(in: models) where !model.isBuiltIn {
+			guard !Task.isCancelled else { return }
+			do {
+				metadata[model.id] = try await service.fetch(repositoryID: model.repositoryID, forceRefresh: forceRefresh)
+			} catch is CancellationError {
+				return
+			} catch {
+				failureCount += 1
 			}
 		}
+		catalogRefreshMessage = failureCount == 0 ? nil : "Some Hugging Face information couldn’t refresh. All supported models remain available below. Pull down to retry."
 	}
 
 	private func selectModel(_ model: BeaconModel) {
 		selectedModelID = model.id
+		usesChatCore = false
 		onSelect(model)
 		showModelSwitchToast(for: model.name)
 	}
@@ -252,8 +309,9 @@ struct ModelMarketPlaceView: View {
 		hasMeasuredAvailableStorage = true
 	}
 
-	private func delete(_ model: BeaconModel) {
+	private func delete(_ model: BeaconModel) async {
 		guard !model.isBuiltIn else { return }
+		guard deletingModelID == nil else { return }
 		guard selectedModelID != model.id else {
 			selectedDeleteWarningModelName = model.name
 			return
@@ -265,22 +323,16 @@ struct ModelMarketPlaceView: View {
 		defer { deletingModelID = nil }
 
 		do {
-			let fileManager = FileManager.default
 			let cacheURL = cacheDirectory(for: model)
 			let metadataURL = metadataDirectory(for: model)
 			let lockURL = lockDirectory(for: model)
 
-			if fileManager.fileExists(atPath: cacheURL.path) {
-				try fileManager.removeItem(at: cacheURL)
-			}
-
-			if fileManager.fileExists(atPath: metadataURL.path) {
-				try fileManager.removeItem(at: metadataURL)
-			}
-
-			if fileManager.fileExists(atPath: lockURL.path) {
-				try fileManager.removeItem(at: lockURL)
-			}
+			try await Task.detached(priority: .userInitiated) {
+				let fileManager = FileManager.default
+				for url in [cacheURL, metadataURL, lockURL] where fileManager.fileExists(atPath: url.path) {
+					try fileManager.removeItem(at: url)
+				}
+			}.value
 
 			var ids = downloadedIDs
 			ids.remove(model.id)
@@ -344,11 +396,12 @@ private struct ModelMarketPlaceList: View {
 	let selectedModelID: String
 	let deletingModelID: String?
 	var isOnboarding = false
+	var metadata: [String: HuggingFaceModelMetadata] = [:]
 	var isDownloaded: (BeaconModel) -> Bool
 	var downloadAvailability: (BeaconModel) -> ModelStorageLimit.DownloadAvailability
-	var onDownload: (BeaconModel) -> Void
+	var onDownload: (BeaconModel) async -> Void
 	var onSelect: (BeaconModel) -> Void
-	var onDelete: (BeaconModel) -> Void
+	var onDelete: (BeaconModel) async -> Void
 	var onOpenDetails: (BeaconModel) -> Void
 
 	var body: some View {
@@ -360,15 +413,16 @@ private struct ModelMarketPlaceList: View {
 					isSelected: selectedModelID == model.id,
 					isDeleting: deletingModelID == model.id,
 					isOnboarding: isOnboarding,
+					metadata: metadata[model.id],
 					downloadAvailability: downloadAvailability(model),
 					onDownload: {
-						onDownload(model)
+						await onDownload(model)
 					},
 					onSelect: {
 						onSelect(model)
 					},
 					onDelete: {
-						onDelete(model)
+						await onDelete(model)
 					},
 					onOpenDetails: {
 						onOpenDetails(model)
@@ -390,14 +444,13 @@ private struct ModelMarketPlaceRow: View {
 	let isSelected: Bool
 	let isDeleting: Bool
 	let isOnboarding: Bool
+	let metadata: HuggingFaceModelMetadata?
 	let downloadAvailability: ModelStorageLimit.DownloadAvailability
 	var showsDownloadInProgress = false
-	var onDownload: () -> Void
+	var onDownload: () async -> Void
 	var onSelect: () -> Void
-	var onDelete: () -> Void
+	var onDelete: () async -> Void
 	var onOpenDetails: () -> Void
-
-	@State private var isDownloading: Bool
 
 	init(
 		model: BeaconModel,
@@ -405,11 +458,12 @@ private struct ModelMarketPlaceRow: View {
 		isSelected: Bool,
 		isDeleting: Bool,
 		isOnboarding: Bool = false,
+		metadata: HuggingFaceModelMetadata? = nil,
 		downloadAvailability: ModelStorageLimit.DownloadAvailability = .available,
 		showsDownloadInProgress: Bool = false,
-		onDownload: @escaping () -> Void,
+		onDownload: @escaping () async -> Void,
 		onSelect: @escaping () -> Void = { },
-		onDelete: @escaping () -> Void,
+		onDelete: @escaping () async -> Void,
 		onOpenDetails: @escaping () -> Void = { }
 	) {
 		self.model = model
@@ -417,13 +471,13 @@ private struct ModelMarketPlaceRow: View {
 		self.isSelected = isSelected
 		self.isDeleting = isDeleting
 		self.isOnboarding = isOnboarding
+		self.metadata = metadata
 		self.downloadAvailability = downloadAvailability
 		self.showsDownloadInProgress = showsDownloadInProgress
 		self.onDownload = onDownload
 		self.onSelect = onSelect
 		self.onDelete = onDelete
 		self.onOpenDetails = onOpenDetails
-		self._isDownloading = State(initialValue: showsDownloadInProgress)
 	}
 
 	var body: some View {
@@ -453,7 +507,12 @@ private struct ModelMarketPlaceRow: View {
 							if model.isBuiltIn {
 								Tag(title: "Built in", color: .indigo)
 							}
-						Tag(title: deviceCompatibility.tagTitle, color: deviceCompatibility.marketplaceTint)
+						Tag(
+							title: deviceCompatibility.tagTitle,
+							color: deviceCompatibility.marketplaceTint,
+							showsVerifiedBadge: deviceCompatibility == .goodFit,
+							systemImage: deviceCompatibility == .goodFit ? nil : "exclamationmark.triangle.fill"
+						)
 					}
 
 					if let compatibilityMessage = deviceCompatibility.message {
@@ -461,6 +520,11 @@ private struct ModelMarketPlaceRow: View {
 							.font(.openRunde(size: 13, weight: .regular))
 							.foregroundStyle(deviceCompatibility.marketplaceTint)
 							.fixedSize(horizontal: false, vertical: true)
+					}
+					if let downloads = metadata?.downloads {
+						Text("\(downloads.formatted()) downloads on Hugging Face")
+							.font(.openRunde(size: 13, weight: .regular))
+							.foregroundStyle(.secondary)
 					}
 				}
 				.frame(maxWidth: .infinity, alignment: .leading)
@@ -473,14 +537,9 @@ private struct ModelMarketPlaceRow: View {
 				VStack(alignment: .leading, spacing: 14) {
 					HStack(spacing: 10) {
 						if isDownloaded {
-							BeaconButton(isDeleting ? "Deleting" : "Delete", variant: .destructive, size: .small, trailingAssetIcon: "trash.icon", isLoading: isDeleting) {
-								onDelete()
-							}
+							BeaconButton(isDeleting ? "Deleting" : "Delete", variant: .destructive, size: .small, trailingAssetIcon: "trash.icon", isLoading: isDeleting, asyncAction: onDelete)
 						} else {
-							BeaconButton(downloadButtonTitle, variant: .secondary, size: .small, trailingAssetIcon: "download.icon", isDisabled: !downloadAvailability.canDownload || !deviceCompatibility.canUse, isLoading: isDownloading) {
-								isDownloading = true
-								onDownload()
-							}
+							BeaconButton(downloadButtonTitle, variant: .secondary, size: .small, trailingAssetIcon: "download.icon", isDisabled: !downloadAvailability.canDownload || !deviceCompatibility.canUse, isLoading: showsDownloadInProgress, asyncAction: onDownload)
 						}
 					}
 

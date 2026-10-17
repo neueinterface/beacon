@@ -227,6 +227,10 @@ struct Input: View {
 	var canSendMessage = true
 	var showsConversationStarters = true
 	var conversationStarters = ConversationStarters.general
+	var modelOptions: [BeaconModel] = []
+	var selectedInputModelID: String?
+	var onSelectModel: ((BeaconModel?) -> Void)?
+	var onManageModels: (() -> Void)?
 	var onRemoveAttachment: (Int) -> Void = { _ in }
 	var onStop: () -> Void = {}
 	var onSend: (String) -> Void
@@ -314,6 +318,10 @@ struct Input: View {
 					.accessibilityLabel("Attach image")
 				}
 
+				if onSelectModel != nil {
+					modelSwitcher
+				}
+
 				Spacer(minLength: 8)
 
 				Button {
@@ -339,6 +347,53 @@ struct Input: View {
 		.padding(.horizontal, 14)
 		.padding(.vertical, 12)
 		.glassEffect(.regular, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+	}
+
+	private var modelSwitcher: some View {
+		Menu {
+			Button {
+				onSelectModel?(nil)
+			} label: {
+				Label("Chat Core · Automatic", systemImage: selectedInputModelID == nil ? "checkmark" : "sparkles")
+			}
+			Section("Downloaded models") {
+				ForEach(modelOptions) { model in
+					Button {
+						onSelectModel?(model)
+					} label: {
+						if selectedInputModelID == model.id {
+							Label(model.name, systemImage: "checkmark")
+						} else {
+							Text(model.name)
+						}
+					}
+				}
+			}
+			if let onManageModels {
+				Button(action: onManageModels) {
+					Label("Model Marketplace", systemImage: "arrow.down.circle")
+				}
+			}
+		} label: {
+			HStack(spacing: 5) {
+				Text(modelOptions.first(where: { $0.id == selectedInputModelID })?.name ?? "Chat Core")
+					.lineLimit(1)
+					.truncationMode(.tail)
+				Image(systemName: "chevron.down")
+					.font(.system(size: 9, weight: .semibold))
+			}
+			.font(.beaconFont(size: 14, weight: .medium))
+			.foregroundStyle(.primary)
+			.padding(.horizontal, 11)
+			.frame(height: 32)
+			.background(Color(uiColor: .systemGray5), in: Capsule())
+			.contentShape(Capsule())
+		}
+		.buttonStyle(.plain)
+		.disabled(isGenerating)
+		.accessibilityLabel("Choose model")
+		.accessibilityValue(modelOptions.first(where: { $0.id == selectedInputModelID })?.name ?? "Chat Core, automatic routing")
+		.accessibilityIdentifier("chat-model-switcher")
 	}
 }
 

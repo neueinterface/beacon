@@ -135,10 +135,13 @@ struct ChatView: View {
 	@ObservedObject var runtime: BeaconModelRuntime
 	@ObservedObject var memoryStore: MemoryStore
 	let models: [BeaconModel]
-	var onDownloadModel: (BeaconModel) -> Void = { _ in }
+	var onDownloadModel: (BeaconModel) async -> Void = { _ in }
+	var onDownloadBundle: () async -> Void = { }
 	@ObservedObject var notificationRouter = NotificationRouter()
 	@StateObject private var historyViewModel = ChatHistoryViewModel()
 	@AppStorage("downloadedModelIDs") private var downloadedModelIDs = ""
+	@AppStorage("selectedModelID") private var selectedModelID = ""
+	@AppStorage("usesChatCore") private var usesChatCore = true
 	@AppStorage("notificationsEnabled") private var notificationsEnabled = false
 	@AppStorage("memoryEnabled") private var memoryEnabled = true
 	#if false // Web search is not currently available.
@@ -155,6 +158,7 @@ struct ChatView: View {
 	#endif
 	@State private var isShowingHistory = false
 	@State private var isShowingSettings = false
+	@State private var isShowingModelMarketplace = false
 	@State private var isShowingAppIconPicker = false
 	@State private var quickActionPresentationTask: Task<Void, Never>?
 	@State private var pendingScrollMessageID: ChatMessage.ID?
@@ -189,7 +193,25 @@ struct ChatView: View {
 
 	private var selectedModel: BeaconModel {
 		let downloadedIDs = Set(downloadedModelIDs.split(separator: ",").map(String.init))
-		return BeaconModelRouter.route(text: "", hasImages: false, in: models, downloadedIDs: downloadedIDs)
+		return BeaconModelRouter.route(text: "", hasImages: false, in: models, downloadedIDs: downloadedIDs, preferredModelID: manualModelID)
+	}
+
+	private var switchableModels: [BeaconModel] {
+		models.filter { isDownloaded($0) && ModelDeviceCompatibility.current(for: $0).canUse }
+	}
+
+	private var manualModelID: String? {
+		!usesChatCore && switchableModels.contains(where: { $0.id == selectedModelID }) ? selectedModelID : nil
+	}
+
+	private func selectInputModel(_ model: BeaconModel?) {
+		guard !isAssistantBusy else { return }
+		if let model {
+			selectedModelID = model.id
+			usesChatCore = false
+		} else {
+			usesChatCore = true
+		}
 	}
 
 	private var isAssistantBusy: Bool {
@@ -251,6 +273,9 @@ struct ChatView: View {
                         },
                         onOpenSettings: {
                             isShowingSettings = true
+                        },
+                        onOpenModels: {
+                            isShowingModelMarketplace = true
                         }
                     ) { chat in
 						pendingScrollMessageID = historyViewModel.lastUserMessageID(in: chat) ?? historyViewModel.firstMessageID(in: chat)
@@ -276,7 +301,22 @@ struct ChatView: View {
 			}
 		}
 		.sheet(isPresented: $isShowingSettings) {
-			SettingsView(chatHistoryViewModel: historyViewModel, memoryStore: memoryStore, models: models, onDownloadModel: onDownloadModel)
+			SettingsView(chatHistoryViewModel: historyViewModel, memoryStore: memoryStore, models: models, onDownloadModel: onDownloadModel, onDownloadBundle: onDownloadBundle)
+		}
+		.sheet(isPresented: $isShowingModelMarketplace) {
+			ModelMarketPlaceView(
+				models: models,
+				onClose: { isShowingModelMarketplace = false },
+				onDownload: { model in
+					await onDownloadModel(model)
+					isShowingModelMarketplace = false
+				},
+				onSelect: { model in selectInputModel(model) },
+				onDownloadBundle: {
+					await onDownloadBundle()
+					isShowingModelMarketplace = false
+				}
+			)
 		}
 		.sheet(isPresented: $isShowingAppIconPicker) {
 			NavigationStack {
@@ -536,6 +576,10 @@ struct ChatView: View {
 				canSendMessage: !attachmentNeedsVisionModel && !isDownloadingAttachedVisionModel,
 				showsConversationStarters: historyViewModel.currentMessages.isEmpty,
 				conversationStarters: ConversationStarters.general,
+				modelOptions: switchableModels,
+				selectedInputModelID: manualModelID,
+				onSelectModel: selectInputModel,
+				onManageModels: { isShowingModelMarketplace = true },
 				onRemoveAttachment: { index in
 					guard attachedImageData.indices.contains(index) else { return }
 					attachedImageData.remove(at: index)
@@ -615,7 +659,8 @@ struct ChatView: View {
 			text: text,
 			hasImages: !imageDatas.isEmpty,
 			in: models,
-			downloadedIDs: Set(downloadedModelIDs.split(separator: ",").map(String.init))
+			downloadedIDs: Set(downloadedModelIDs.split(separator: ",").map(String.init)),
+			preferredModelID: manualModelID
 		)
 		let conversationHistory = historyViewModel.currentMessages
 

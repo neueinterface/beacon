@@ -38,6 +38,57 @@ struct BeaconButton: View {
 	private let isDisabled: Bool
 	private let isLoading: Bool
 	private let action: () -> Void
+	private var asyncAction: (() async -> Void)?
+	@State private var isPerformingAction = false
+	@State private var showsLoadingIndicator = false
+
+	private var isBusy: Bool { isLoading || isPerformingAction }
+
+	init(
+		assetIcon: String,
+		variant: Variant = .primary,
+		size: Size = .default,
+		isDisabled: Bool = false,
+		isLoading: Bool = false,
+		asyncAction: @escaping () async -> Void
+	) {
+		self.init(assetIcon: assetIcon, variant: variant, size: size,
+			isDisabled: isDisabled, isLoading: isLoading, action: { })
+		self.asyncAction = asyncAction
+	}
+
+	init(
+		icon: String,
+		variant: Variant = .primary,
+		size: Size = .default,
+		isDisabled: Bool = false,
+		isLoading: Bool = false,
+		asyncAction: @escaping () async -> Void
+	) {
+		self.init(icon: icon, variant: variant, size: size,
+			isDisabled: isDisabled, isLoading: isLoading, action: { })
+		self.asyncAction = asyncAction
+	}
+
+	init(
+		_ title: String,
+		variant: Variant = .primary,
+		size: Size = .default,
+		isFullWidth: Bool = false,
+		leadingIcon: String? = nil,
+		leadingAssetIcon: String? = nil,
+		trailingIcon: String? = nil,
+		trailingAssetIcon: String? = nil,
+		isDisabled: Bool = false,
+		isLoading: Bool = false,
+		asyncAction: @escaping () async -> Void
+	) {
+		self.init(title, variant: variant, size: size, isFullWidth: isFullWidth,
+			leadingIcon: leadingIcon, leadingAssetIcon: leadingAssetIcon,
+			trailingIcon: trailingIcon, trailingAssetIcon: trailingAssetIcon,
+			isDisabled: isDisabled, isLoading: isLoading, action: { })
+		self.asyncAction = asyncAction
+	}
 
 	init(
 		_ title: String,
@@ -114,12 +165,41 @@ struct BeaconButton: View {
 	}
 
 	var body: some View {
-		SwiftUI.Button(action: action) {
+		SwiftUI.Button {
+			guard !isDisabled, !isBusy else { return }
+			if asyncAction != nil {
+				isPerformingAction = true
+			} else {
+				action()
+			}
+		} label: {
 			content
 		}
 		.buttonStyle(SpringButtonStyle())
-		.disabled(isDisabled || isLoading)
+		.disabled(isDisabled || isBusy)
 		.opacity(isDisabled ? 0.45 : 1)
+		.task(id: isPerformingAction) {
+			guard isPerformingAction, let asyncAction else { return }
+			defer { isPerformingAction = false }
+			guard !Task.isCancelled else { return }
+			await asyncAction()
+		}
+		.task(id: isBusy) {
+			showsLoadingIndicator = false
+			guard isBusy else { return }
+			do {
+				// Fast operations finish without flashing a spinner. This delay
+				// only affects the indicator, never the action or tap protection.
+				try await Task.sleep(for: .milliseconds(200))
+				try Task.checkCancellation()
+				showsLoadingIndicator = true
+			} catch { }
+		}
+		.onDisappear {
+			isPerformingAction = false
+			showsLoadingIndicator = false
+		}
+		.accessibilityValue(isBusy ? "Loading" : "")
 	}
 
 	@ViewBuilder
@@ -145,7 +225,7 @@ struct BeaconButton: View {
 						.fixedSize(horizontal: false, vertical: true)
 				}
 
-				if isLoading {
+				if showsLoadingIndicator && isBusy {
 					BeaconLoader(size: loaderSize, lineWidth: 2, color: foregroundStyle)
 				} else if let trailingAssetIcon {
 					assetIconView(trailingAssetIcon)
@@ -172,7 +252,9 @@ struct BeaconButton: View {
 
 	@ViewBuilder
 	private var iconContent: some View {
-		if let icon {
+		if showsLoadingIndicator && isBusy {
+			BeaconLoader(size: loaderSize, lineWidth: 2, color: foregroundStyle)
+		} else if let icon {
 			Image(systemName: icon)
 				.font(iconFont)
 		} else if let assetIcon {
